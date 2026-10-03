@@ -22,8 +22,7 @@ import yaml from 'highlight.js/lib/languages/yaml';
 const LANGUAGES = { bash, css, dockerfile, go, ini, java, javascript, json, php, python, rust, sql, typescript, xml, yaml };
 for (const [name, language] of Object.entries(LANGUAGES)) hljs.registerLanguage(name, language);
 
-export const HIGHLIGHT_LIMIT_BYTES = 200 * 1024;
-export const LANGUAGE_IDS = Object.keys(LANGUAGES);
+export { HIGHLIGHT_LIMIT_BYTES, LANGUAGE_IDS } from './languages';
 
 /** Escaped HTML with hljs classes, or null when the language is unknown. */
 export function highlightToHtml(code: string, language: string): string | null {

@@ -12,8 +12,7 @@ import { matchesAccessKey, matchesDeletionToken, prepare, type PreparedPaste } f
 import { decode } from '../crypto/base64url';
 import type { PublicConfig } from '../config';
 import { t } from '../i18n';
-import { HIGHLIGHT_LIMIT_BYTES, LANGUAGE_IDS } from '../render/highlight';
-import { renderMarkdown } from '../render/markdown';
+import { HIGHLIGHT_LIMIT_BYTES, LANGUAGE_IDS } from '../render/languages';
 import { parseTemplateText, renderTemplate, SENSITIVE_FIELDS, TEMPLATES } from '../templates';
 import { buildTemplateForm } from '../ui/template-form';
 import { announce, toast } from '../ui/announcer';
@@ -23,7 +22,6 @@ import { crossedThreshold, nextTickMs, remainingAt, synchronise, type Sync } fro
 import { el, nextId, showScreen } from '../ui/dom';
 import { formatBytes, formatDate, formatRelative } from '../ui/format';
 import { generate, strength, wordlist } from '../ui/passphrase';
-import { qrSvg } from '../ui/qrcode';
 import { locale } from '../i18n';
 
 interface State {
@@ -40,9 +38,9 @@ interface State {
   generated: boolean;
 }
 
-export function cryptoAvailable(): boolean {
-  return typeof crypto !== 'undefined' && typeof crypto.subtle !== 'undefined' && window.isSecureContext;
-}
+import { cryptoAvailable } from '../ui/capabilities';
+
+export { cryptoAvailable };
 
 export function mountCreate(main: HTMLElement, config: PublicConfig): () => void {
   const state: State = {
@@ -114,19 +112,21 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     const previewButton = el('button', { type: 'button', class: 'chip', 'aria-pressed': 'false', 'aria-controls': nextId('preview') }, t('preview.show'));
     const previewPanel = el('section', { class: 'reader markdown preview', id: previewButton.getAttribute('aria-controls') ?? '', hidden: true, 'aria-label': t('preview.title') });
     let previewTimer = 0;
-    const renderPreview = () => {
+    const renderPreview = async () => {
       if (!previewOpen) return;
       const text = editor.value;
-      previewPanel.replaceChildren(el('p', { class: 'hint' }, t('preview.title')));
-      if (new TextEncoder().encode(text).length > HIGHLIGHT_LIMIT_BYTES) previewPanel.append(el('p', { class: 'notice' }, t('read.richDisabled')));
-      else previewPanel.append(renderMarkdown(text));
+      // Markdown rendering is loaded only when the preview is used (§13).
+      const content = new TextEncoder().encode(text).length > HIGHLIGHT_LIMIT_BYTES
+        ? el('p', { class: 'notice' }, t('read.richDisabled'))
+        : (await import('../render/markdown')).renderMarkdown(text);
+      previewPanel.replaceChildren(el('p', { class: 'hint' }, t('preview.title')), content);
     };
     previewButton.addEventListener('click', () => {
       previewOpen = !previewOpen;
       previewPanel.hidden = !previewOpen;
       previewButton.setAttribute('aria-pressed', String(previewOpen));
       previewButton.textContent = previewOpen ? t('preview.hide') : t('preview.show');
-      renderPreview();
+      void renderPreview();
     });
 
     const refresh = () => {
@@ -134,7 +134,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       previewButton.hidden = state.format !== 'markdown';
       if (previewButton.hidden && previewOpen) previewButton.click();
       window.clearTimeout(previewTimer);
-      previewTimer = window.setTimeout(renderPreview, 150);
+      previewTimer = window.setTimeout(() => void renderPreview(), 150);
       emptyHint.textContent = state.text === '' ? t('editor.empty') : '';
       const used = envelopeSize();
       const ratio = used / config.maxEnvelopeBytes;
@@ -592,7 +592,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     if (config.enableQrCode) {
       const qrBox = el('div', { class: 'qr-box', hidden: true });
       const qrButton = el('button', { type: 'button', class: 'button button-secondary', 'aria-expanded': 'false' }, t('result.qr'));
-      qrButton.addEventListener('click', () => {
+      qrButton.addEventListener('click', async () => {
         const open = qrBox.hidden;
         qrBox.hidden = !open;
         qrButton.textContent = open ? t('result.qrHide') : t('result.qr');
@@ -600,6 +600,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
         if (open && qrBox.childElementCount === 0) {
           const full = el('button', { type: 'button', class: 'button button-tertiary' }, t('result.qrFullscreen'));
           full.addEventListener('click', () => void qrBox.requestFullscreen?.());
+          const { qrSvg } = await import('../ui/qrcode');
           qrBox.append(qrSvg(shareLink, t('result.qrLabel')), full);
         }
       });

@@ -14,14 +14,13 @@ import { DecryptionError } from '../crypto/primitives';
 import { accessPublicKey, accessSeed, checkConsumeKey, decrypt, matchesAccessKey, prove, WrongPassphraseError } from '../crypto/protocol';
 import type { PublicConfig } from '../config';
 import { t } from '../i18n';
-import { buildContentView } from '../render/content-view';
 import { exportButton, printButton } from '../ui/local-output';
 import { announce, toast } from '../ui/announcer';
 import { copyText } from '../ui/clipboard';
 import { crossedThreshold, nextTickMs, remainingAt, synchronise, type Sync } from '../ui/countdown';
 import { el, nextId, showScreen } from '../ui/dom';
 import { formatDate, formatRelative } from '../ui/format';
-import { cryptoAvailable } from './create';
+import { cryptoAvailable } from '../ui/capabilities';
 
 const RESERVATION_MAX_SECONDS = 300;
 const AUTO_HIDE_MS = 120_000;
@@ -222,10 +221,12 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
         event.returnValue = t('read.leaveWarning');
       });
     }
-    showContent(envelope, data, consumedNotice, sync ?? (data.expires_at === null ? null : synchronise(data.expires_at, data.server_time, opened.t0, opened.t1)), data.unconfirmed_opens ?? 0);
+    await showContent(envelope, data, consumedNotice, sync ?? (data.expires_at === null ? null : synchronise(data.expires_at, data.server_time, opened.t0, opened.t1)), data.unconfirmed_opens ?? 0);
   }
 
-  function showContent(envelope: Envelope, data: OpenResponse, consumedNotice: HTMLElement | null, sync: Sync | null, priorOpens: number): void {
+  async function showContent(envelope: Envelope, data: OpenResponse, consumedNotice: HTMLElement | null, sync: Sync | null, priorOpens: number): Promise<void> {
+    // Markdown, highlighting and QR code are loaded only once the content is decrypted (§13).
+    const { buildContentView } = await import('../render/content-view');
     const { container, controls } = buildContentView(envelope, { wifiQr: config.enableQrCode });
 
     const hiddenNotice = el('p', { class: 'hint', hidden: true }, t('read.hidden'));

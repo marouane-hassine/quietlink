@@ -12,7 +12,7 @@ import { t } from '../i18n';
 import { announce } from '../ui/announcer';
 import { confirmInline } from '../ui/confirm';
 import { el, showScreen } from '../ui/dom';
-import { cryptoAvailable } from './create';
+import { cryptoAvailable } from '../ui/capabilities';
 
 export function mountManage(main: HTMLElement): () => void {
   const render = async () => {

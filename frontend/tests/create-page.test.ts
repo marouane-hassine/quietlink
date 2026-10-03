@@ -99,7 +99,7 @@ describe('templates on the creation page', () => {
     expect(document.activeElement?.textContent).toBe('New confidential text');
   });
 
-  it('shows the settings summary, applies clamped presets and previews Markdown locally', () => {
+  it('shows the settings summary, applies clamped presets and previews Markdown locally', async () => {
     const summary = () => main.querySelector('.summary')?.textContent ?? '';
     expect(summary()).toContain('Expires after 1 day');
     (main.querySelector('details.options') as HTMLDetailsElement).open = true;
@@ -116,6 +116,7 @@ describe('templates on the creation page', () => {
     editor().dispatchEvent(new Event('input'));
     const preview = [...main.querySelectorAll('button')].find((b) => b.textContent === 'Preview') as HTMLButtonElement;
     preview.click();
+    for (let i = 0; i < 50 && !main.querySelector('.preview h1'); i++) await tick();
     expect(main.querySelector('.preview h1')?.textContent).toBe('Dummy heading');
   });
 
