@@ -424,12 +424,15 @@ Cron example (host installation):
   the proxy.
 - `Strict-Transport-Security: max-age=<http.hsts_max_age>; includeSubDomains` is sent only when
   the request is seen as HTTPS. Behind a TLS-terminating proxy this requires the proxy to send
-  `X-Forwarded-Proto: https` and its address to be listed in `http.trusted_proxies` (the shipped
-  Nginx configuration also maps `X-Forwarded-Proto: https` to the FastCGI `HTTPS` parameter).
+  `X-Forwarded-Proto: https` and its address to be listed in `http.trusted_proxies`. The shipped
+  Nginx configuration never trusts these headers itself: it forwards them (appending the
+  connecting address to `X-Forwarded-For`) and the application decides from
+  `http.trusted_proxies`.
   `includeSubDomains` applies to every subdomain of the instance host: use a dedicated host.
 - **`http.trusted_proxies`**: list the address(es) of the proxy that connects to PHP-FPM's web
-  server, as seen by the application (in the Compose setup, the address of the HTTPS proxy as
-  seen from the `web` container, e.g. the Docker bridge range). Only then are
+  server, as seen by the application. In the Compose setup PHP-FPM sees the `web` container,
+  which itself sees the HTTPS proxy through the Docker bridge: list the Compose network range
+  (e.g. `172.16.0.0/12`) **and** the outer proxy address. Only then are
   `X-Forwarded-For`, `X-Forwarded-Proto`, `X-Forwarded-Host`, `X-Forwarded-Port` and
   `Forwarded` honoured. With an empty list behind a proxy, **all clients share one rate limiting
   key** (`app:boot` warns about it). Never list ranges that untrusted clients can connect from.
@@ -437,8 +440,8 @@ Cron example (host installation):
   log full URLs, request bodies, `X-Deletion-Token` or `Idempotency-Key` headers, and must not
   cache API responses. Share links carry their key in the fragment, which is never sent, but
   paths contain public identifiers: disable or minimise proxy access logs.
-- The Compose `web` service is bound to `127.0.0.1:8080` precisely because it trusts
-  `X-Forwarded-Proto`; do not expose it directly to the network.
+- The Compose `web` service is bound to `127.0.0.1:8080` (override the host port with
+  `QUIETLINK_HTTP_PORT`): it speaks plain HTTP and must only be reached through the TLS proxy.
 
 Example (Nginx as the TLS proxy, dummy host):
 
