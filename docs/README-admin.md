@@ -384,7 +384,7 @@ All commands run as the application account with the same environment as PHP-FPM
 | `php bin/console app:secret:generate` | Prints a new secret (32 random bytes, standard base64). |
 | `php bin/console app:purge-expired` | See §8.2. |
 | `php bin/console app:theme:preview --output=<dir>` | Writes `index.html` (light) and `dark.html` (dark) showing every component and state with the configured theme tokens, dummy content only, no script. Open them locally before activating a theme. |
-| `php bin/console app:cache:purge` | Controlled purge of non-sensitive caches: removes generated theme stylesheets no longer referenced after a theme change and `app:boot`. Hashed frontend assets change name with each release; the prewarmed Symfony container is replaced with the image. Pastes, keys and secrets are never cached. |
+| `php bin/console app:cache:purge` | Controlled purge of non-sensitive caches: removes generated theme stylesheets no longer referenced after a theme change and `app:boot`. Hashed frontend assets change name with each release; the Symfony container is compiled per release under `var/cache/<env>/<version>/`, so an upgrade never boots on the previous one (remove older version directories after a non-Docker upgrade). Pastes, keys and secrets are never cached. |
 
 ### 8.1 Boot
 

@@ -7,6 +7,7 @@ declare(strict_types=1);
 namespace QuietLink\Cli;
 
 use QuietLink\Maintenance\Booter;
+use QuietLink\Version;
 use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\ConsoleOutputInterface;
@@ -18,7 +19,7 @@ use Throwable;
  */
 final class CliApplication extends Application
 {
-    public const VERSION = '1.0.0-dev';
+    public const VERSION = Version::APP;
 
     public function __construct(private readonly CliContext $context)
     {

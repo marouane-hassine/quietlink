@@ -29,4 +29,13 @@ final class Kernel extends BaseKernel
         yield new FrameworkBundle();
         yield new TwigBundle();
     }
+
+    /**
+     * One compiled container per application version: an upgrade never boots on the cache of
+     * the previous release (§9.6). Instance configuration is read at runtime, never compiled.
+     */
+    public function getCacheDir(): string
+    {
+        return $this->getProjectDir() . '/var/cache/' . $this->environment . '/' . Version::APP;
+    }
 }
