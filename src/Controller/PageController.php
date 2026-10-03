@@ -107,6 +107,8 @@ final class PageController
             'maxEnvelopeBytes' => $paste->maxEnvelopeBytes,
             'kdf' => ['m' => 65536, 't' => 3],
             'enableQrCode' => $this->config->ui->enableQrCode,
+            'allowPrint' => $this->config->ui->allowPrint,
+            'allowExport' => $this->config->ui->allowExport,
             'darkMode' => $this->config->ui->darkMode,
             'templates' => $this->config->ui->templates,
         ] + ($challenges === null ? [] : ['challenges' => $challenges]);

@@ -249,5 +249,13 @@
   "read.view.source": "Source",
   "read.richDisabled": "Ce contenu est volumineux : il est affiché en texte brut pour garder la page réactive.",
   "read.richEnable": "Afficher la version mise en forme",
-  "read.wrap": "Renvoyer les longues lignes à la ligne"
+  "read.wrap": "Renvoyer les longues lignes à la ligne",
+  "read.export": "Enregistrer en fichier texte",
+  "read.exported": "Fichier texte enregistré sur cet appareil.",
+  "read.print": "Imprimer",
+  "read.printWarning": "L’impression sort de la protection de QuietLink : la copie papier ou PDF n’est pas chiffrée et peut être conservée par l’imprimante ou le système.",
+  "read.printConfirm": "Imprimer quand même",
+  "tpl.wifiQr": "Afficher le QR code Wi-Fi",
+  "tpl.wifiQrHide": "Masquer le QR code Wi-Fi",
+  "tpl.wifiQrLabel": "QR code pour rejoindre le réseau Wi-Fi"
 }

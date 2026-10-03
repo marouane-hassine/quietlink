@@ -681,6 +681,8 @@ summary {
   }
 }
 
+/* Printing is disabled by default (ui.allow_print): nothing is printed unless the reader
+   confirmed printing, and then only the decrypted content (§6.8). */
 @media print {
   .site-header,
   .site-footer,
@@ -688,8 +690,24 @@ summary {
   .danger-zone,
   .qr-box,
   .button,
-  details,
-  main {
+  .reader-controls,
+  .confirm-panel,
+  details {
     display: none !important;
+  }
+
+  body:not(.print-allowed) main {
+    display: none !important;
+  }
+
+  body.print-allowed main > :not(.reader) {
+    display: none !important;
+  }
+
+  body.print-allowed .reader {
+    max-block-size: none;
+    overflow: visible;
+    border: 0;
+    filter: none;
   }
 }

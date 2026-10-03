@@ -125,3 +125,36 @@ export function serializeTemplate(template: ParsedTemplate): string {
   }
   return lines.join('\n');
 }
+
+/** Field identifier (tpl.field.<id>) of a label written in any catalog language, or null. */
+export function fieldIdForLabel(label: string): string | null {
+  const wanted = label.trim().toLowerCase();
+  for (const catalog of [en, fr] as Record<string, unknown>[]) {
+    for (const [key, value] of Object.entries(catalog)) {
+      if (key.startsWith('tpl.field.') && typeof value === 'string' && value.toLowerCase() === wanted) return key.slice('tpl.field.'.length);
+    }
+  }
+  return null;
+}
+
+/** Escapes a value for the WIFI: QR payload (backslash before \ ; , : and "). */
+export function escapeWifi(value: string): string {
+  return value.replace(/([\\;,:"])/g, '\\$1');
+}
+
+/** WIFI:T:<type>;S:<ssid>;P:<password>;; from a filled Wi-Fi template, or null when incomplete. */
+export function wifiPayload(template: ParsedTemplate): string | null {
+  const values = new Map<string, string>();
+  for (const section of template.sections) {
+    for (const field of section.fields) {
+      const id = fieldIdForLabel(field.label);
+      if (id && field.value !== '' && !values.has(id)) values.set(id, field.value);
+    }
+  }
+  const ssid = values.get('ssid') ?? '';
+  if (ssid === '') return null;
+  const security = (values.get('security') ?? '').toLowerCase();
+  const password = values.get('password') ?? '';
+  const type = /\b(none|open|aucun|ouvert|nopass)\b/.test(security) || password === '' ? 'nopass' : /wep/.test(security) ? 'WEP' : 'WPA';
+  return `WIFI:T:${type};S:${escapeWifi(ssid)};${type === 'nopass' ? '' : `P:${escapeWifi(password)};`};`;
+}

@@ -14,6 +14,8 @@ export interface PublicConfig {
   maxEnvelopeBytes: number;
   kdf: { m: number; t: number };
   enableQrCode: boolean;
+  allowPrint?: boolean;
+  allowExport?: boolean;
   darkMode: 'auto' | 'light' | 'dark';
   templates: string[];
   challenges?: { open: string; status: string };

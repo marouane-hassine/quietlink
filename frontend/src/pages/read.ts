@@ -15,6 +15,7 @@ import { accessPublicKey, accessSeed, checkConsumeKey, decrypt, matchesAccessKey
 import type { PublicConfig } from '../config';
 import { t } from '../i18n';
 import { buildContentView } from '../render/content-view';
+import { exportButton, printButton } from '../ui/local-output';
 import { announce, toast } from '../ui/announcer';
 import { copyText } from '../ui/clipboard';
 import { crossedThreshold, nextTickMs, remainingAt, synchronise, type Sync } from '../ui/countdown';
@@ -225,7 +226,7 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
   }
 
   function showContent(envelope: Envelope, data: OpenResponse, consumedNotice: HTMLElement | null, sync: Sync | null, priorOpens: number): void {
-    const { container, controls } = buildContentView(envelope);
+    const { container, controls } = buildContentView(envelope, { wifiQr: config.enableQrCode });
 
     const hiddenNotice = el('p', { class: 'hint', hidden: true }, t('read.hidden'));
     const hideButton = el('button', { type: 'button', class: 'button button-secondary', 'aria-pressed': 'false' }, t('read.hide'));
@@ -275,7 +276,7 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
       container,
       hiddenNotice,
       el('p', { class: 'hint' }, t('read.autoHide'), ' ', keep, el('label', { for: keep.id }, t('read.keepVisible'))),
-      el('div', { class: 'action-bar' }, copyAll, hideButton, newLink()),
+      el('div', { class: 'action-bar' }, copyAll, hideButton, ...(config.allowExport ? [exportButton(() => envelope.text)] : []), ...(config.allowPrint ? [printButton()] : []), newLink()),
     );
   }
 

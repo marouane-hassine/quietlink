@@ -7,15 +7,31 @@
  */
 
 import { t } from '../i18n';
-import { isSensitiveLabel, type ParsedTemplate } from '../templates';
+import { isSensitiveLabel, wifiPayload, type ParsedTemplate } from '../templates';
+import { qrSvg } from '../ui/qrcode';
 import { toast } from '../ui/announcer';
 import { copyText } from '../ui/clipboard';
 import { el } from '../ui/dom';
 
 const MASK = '••••••••';
 
-export function renderTemplateView(template: ParsedTemplate): HTMLElement {
+export function renderTemplateView(template: ParsedTemplate, options: { wifiQr?: boolean } = {}): HTMLElement {
   const root = el('div', { class: 'template-view' }, el('h2', {}, template.title));
+  const wifi = options.wifiQr ? wifiPayload(template) : null;
+  if (wifi) {
+    // Wi-Fi QR code (Could): local, hidden by default, shown on explicit action.
+    const box = el('div', { class: 'qr-box', hidden: true });
+    const toggle = el('button', { type: 'button', class: 'button button-secondary', 'aria-expanded': 'false' }, t('tpl.wifiQr'));
+    toggle.addEventListener('click', () => {
+      const open = box.hidden;
+      box.hidden = !open;
+      toggle.setAttribute('aria-expanded', String(open));
+      toggle.textContent = t(open ? 'tpl.wifiQrHide' : 'tpl.wifiQr');
+      if (open && box.childElementCount === 0) box.append(qrSvg(wifi, t('tpl.wifiQrLabel')));
+      if (!open) box.replaceChildren();
+    });
+    root.append(el('div', { class: 'button-row' }, toggle, box));
+  }
   for (const section of template.sections) {
     const list = el('dl', { class: 'template-fields' });
     for (const field of section.fields) {

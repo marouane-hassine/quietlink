@@ -24,7 +24,7 @@ export interface ContentView {
   controls: HTMLElement;
 }
 
-export function buildContentView(envelope: Envelope): ContentView {
+export function buildContentView(envelope: Envelope, options: { wifiQr?: boolean } = {}): ContentView {
   const container = el('div', { class: 'reader', tabindex: '0', 'aria-label': t('page.read.title') });
   const controls = el('div', { class: 'reader-controls' });
   const large = byteLength(envelope.text) > HIGHLIGHT_LIMIT_BYTES;
@@ -39,7 +39,7 @@ export function buildContentView(envelope: Envelope): ContentView {
   const render = (mode: Mode) => {
     container.classList.toggle('markdown', mode === 'rendered' && envelope.format === 'markdown');
     if (mode === 'fields' && template) {
-      container.replaceChildren(renderTemplateView(template));
+      container.replaceChildren(renderTemplateView(template, { wifiQr: options.wifiQr === true && envelope.template === 'wifi' }));
     } else if (mode === 'rendered' && envelope.format === 'markdown') {
       container.replaceChildren(renderMarkdown(envelope.text));
     } else if (mode === 'rendered' && highlightable && envelope.language) {

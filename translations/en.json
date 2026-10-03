@@ -249,5 +249,13 @@
   "read.view.source": "Source",
   "read.richDisabled": "This content is large: it is shown as plain text to keep the page responsive.",
   "read.richEnable": "Show the formatted version",
-  "read.wrap": "Wrap long lines"
+  "read.wrap": "Wrap long lines",
+  "read.export": "Save as text file",
+  "read.exported": "Text file saved on this device.",
+  "read.print": "Print",
+  "read.printWarning": "Printing leaves the protection of QuietLink: the paper or PDF copy is not encrypted and may be kept by the printer or the system.",
+  "read.printConfirm": "Print anyway",
+  "tpl.wifiQr": "Show Wi-Fi QR code",
+  "tpl.wifiQrHide": "Hide Wi-Fi QR code",
+  "tpl.wifiQrLabel": "QR code to join the Wi-Fi network"
 }
