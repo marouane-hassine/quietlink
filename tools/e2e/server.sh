@@ -26,6 +26,9 @@ return [
         'create' => ['limit' => 1000, 'interval' => 600],
         'delete' => ['limit' => 1000, 'interval' => 600],
     ]],
+    // Local export and printing (Could, off by default) are enabled so local-output.spec.ts can
+    // exercise them; they only add buttons to the reading screen.
+    'ui' => ['allow_export' => true, 'allow_print' => true],
     'log' => ['level' => 'warning'],
 ];
 PHP
