@@ -9,9 +9,11 @@ import type { PublicConfig } from '../src/config';
 const prepared: { envelope: string; readOnce: boolean }[] = [];
 const createCalls: number[] = [];
 let failNext = 0;
+let prepareError: Error | null = null;
 
 vi.mock('../src/crypto/protocol', () => ({
   prepare: async (options: { envelope: string; readOnce: boolean }) => {
+    if (prepareError) throw prepareError;
     prepared.push({ envelope: options.envelope, readOnce: options.readOnce });
     return { json: '{}', idempotencyKey: `key-${prepared.length}`, urlKey: new Uint8Array(32), deletionToken: new Uint8Array(32), accessPk: new Uint8Array(32) };
   },
@@ -36,6 +38,7 @@ vi.mock('../src/api', async (original) => {
 });
 
 const { mountCreate } = await import('../src/pages/create');
+const { Argon2UnavailableError } = await import('../src/crypto/argon2-client');
 const { setLocale, t } = await import('../src/i18n');
 
 const config: PublicConfig = {
@@ -63,6 +66,7 @@ describe('creation flow', () => {
     prepared.length = 0;
     createCalls.length = 0;
     failNext = 0;
+    prepareError = null;
     setLocale('en');
     Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true });
     document.body.innerHTML = '<main id="main"></main>';
@@ -113,5 +117,31 @@ describe('creation flow', () => {
 
     expect(prepared).toHaveLength(1);
     expect(main.querySelector('.mode')?.textContent).toBe(t('result.mode.normal'));
+  });
+
+  it('reports an Argon2id worker failure explicitly, without sending anything', async () => {
+    prepareError = new Argon2UnavailableError('worker');
+    type('dummy text');
+    (main.querySelector('.action-bar .button-primary') as HTMLButtonElement).click();
+    await settle();
+
+    expect(main.querySelector('.error-box')?.textContent).toContain(t('error.argon2'));
+    expect(createCalls).toHaveLength(0);
+  });
+
+  it('adds the share-link QR code once, however fast the button is toggled', async () => {
+    document.body.innerHTML = '<main id="main"></main>';
+    main = document.getElementById('main') as HTMLElement;
+    mountCreate(main, { ...config, enableQrCode: true });
+    type('dummy text');
+    (main.querySelector('.action-bar .button-primary') as HTMLButtonElement).click();
+    await settle();
+    const qr = button(t('result.qr'));
+    qr.click();
+    qr.click();
+    qr.click();
+    await settle();
+
+    expect(main.querySelectorAll('.qr-box svg')).toHaveLength(1);
   });
 });

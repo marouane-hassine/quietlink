@@ -15,11 +15,14 @@ import { el, showScreen } from '../ui/dom';
 import { cryptoAvailable } from '../ui/capabilities';
 
 export function mountManage(main: HTMLElement): () => void {
+  /** Set once the deletion request is answered: a redraw must not offer deletion again. */
+  let done = false;
   const render = async () => {
     const message = (key: string) => {
       showScreen(main, el('h1', { class: 'page-title' }, t('page.manage.title')), el('p', { role: 'alert' }, t(key)), el('a', { href: '/', class: 'button button-secondary' }, t('action.new')));
       announce(t(key));
     };
+    if (done) return message('manage.done');
     if (!cryptoAvailable()) return message('app.unsupported');
     const id = location.pathname.split('/').pop() ?? '';
     let idBytes: Uint8Array;
@@ -48,6 +51,7 @@ export function mountManage(main: HTMLElement): () => void {
         }
       }
       // One message whether deleted, expired or invalid (§8.5).
+      done = true;
       message('manage.done');
     });
     showScreen(main, el('h1', { class: 'page-title' }, t('page.manage.title')), el('p', {}, t('manage.intro')), el('p', { class: 'warning' }, t('manage.warning')), el('div', { class: 'action-bar' }, button));

@@ -6,7 +6,7 @@ import { api, ApiError } from '../api';
 import { encode } from '../crypto/base64url';
 import { wipe } from '../crypto/bytes';
 import type { Expiration } from '../crypto/constants';
-import { argon2Supported, deriveInWorker, preloadArgon2 } from '../crypto/argon2-client';
+import { Argon2UnavailableError, argon2Supported, deriveInWorker, preloadArgon2 } from '../crypto/argon2-client';
 import { byteLength, serialize, type Format } from '../crypto/envelope';
 import { matchesAccessKey, matchesDeletionToken, prepare, type PreparedPaste } from '../crypto/protocol';
 import { decode } from '../crypto/base64url';
@@ -429,8 +429,8 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
         busy = false;
         submit.textContent = t('action.create');
         status.textContent = '';
-        const kind = error instanceof ApiError ? error.kind : 'server';
-        const message = t(({ network: 'error.network', rate: 'error.rateLimited', quota: 'error.quota', refused: 'error.refused', tooLarge: 'error.tooLarge' } as Record<string, string>)[kind] ?? 'error.server');
+        const kind = error instanceof ApiError ? error.kind : error instanceof Argon2UnavailableError ? 'argon2' : 'server';
+        const message = t(({ argon2: 'error.argon2', network: 'error.network', rate: 'error.rateLimited', quota: 'error.quota', refused: 'error.refused', tooLarge: 'error.tooLarge' } as Record<string, string>)[kind] ?? 'error.server');
         const retryButton = el('button', { type: 'button', class: 'button button-secondary' }, t('action.retry'));
         retryButton.addEventListener('click', () => void doSubmit(true));
         const cancelButton = el('button', { type: 'button', class: 'button button-tertiary' }, t('action.cancel'));
@@ -579,12 +579,14 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     if (config.enableQrCode) {
       const qrBox = el('div', { class: 'qr-box', hidden: true });
       const qrButton = el('button', { type: 'button', class: 'button button-secondary', 'aria-expanded': 'false' }, t('result.qr'));
+      let qrLoaded = false;
       qrButton.addEventListener('click', async () => {
         const open = qrBox.hidden;
         qrBox.hidden = !open;
         qrButton.textContent = open ? t('result.qrHide') : t('result.qr');
         qrButton.setAttribute('aria-expanded', String(open));
-        if (open && qrBox.childElementCount === 0) {
+        if (open && !qrLoaded) {
+          qrLoaded = true;
           const full = el('button', { type: 'button', class: 'button button-tertiary' }, t('result.qrFullscreen'));
           full.addEventListener('click', () => void qrBox.requestFullscreen?.());
           const { qrSvg } = await import('../ui/qrcode');
