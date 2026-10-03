@@ -140,6 +140,20 @@ final class ApiTest extends KernelTestCase
         self::assertStringNotContainsString($id, (string) $bodies[0]);
     }
 
+    #[Group('EXG-API-042')]
+    #[Group('EXG-API-044')]
+    public function testUnsupportedMethodAnswers405WithAllowHeader(): void
+    {
+        $id = Base64Url::encode(random_bytes(24));
+        foreach (['/api/v1/pastes' => 'POST', "/api/v1/pastes/$id" => 'DELETE', "/api/v1/pastes/$id/open" => 'POST', '/healthz' => 'GET'] as $path => $allowed) {
+            $response = $this->request('PUT', $path, '{}');
+
+            self::assertSame(405, $response->getStatusCode(), $path);
+            self::assertSame($allowed, $response->headers->get('Allow'), $path);
+            self::assertSame('application/problem+json', $response->headers->get('Content-Type'), $path);
+        }
+    }
+
     #[Group('EXG-SEC-075')]
     #[Group('EXG-SEC-086')]
     #[Group('EXG-SEC-107')]

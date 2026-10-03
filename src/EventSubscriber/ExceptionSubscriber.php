@@ -16,6 +16,7 @@ use QuietLink\Paste\ReservationConflictException;
 use QuietLink\Storage\QuotaExceededException;
 use QuietLink\Storage\StorageException;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
@@ -48,7 +49,7 @@ final class ExceptionSubscriber implements EventSubscriberInterface
             $exception instanceof QuotaExceededException => Problem::response(503, [], 300),
             $exception instanceof StorageException => Problem::response(503, [], 5),
             $exception instanceof RateLimitedException => Problem::response(429, [], $exception->retryAfterSeconds),
-            $exception instanceof MethodNotAllowedHttpException => Problem::response(405),
+            $exception instanceof MethodNotAllowedHttpException => self::methodNotAllowed($exception),
             $exception instanceof HttpExceptionInterface && in_array($exception->getStatusCode(), [400, 413, 415, 429], true) => Problem::response($exception->getStatusCode()),
             default => null,
         };
@@ -62,5 +63,19 @@ final class ExceptionSubscriber implements EventSubscriberInterface
         $event->setResponse($response);
         $event->allowCustomResponseCode();
         $event->stopPropagation();
+    }
+
+    /**
+     * A 405 response must list the supported methods in Allow (RFC 9110 §15.5.6).
+     */
+    private static function methodNotAllowed(MethodNotAllowedHttpException $exception): Response
+    {
+        $response = Problem::response(405);
+        $allow = $exception->getHeaders()['Allow'] ?? null;
+        if (is_string($allow) && $allow !== '') {
+            $response->headers->set('Allow', $allow);
+        }
+
+        return $response;
     }
 }

@@ -77,7 +77,8 @@ info:
       the boot marker (for `/healthz` the body is then `{"status": "unavailable"}`);
     - `503` with `Retry-After: 5` when storage is temporarily unavailable (e.g. lock timeout);
     - `500` for any unexpected error;
-    - `405` for an unsupported method on a known path, `404` for an unknown path.
+    - `405` with an `Allow` header for an unsupported method on a known path, `404` for an
+      unknown path.
 
     ## Rate limiting
 
