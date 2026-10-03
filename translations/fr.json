@@ -145,6 +145,8 @@
   "manage.delete": "Supprimer définitivement",
   "manage.confirm": "Supprimer définitivement ce contenu ? Cette action est irréversible.",
   "manage.done": "Supprimé, ou déjà indisponible.",
+  "manage.deleteNetwork": "Connexion perdue : le contenu n’a pas été supprimé. Réessayez quand la connexion sera rétablie.",
+  "manage.deleteFailed": "Le serveur n’a pas pu supprimer le contenu pour le moment. Réessayez.",
   "manage.intro": "Cette page permet de supprimer définitivement un texte confidentiel. Elle n’affiche jamais le contenu.",
   "read.decryptedLocally": "Le contenu est déchiffré dans votre navigateur ; le serveur ne peut pas le lire.",
   "read.revealTitle": "Un texte confidentiel vous a été partagé",

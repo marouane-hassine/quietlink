@@ -145,6 +145,8 @@
   "manage.delete": "Delete permanently",
   "manage.confirm": "Delete this content permanently? This cannot be undone.",
   "manage.done": "Deleted, or already unavailable.",
+  "manage.deleteNetwork": "Connection lost: the content was not deleted. Try again when the connection is back.",
+  "manage.deleteFailed": "The server could not delete the content right now. Try again.",
   "manage.intro": "This page can permanently delete a confidential text. It never shows the content.",
   "read.decryptedLocally": "The content is decrypted in your browser; the server cannot read it.",
   "read.revealTitle": "A confidential text was shared with you",

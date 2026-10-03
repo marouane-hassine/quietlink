@@ -37,16 +37,23 @@ export function mountManage(main: HTMLElement): () => void {
     if (!(await matchesDeletionToken(idBytes, token))) return message('error.alteredLink');
 
     const button = el('button', { type: 'button', class: 'button button-danger' }, t('manage.delete'));
+    const status = el('p', { class: 'status', role: 'status' });
+    const failure = el('p', { class: 'error', role: 'alert', hidden: true });
     button.addEventListener('click', async () => {
       if (!(await confirmInline(button, t('manage.confirm'), t('manage.delete'), true))) return;
       button.disabled = true;
+      failure.hidden = true;
+      status.textContent = t('state.deleting');
       announce(t('state.deleting'));
       try {
         await api.remove(id, encode(token));
       } catch (error) {
         if (error instanceof ApiError && error.kind !== 'unavailable') {
           button.disabled = false;
-          announce(t(error.kind === 'network' ? 'error.network' : 'error.server'), true);
+          status.textContent = '';
+          // Visible on the screen, not only announced (§5.1).
+          failure.textContent = t(error.kind === 'network' ? 'manage.deleteNetwork' : 'manage.deleteFailed');
+          failure.hidden = false;
           return;
         }
       }
@@ -54,7 +61,7 @@ export function mountManage(main: HTMLElement): () => void {
       done = true;
       message('manage.done');
     });
-    showScreen(main, el('h1', { class: 'page-title' }, t('page.manage.title')), el('p', {}, t('manage.intro')), el('p', { class: 'warning' }, t('manage.warning')), el('div', { class: 'action-bar' }, button));
+    showScreen(main, el('h1', { class: 'page-title' }, t('page.manage.title')), el('p', {}, t('manage.intro')), el('p', { class: 'warning' }, t('manage.warning')), failure, el('div', { class: 'action-bar' }, button, status));
   };
   void render();
   return () => void render();

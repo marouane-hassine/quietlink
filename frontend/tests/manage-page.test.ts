@@ -41,4 +41,16 @@ describe('management page', () => {
     expect(main.textContent).toContain(t('manage.done'));
     expect(main.querySelector('.button-danger')).toBeNull();
   });
+
+  it('shows the deletion state and a visible, deletion-specific error when the request fails', async () => {
+    mockFetch(() => Promise.reject(new TypeError('offline')));
+    await until(() => main.querySelector('.button-danger') !== null);
+    (main.querySelector('.button-danger') as HTMLButtonElement).click();
+    await until(() => main.querySelector('[role=alertdialog] .button-danger') !== null);
+    (main.querySelector('[role=alertdialog] .button-danger') as HTMLButtonElement).click();
+    await until(() => main.querySelector('.error')?.textContent === t('manage.deleteNetwork'));
+
+    expect(main.querySelector('.error')?.getAttribute('role')).toBe('alert');
+    expect((main.querySelector('.button-danger') as HTMLButtonElement).disabled).toBe(false);
+  });
 });
