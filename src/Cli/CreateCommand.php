@@ -45,7 +45,7 @@ final class CreateCommand extends Command
     {
         $env = getenv('QUIETLINK_SERVER');
         $server = Options::string($input, 'server') ?? (is_string($env) && $env !== '' ? $env : null);
-        if (!is_string($server) || preg_match('#^https://[^/?\#]+$|^http://(localhost|127\.0\.0\.1)(:\d+)?$#D', rtrim($server, '/')) !== 1) {
+        if (!is_string($server) || preg_match('#^https://[^/?\#@]+$|^http://(localhost|127\.0\.0\.1)(:\d+)?$#D', rtrim($server, '/')) !== 1) {
             throw new CliException('Use --server https://your-instance (or QUIETLINK_SERVER).');
         }
         $expires = Options::string($input, 'expires') ?? '1d';

@@ -169,6 +169,21 @@ final class CliTest extends KernelTestCase
         self::assertStringContainsString('unavailable', $err);
     }
 
+    /**
+     * Credentials in the server URL would be embedded in every share link (and such links are
+     * rejected by decrypt); the URL is refused before anything is sent.
+     */
+    #[Group('EXG-CLI-013')]
+    public function testServerUrlWithCredentialsIsRefused(): void
+    {
+        $this->requests = 0;
+        [$code, $out, $err] = $this->cli(['create', '--server=https://user:dummy@paste.example.test'], 'x');
+
+        self::assertNotSame(0, $code);
+        self::assertStringNotContainsString('dummy@', $out . $err);
+        self::assertSame(0, $this->requests);
+    }
+
     #[Group('EXG-CLI-009')]
     #[Group('EXG-TEST-065')]
     public function testPassphraseFromProtectedFileAndLocalCheck(): void
