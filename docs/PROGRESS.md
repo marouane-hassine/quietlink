@@ -20,7 +20,8 @@ Resume from this file after a context reset; do not re-read the full specificati
 | L8 Frontend TS/Vite (crypto + vectors, pages, i18n, themes, Markdown, QR, templates) | Done | browser-tested on localhost |
 | L9 Twig pages, CSP, theme CSS generation | Done | |
 | L10 Docker, docs (README admin/dev, OpenAPI), CI | Done | compose stack tested locally |
-| L11 E2E Playwright, final security review | Done | 25/25 journeys (5 browsers); internal review fixed |
+| L11 E2E Playwright, final security review | Done | 75 journeys × 5 browsers; validation agent fixing mobile-only failures |
+| L12 Should/Could completion | Done | Should: 2 MAY items left; Could: pattern-based secret detection deferred (ADR-0004) |
 
 ## Decisions (see ADRs for detail)
 
@@ -50,6 +51,11 @@ unconfirmed_opens retry_after state`. Delete: header `X-Deletion-Token`.
   gets 404; §9.4.1 (l.1290) keeps a consumed paste 10 min after a manual delete. Code follows §9.4.1.
 - `metrics.enabled`, `ui.allow_print`, `ui.allow_export` are validated but have no effect yet;
   `app:theme:preview` and the French word list (Lexique) are not built.
+
+## Coverage (docs/coverage.md, `npm run coverage:requirements`)
+
+Must 816: 502 cited by automated tests, 242 manual review or CI check, 72 not yet verified
+(mostly device matrix, accessibility audit, load tests and a few untested UX details).
 
 ## Human actions (out of scope for the agent)
 

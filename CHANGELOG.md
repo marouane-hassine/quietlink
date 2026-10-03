@@ -21,3 +21,12 @@ a removed API version is announced at least one minor version in advance.
 - Web interface in English and French, light and dark themes, Markdown, code highlighting,
   templates, QR code, accessible states.
 - Docker images (application, web server, CLI) and a demonstration Compose file.
+- Templates edited as forms and read field by field, with per-field copy, masked sensitive values,
+  Wi-Fi QR code and a suggestion of the Secret preset.
+- Markdown preview in the editor, rendered/source views, plain display above 200 KiB with opt-in
+  formatting, line wrap toggle and per-block copy.
+- Inline confirmations instead of blocking dialogs, connection loss banner, retry on recoverable
+  errors, action bar above the virtual keyboard.
+- Trusted Types enforcement, threat model and generated requirement coverage report.
+- Optional local export (`ui.allow_export`) and controlled printing (`ui.allow_print`), both off by
+  default; `app:theme:preview` and `app:cache:purge` commands.
