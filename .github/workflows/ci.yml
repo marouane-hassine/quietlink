@@ -58,6 +58,21 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  phar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: intl, sodium, openssl, mbstring
+          ini-values: phar.readonly=0
+          tools: box
+      - run: composer install --no-dev --classmap-authoritative --no-interaction
+      - run: box compile --config=box.json
+      - name: The PHAR starts outside the source tree
+        run: cd /tmp && php "$GITHUB_WORKSPACE/quietlink.phar" list | grep -q decrypt
+
   docker:
     runs-on: ubuntu-latest
     steps:

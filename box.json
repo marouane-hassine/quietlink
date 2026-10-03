@@ -1,9 +1,29 @@
 {
     "main": "bin/quietlink",
     "output": "quietlink.phar",
-    "directories": ["src"],
-    "files": ["LICENSE"],
-    "finder": [{"name": "*.php", "in": "vendor", "exclude": ["Tests", "tests", "phpunit", "phpstan"]}],
+    "directories": [
+        "src"
+    ],
+    "files": [
+        "LICENSE"
+    ],
+    "finder": [
+        {
+            "in": "vendor",
+            "exclude": [
+                "Tests",
+                "tests",
+                "phpunit",
+                "phpstan",
+                "friendsofphp",
+                "sebastian",
+                "nikic",
+                "theseer",
+                "phar-io",
+                "myclabs"
+            ]
+        }
+    ],
     "compression": "GZ",
     "check-requirements": false
 }
