@@ -45,7 +45,7 @@ final class ApiController
         );
         if (!$result['created']) {
             // Replays have their own, wider limit per address (§10, creation step 2).
-            $this->limit('challenge', $subject);
+            $this->limit('create_replay', $subject);
         }
         $id = $result['id']->encoded();
 

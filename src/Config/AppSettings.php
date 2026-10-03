@@ -18,6 +18,7 @@ final readonly class AppSettings
         public string $name,
         public string $publicUrl,
         public array $enabledLocales,
+        public string $sourceUrl,
     ) {
     }
 }

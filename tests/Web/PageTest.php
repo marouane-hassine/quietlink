@@ -55,4 +55,17 @@ final class PageTest extends KernelTestCase
             self::assertSame('noindex, nofollow, noarchive', $response->headers->get('X-Robots-Tag'));
         }
     }
+
+    #[Group('EXG-PWA-002')]
+    public function testManifestIsServedOnlyWhenEnabled(): void
+    {
+        self::assertSame(404, $this->request('GET', '/manifest.json')->getStatusCode());
+
+        $this->tearDown();
+        $this->bootInstance(['ui' => ['enable_manifest' => true]]);
+        $response = $this->request('GET', '/manifest.json');
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame('browser', self::json($response)['display']);
+        self::assertStringContainsString("manifest-src 'self'", (string) $response->headers->get('Content-Security-Policy'));
+    }
 }

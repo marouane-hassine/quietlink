@@ -14,8 +14,10 @@ use QuietLink\Storage\PasteId;
 use QuietLink\Theme\TokenThemeBuilder;
 use QuietLink\Web\Assets;
 use QuietLink\Web\Catalogs;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 use Twig\Environment;
 
@@ -70,6 +72,25 @@ final class PageController
     }
 
     /**
+     * Minimal manifest (§6.10): no Service Worker, browser display mode, no secret data.
+     */
+    #[Route('/manifest.json', name: 'manifest', methods: ['GET'])]
+    public function manifest(): Response
+    {
+        if (!$this->config->ui->enableManifest) {
+            throw new NotFoundHttpException();
+        }
+
+        return new JsonResponse([
+            'name' => $this->config->app->name,
+            'short_name' => $this->config->app->name,
+            'start_url' => '/',
+            'scope' => '/',
+            'display' => 'browser',
+        ], 200, ['Content-Type' => 'application/manifest+json']);
+    }
+
+    /**
      * @param array{open: string, status: string}|null $challenges
      */
     private function page(Request $request, string $page, string $titleKey, ?array $challenges = null): Response
@@ -99,6 +120,7 @@ final class PageController
             'skip' => $t('app.skip'),
             'how' => $t('footer.how'),
             'source' => $t('footer.source'),
+            'source_url' => $this->config->app->sourceUrl,
             'settings' => json_encode($settings, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
             'assets' => $this->assets->entry(),
             'tokens' => TokenThemeBuilder::stylesheet($this->config),

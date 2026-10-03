@@ -18,7 +18,7 @@ final class ConfigLoader
     public const AVAILABLE_LOCALES = ['en', 'fr'];
     public const FALLBACK_LOCALE = 'en';
     public const TEMPLATES = ['credentials', 'api-token', 'wifi', 'ssh-key', 'database', 'env-vars', 'temporary-access', 'incident'];
-    public const RATE_LIMIT_BUCKETS = ['create', 'challenge', 'open', 'status', 'consume', 'delete', 'health', 'open_per_paste', 'status_per_paste'];
+    public const RATE_LIMIT_BUCKETS = ['create', 'create_replay', 'challenge', 'open', 'status', 'consume', 'delete', 'health', 'open_per_paste', 'status_per_paste'];
     private const LOG_LEVELS = ['debug', 'info', 'notice', 'warning', 'error', 'critical', 'alert', 'emergency'];
 
     /**
@@ -32,6 +32,7 @@ final class ConfigLoader
             'app' => [
                 'name' => 'QuietLink',
                 'public_url' => null,
+                'source_url' => 'https://github.com/marouane-hassine/quietlink',
                 'enabled_locales' => ['en', 'fr'],
             ],
             'theme' => [
@@ -72,6 +73,7 @@ final class ConfigLoader
                 'hsts_max_age' => 31536000,
                 'rate_limits' => [
                     'create' => ['limit' => 30, 'interval' => 600],
+                    'create_replay' => ['limit' => 120, 'interval' => 600],
                     'challenge' => ['limit' => 120, 'interval' => 60],
                     'open' => ['limit' => 60, 'interval' => 60],
                     'status' => ['limit' => 60, 'interval' => 60],
@@ -247,6 +249,9 @@ final class ConfigLoader
         if ($publicUrl === null || !self::isValidPublicUrl($publicUrl)) {
             $errors[] = '"app.public_url" must be an https origin without path, query or fragment (http only for localhost).';
         }
+        if (!self::isValidPublicUrl($r->string('app.source_url'), true)) {
+            $errors[] = '"app.source_url" must be an https URL of the deployed source code (AGPL-3.0 section 13).';
+        }
         $locales = $r->stringList('app.enabled_locales');
         if (!in_array(self::FALLBACK_LOCALE, $locales, true) || array_diff($locales, self::AVAILABLE_LOCALES) !== [] || count(array_unique($locales)) !== count($locales)) {
             $errors[] = sprintf('"app.enabled_locales" must include "en" and only contain: %s.', implode(', ', self::AVAILABLE_LOCALES));
@@ -372,7 +377,7 @@ final class ConfigLoader
         }
 
         return [
-            'app' => new AppSettings($r->string('app.name'), rtrim($publicUrl, '/'), $locales),
+            'app' => new AppSettings($r->string('app.name'), rtrim($publicUrl, '/'), $locales, $r->string('app.source_url')),
             'theme' => new ThemeSettings($r->string('theme.name'), $tokensFile),
             'storage' => new StorageSettings(
                 $r->string('storage.root_dir'),
@@ -420,13 +425,13 @@ final class ConfigLoader
         ];
     }
 
-    private static function isValidPublicUrl(string $url): bool
+    private static function isValidPublicUrl(string $url, bool $allowPath = false): bool
     {
         $parts = parse_url($url);
         if ($parts === false || !isset($parts['scheme'], $parts['host'])) {
             return false;
         }
-        if (isset($parts['path']) && $parts['path'] !== '' && $parts['path'] !== '/') {
+        if (!$allowPath && isset($parts['path']) && $parts['path'] !== '' && $parts['path'] !== '/') {
             return false;
         }
         if (isset($parts['query']) || isset($parts['fragment']) || isset($parts['user']) || isset($parts['pass'])) {
