@@ -13,7 +13,7 @@ jobs:
   php:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
@@ -27,8 +27,8 @@ jobs:
   frontend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: '24'
           cache: npm
@@ -49,7 +49,7 @@ jobs:
   security:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: tools/ci/forbidden-patterns.sh
       - name: No database service in compose
         run: "! grep -Eiq 'image: *(postgres|mysql|mariadb|redis|valkey|mongo)' compose.yaml"
@@ -61,7 +61,7 @@ jobs:
   phar:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
@@ -76,7 +76,7 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: docker build -f docker/php/Dockerfile -t quietlink/app:ci .
       - run: docker build -f docker/nginx/Dockerfile -t quietlink/web:ci .
       - run: docker build -f docker/cli/Dockerfile -t quietlink/cli:ci .
