@@ -622,7 +622,7 @@ Decisions already recorded in §19.1 are applied: Playwright for E2E tests, JSON
 | EXG-STORE-035 | 9.4.1 | Deletion via unlink with dir sync when possible; no SSD erasure promise | Must | MUST | Manual review: docs wording |
 | EXG-STORE-036 | 9.4.1 | Idempotency index files without secrets; bounded retention | Must | MUST | PHPUnit integration: idempotency purge |
 | EXG-STORE-037 | 9.4.1 | Purge scans expected dirs only, refuses outward symlinks, idempotent, non-blocking purge.lock | Must | MUST | PHPUnit integration: purge concurrency and symlinks |
-| EXG-STORE-038 | 9.4.1 | Consumed kept ≥10 min without payload; manual delete keeps consumed until then | Must | MUST | PHPUnit integration: consumed retention |
+| EXG-STORE-038 | 9.4.1 | Consumed kept ≥10 min without payload; a manual delete removes it at once (§10 l.1622 prevails, ADR-0008 decision 1) | Must | MUST | PHPUnit integration: consumed retention |
 | EXG-STORE-039 | 9.4.1 | usage.json under usage.lock; quota check and reservation atomic; update rules | Must | MUST | PHPUnit integration: concurrent quota |
 | EXG-DOC-018 | 9.4.1 | Backups from consistent snapshot or stopped service; no live tar; restore tested | Must | MUST | Manual review: backup procedure |
 | EXG-DEPLOY-013 | 9.4.1 | Container root FS read-only; only storage and needed temp dirs writable | Must | MUST | CI check: compose read_only |
