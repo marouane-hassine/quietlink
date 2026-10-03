@@ -19,6 +19,8 @@ use QuietLink\Theme\TokenThemeBuilder;
 final class TokenThemeBuilderTest extends TestCase
 {
     #[Group('EXG-SEC-031')]
+    #[Group('EXG-THEME-005')]
+    #[Group('EXG-THEME-008')]
     public function testAllowlistedTokensCompileToCss(): void
     {
         $css = TokenThemeBuilder::compile(['light' => ['color-primary' => '#AA3300', 'radius' => '8px'], 'dark' => ['color-primary-text' => '#f0a07f']]);
@@ -48,6 +50,7 @@ final class TokenThemeBuilderTest extends TestCase
     #[Group('EXG-SEC-035')]
     #[Group('EXG-SEC-036')]
     #[Group('EXG-SEC-037')]
+    #[Group('EXG-THEME-002')]
     public function testInvalidThemesAreRefused(array $theme): void
     {
         $this->expectException(InvalidArgumentException::class);
@@ -55,6 +58,10 @@ final class TokenThemeBuilderTest extends TestCase
     }
 
     #[Group('EXG-SEC-030')]
+    #[Group('EXG-THEME-009')]
+    #[Group('EXG-THEME-012')]
+    #[Group('EXG-CACHE-009')]
+    #[Group('EXG-CACHE-010')]
     public function testBuildWritesAHashedFileAndAManifest(): void
     {
         $tmp = new TempDirectory();

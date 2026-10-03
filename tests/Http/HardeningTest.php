@@ -67,6 +67,7 @@ final class HardeningTest extends KernelTestCase
     #[Group('EXG-CACHE-006')]
     #[Group('EXG-SEC-097')]
     #[Group('EXG-MD-011')]
+    #[Group('EXG-MD-012')]
     public function testStorageAndCachesNeverHoldSecretsOrClientAddresses(): void
     {
         $this->boot();

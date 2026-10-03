@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Automated WCAG 2.2 AA contrast checks of the shipped palettes (§6.5).
-// Requirements: EXG-A11Y-010, EXG-A11Y-011, EXG-A11Y-014, EXG-A11Y-015.
+// Requirements: EXG-A11Y-010, EXG-A11Y-011, EXG-A11Y-014, EXG-A11Y-015, EXG-THEME-004, EXG-THEME-006, EXG-THEME-011, EXG-TEST-078.
 
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // @vitest-environment jsdom
-// Requirements: EXG-SEC-050, EXG-SEC-072, EXG-MD (links §6.9, no images V1), EXG-CRYPTO-038, EXG-CRYPTO-039, EXG-CRYPTO-040.
+// Requirements: EXG-SEC-050, EXG-SEC-072, EXG-MD (links §6.9, no images V1), EXG-CRYPTO-038, EXG-CRYPTO-039, EXG-CRYPTO-040, EXG-MD-020, EXG-MD-021, EXG-MD-022, EXG-MD-024, EXG-MD-026, EXG-MD-027, EXG-MD-028, EXG-TEST-073.
 
 import { describe, expect, it } from 'vitest';
 import { renderMarkdown } from '../src/render/markdown';

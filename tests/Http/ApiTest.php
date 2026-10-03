@@ -90,6 +90,7 @@ final class ApiTest extends KernelTestCase
     #[Group('EXG-SEC-105')]
     #[Group('EXG-SEC-087')]
     #[Group('EXG-SEC-051')]
+    #[Group('EXG-SEC-052')]
     public function testSecurityHeadersAreSetOnEveryResponse(): void
     {
         foreach ([$this->request('GET', '/healthz'), $this->request('POST', '/api/v1/pastes/x/open', '{}')] as $response) {
@@ -100,6 +101,8 @@ final class ApiTest extends KernelTestCase
             self::assertStringNotContainsString('unsafe-inline', $csp);
             self::assertStringNotContainsString('unsafe-eval', $csp);
             self::assertStringNotContainsString('manifest-src', $csp);
+            self::assertStringContainsString("require-trusted-types-for 'script'", $csp);
+            self::assertStringContainsString('trusted-types dompurify quietlink-worker', $csp);
             self::assertSame('nosniff', $response->headers->get('X-Content-Type-Options'));
             self::assertSame('no-referrer', $response->headers->get('Referrer-Policy'));
             self::assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));

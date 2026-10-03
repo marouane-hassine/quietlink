@@ -94,5 +94,25 @@ describe('templates on the creation page', () => {
   it('moves focus to the screen title', () => {
     expect(document.activeElement?.textContent).toBe('New confidential text');
   });
+
+  it('shows the settings summary, applies clamped presets and previews Markdown locally', () => {
+    const summary = () => main.querySelector('.summary')?.textContent ?? '';
+    expect(summary()).toContain('Expires after 1 day');
+    (main.querySelector('details.options') as HTMLDetailsElement).open = true;
+    const secret = [...main.querySelectorAll('.presets .chip')].find((b) => b.textContent?.startsWith('Secret')) as HTMLButtonElement;
+    secret.click();
+    expect(summary()).toContain('Expires after 1 hour');
+    expect(summary()).toContain('read once');
+
+    const format = main.querySelectorAll('select')[0] as HTMLSelectElement;
+    expect(format.selectedOptions[0]?.textContent).toBe('Plain text');
+    format.value = 'markdown';
+    format.dispatchEvent(new Event('change'));
+    editor().value = '# Dummy heading';
+    editor().dispatchEvent(new Event('input'));
+    const preview = [...main.querySelectorAll('button')].find((b) => b.textContent === 'Preview') as HTMLButtonElement;
+    preview.click();
+    expect(main.querySelector('.preview h1')?.textContent).toBe('Dummy heading');
+  });
 });
 
