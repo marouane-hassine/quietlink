@@ -41,6 +41,8 @@ final class PurgerTest extends TestCase
     private UsageCounter $usage;
     private PasteService $service;
     private Purger $purger;
+    /** @var \Psr\Log\AbstractLogger&object{records: list<array{string, string, array<array-key, mixed>}>} */
+    private \Psr\Log\AbstractLogger $logger;
 
     protected function setUp(): void
     {
@@ -62,7 +64,16 @@ final class PurgerTest extends TestCase
                 return 80;
             }
         };
-        $this->purger = new Purger($this->config, $this->layout, $this->store, $idempotency, $this->usage, $stateFiles, $limiter, $this->service, $disk, $this->clock);
+        $this->logger = new class () extends \Psr\Log\AbstractLogger {
+            /** @var list<array{string, string, array<array-key, mixed>}> */
+            public array $records = [];
+
+            public function log($level, string|\Stringable $message, array $context = []): void
+            {
+                $this->records[] = [is_string($level) ? $level : "unknown", (string) $message, $context];
+            }
+        };
+        $this->purger = new Purger($this->config, $this->layout, $this->store, $idempotency, $this->usage, $stateFiles, $limiter, $this->service, $disk, $this->clock, $this->logger);
         $this->purger->ensureLockFile();
     }
 
@@ -196,5 +207,27 @@ final class PurgerTest extends TestCase
         $this->purger->run();
 
         self::assertTrue((new StateFiles($this->layout))->healthAllowsCreation($this->clock->now(), 10));
+    }
+
+    #[Group('EXG-OBS-001')]
+    public function testQuotaAboveEightyPercentRaisesAnOperationalAlert(): void
+    {
+        $this->create();
+        AtomicFile::write($this->layout->usageFile(), sprintf('{"schema_version":1,"bytes":0,"items":%d,"recomputed_at":%d}', 80001, $this->clock->now()));
+
+        $this->purger->run();
+
+        $alerts = array_filter($this->logger->records, static fn (array $r): bool => $r[0] === 'warning' && $r[1] === 'Storage quota above 80%');
+        self::assertCount(1, $alerts);
+        $alert = array_values($alerts)[0];
+        self::assertSame(80, $alert[2]['percent']);
+    }
+
+    public function testNoAlertBelowEightyPercent(): void
+    {
+        $this->create();
+        $this->purger->run();
+
+        self::assertSame([], array_filter($this->logger->records, static fn (array $r): bool => $r[0] === 'warning'));
     }
 }

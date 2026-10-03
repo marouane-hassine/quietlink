@@ -6,6 +6,8 @@ declare(strict_types=1);
 
 namespace QuietLink\Maintenance;
 
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use QuietLink\Clock\Clock;
 use QuietLink\Config\InstanceConfig;
 use QuietLink\Paste\PasteService;
@@ -41,6 +43,7 @@ final class Purger
         private readonly PasteService $pastes,
         private readonly DiskProbe $disk,
         private readonly Clock $clock,
+        private readonly LoggerInterface $logger = new NullLogger(),
     ) {
     }
 
@@ -119,6 +122,8 @@ final class Purger
                 );
             }
 
+            $this->reportUsage();
+
             return $stats;
         } finally {
             $lock->release();
@@ -158,6 +163,25 @@ final class Purger
         }
 
         return [null, 'keep'];
+    }
+
+    /**
+     * Operational alert at 80 % of a quota (§7.5) and, when metrics.enabled, one aggregated,
+     * non-identifying metrics line per run (§14). No endpoint is exposed.
+     */
+    private function reportUsage(): void
+    {
+        $usage = $this->usage->read();
+        $percent = (int) floor(max(
+            $usage['bytes'] / max(1, $this->config->storage->maxTotalBytes),
+            $usage['items'] / max(1, $this->config->storage->maxItems),
+        ) * 100);
+        if ($percent >= 80) {
+            $this->logger->warning('Storage quota above 80%', ['event' => 'quota_alert', 'percent' => $percent]);
+        }
+        if ($this->config->observability->metricsEnabled) {
+            $this->logger->info('metrics', ['event' => 'storage', 'count' => $usage['items'], 'percent' => $percent]);
+        }
     }
 
     private static function payloadSize(string $dir): int
