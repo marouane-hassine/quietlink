@@ -9,6 +9,7 @@
   "app.noscript": "QuietLink encrypts and decrypts in your browser: JavaScript is required.",
   "app.unsupported": "This browser cannot encrypt locally (Web Crypto is missing). Use an up-to-date browser.",
   "nav.language": "Language",
+  "nav.languageChanged": "Language: {language}",
   "nav.theme": "Theme",
   "theme.auto": "System",
   "theme.light": "Light",

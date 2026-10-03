@@ -40,7 +40,7 @@ export function renderChrome(config: PublicConfig, theme: string, rerender: () =
     setLocale(languageSelect.value, true);
     rerender();
     renderChrome(config, storedTheme() ?? theme, rerender);
-    toast(t('nav.language') + ' : ' + languageSelect.selectedOptions[0]?.textContent);
+    toast(t('nav.languageChanged', { language: languageSelect.selectedOptions[0]?.textContent ?? '' }));
   });
 
   const themeSelect = el('select', { id: 'ql-theme', class: 'control-select' });

@@ -118,10 +118,11 @@ function serve(paste: Paste, times: Times = {}, override: (request: RecordedRequ
 }
 
 let main: HTMLElement;
+let rerender: () => void = () => undefined;
 const mount = () => {
   document.body.innerHTML = '<main id="main"></main>';
   main = document.getElementById('main') as HTMLElement;
-  mountRead(main, config);
+  rerender = mountRead(main, config);
 };
 const paths = (requests: RecordedRequest[]) => requests.map((request) => request.path.split('/').pop());
 const content = () => views.built.at(-1)?.view as ContentView | undefined;
@@ -375,5 +376,28 @@ describe('capabilities', () => {
     expect(errorText()).toBe(t('app.unsupported'));
     await flush();
     expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+describe('language change on the content screen', () => {
+  it('redraws the decrypted content in the new language without any request, keeping it hidden', async () => {
+    const paste = await makePaste({ readOnce: true });
+    const { requests } = serve(paste);
+    mount();
+    await until(() => revealButton()?.textContent === t('read.reveal'));
+    revealButton().click();
+    await onContent();
+    (main.querySelector('.action-bar .button-secondary') as HTMLButtonElement).click();
+    const sent = requests.length;
+
+    setLocale('fr');
+    rerender();
+
+    expect(main.querySelector('h1')?.textContent).toBe(t('page.read.title'));
+    expect(main.textContent).toContain(t('read.destroyed'));
+    expect(main.querySelector('.action-bar .button-primary')?.textContent).toBe(t('action.copy'));
+    expect(content()?.container.classList.contains('is-hidden')).toBe(true);
+    expect(requests).toHaveLength(sent);
+    setLocale('en');
   });
 });

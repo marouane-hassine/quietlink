@@ -216,17 +216,17 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
       throw error instanceof DecryptionError ? error : new DecryptionError('integrity');
     }
 
-    let consumedNotice: HTMLElement | null = null;
+    let consumedKey: string | null = null;
     if (aad.object.read_once && reservationId && consumeSeed && data.consume_challenge) {
       saveReservation(link.id, reservationId, Date.now(), data.retry_after ?? RESERVATION_MAX_SECONDS);
       // The same signature is resent after network errors, never re-signed (§12.3).
       const body = { access_pk: encode(link.accessPk), reservation_id: reservationId, challenge: data.consume_challenge, signature: await prove(consumeSeed, data.consume_challenge) };
       try {
         await retrying(() => api.consume(link.id, body));
-        consumedNotice = el('p', { class: 'banner', role: 'status' }, t('read.destroyed'));
+        consumedKey = 'read.destroyed';
         clearReservation(link.id);
       } catch (error) {
-        consumedNotice = el('p', { class: 'banner', role: 'status' }, t('read.consumeFailed'));
+        consumedKey = 'read.consumeFailed';
         if (!(error instanceof ApiError && error.kind === 'network')) clearReservation(link.id);
       }
       window.addEventListener('beforeunload', (event) => {
@@ -234,16 +234,27 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
         event.returnValue = t('read.leaveWarning');
       });
     }
-    showContent(view.buildContentView, envelope, data, consumedNotice, sync ?? (data.expires_at === null ? null : synchronise(data.expires_at, data.server_time, opened.t0, opened.t1)), data.unconfirmed_opens ?? 0);
+    showContent(view.buildContentView, envelope, data, consumedKey, sync ?? (data.expires_at === null ? null : synchronise(data.expires_at, data.server_time, opened.t0, opened.t1)), data.unconfirmed_opens ?? 0);
   }
 
-  function showContent(buildContentView: BuildContentView, envelope: Envelope, data: OpenResponse, consumedNotice: HTMLElement | null, sync: Sync | null, priorOpens: number): void {
-    redraw = null;
+  /** Removes the timers and document listeners of the content screen being replaced. */
+  let teardownContent: (() => void) | null = null;
+
+  /**
+   * Content screen. A language change redraws it from the decrypted envelope kept in memory
+   * (no request: a read-once paste cannot be fetched again), keeping it hidden if it was.
+   */
+  function showContent(buildContentView: BuildContentView, envelope: Envelope, data: OpenResponse, consumedKey: string | null, sync: Sync | null, priorOpens: number, view = { hidden: false, keepVisible: false }): void {
+    teardownContent?.();
+    const listeners = new AbortController();
+    const { signal } = listeners;
+    redraw = () => showContent(buildContentView, envelope, data, consumedKey, sync, priorOpens, view);
     const { container, controls } = buildContentView(envelope, { wifiQr: config.enableQrCode });
 
     const hiddenNotice = el('p', { class: 'hint', hidden: true }, t('read.hidden'));
     const hideButton = el('button', { type: 'button', class: 'button button-secondary', 'aria-pressed': 'false' }, t('read.hide'));
     const setHidden = (hidden: boolean) => {
+      view.hidden = hidden;
       container.classList.toggle('is-hidden', hidden);
       container.setAttribute('aria-hidden', String(hidden));
       hiddenNotice.hidden = !hidden;
@@ -257,31 +268,35 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
       if (await copyText(envelope.text)) toast(t('read.clipboardAdvice'));
     });
 
-    let keepVisible = false;
-    let idle = window.setTimeout(() => setHidden(true), AUTO_HIDE_MS);
+    let idle = 0;
     const activity = () => {
       window.clearTimeout(idle);
-      if (!keepVisible) idle = window.setTimeout(() => setHidden(true), AUTO_HIDE_MS);
+      if (!view.keepVisible) idle = window.setTimeout(() => setHidden(true), AUTO_HIDE_MS);
     };
-    for (const type of ['pointerdown', 'keydown', 'scroll', 'touchstart']) document.addEventListener(type, activity, { passive: true });
-    const keep = el('input', { type: 'checkbox', id: nextId('keep') });
+    activity();
+    for (const type of ['pointerdown', 'keydown', 'scroll', 'touchstart']) document.addEventListener(type, activity, { passive: true, signal });
+    const keep = el('input', { type: 'checkbox', id: nextId('keep'), checked: view.keepVisible });
     keep.addEventListener('change', () => {
-      keepVisible = keep.checked;
+      view.keepVisible = keep.checked;
       activity();
     });
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') setHidden(true);
-    });
+    }, { signal });
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') setHidden(true);
-    });
+    }, { signal });
+    teardownContent = () => {
+      listeners.abort();
+      window.clearTimeout(idle);
+    };
 
     const expiry = el('p', { class: 'expiry' });
     runCountdown(expiry, data.expires_at, sync);
     showScreen(
       main,
       el('h1', { class: 'page-title' }, t('page.read.title')),
-      consumedNotice,
+      consumedKey === null ? null : el('p', { class: 'banner', role: 'status' }, t(consumedKey)),
       priorOpens > 0 ? el('p', { class: 'warning', role: 'alert' }, t('read.priorOpens', { count: priorOpens })) : null,
       el('p', { class: 'hint' }, t('read.decryptedLocally')),
       expiry,
@@ -291,9 +306,9 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
       el('p', { class: 'hint' }, t('read.autoHide'), ' ', keep, el('label', { for: keep.id }, t('read.keepVisible'))),
       el('div', { class: 'action-bar' }, copyAll, hideButton, ...(config.allowExport ? [exportButton(() => envelope.text)] : []), ...(config.allowPrint ? [printButton()] : []), newLink()),
     );
+    if (view.hidden) setHidden(true);
   }
 
   void start();
-  // Decrypted content is not redrawn: a read-once paste cannot be fetched again.
   return () => redraw?.();
 }

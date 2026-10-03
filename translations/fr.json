@@ -9,6 +9,7 @@
   "app.noscript": "QuietLink chiffre et déchiffre dans votre navigateur : JavaScript est nécessaire.",
   "app.unsupported": "Ce navigateur ne peut pas chiffrer localement (Web Crypto absent). Utilisez un navigateur à jour.",
   "nav.language": "Langue",
+  "nav.languageChanged": "Langue : {language}",
   "nav.theme": "Thème",
   "theme.auto": "Système",
   "theme.light": "Clair",

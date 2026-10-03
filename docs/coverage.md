@@ -126,7 +126,7 @@ None.
 | EXG-A11Y-003 | `frontend/tests/connectivity.test.ts` |
 | EXG-UX-049 | `frontend/tests/create-security.test.ts` |
 | EXG-UX-050 | `frontend/tests/create-flows.test.ts` |
-| EXG-UX-051 | `frontend/tests/create-flows.test.ts` |
+| EXG-UX-051 | `frontend/tests/chrome.test.ts`, `frontend/tests/create-flows.test.ts` |
 | EXG-UX-052 | `tests/e2e/rate-limit.spec.ts`, `tests/e2e/resilience.spec.ts` |
 | EXG-UX-055 | `frontend/tests/connectivity.test.ts` |
 | EXG-A11Y-004 | `frontend/tests/create-page.test.ts` |
@@ -182,7 +182,7 @@ None.
 | EXG-UX-085 | `frontend/tests/css.test.ts`, `tests/e2e/ux.spec.ts` |
 | EXG-UX-088 | `frontend/tests/confirm.test.ts` |
 | EXG-THEME-002 | `tests/Theme/TokenThemeBuilderTest.php` |
-| EXG-I18N-001 | `frontend/tests/manage-page.test.ts`, `frontend/tests/read-failures.test.ts` |
+| EXG-I18N-001 | `frontend/tests/chrome.test.ts`, `frontend/tests/manage-page.test.ts`, `frontend/tests/read-failures.test.ts` |
 | EXG-THEME-003 | `tests/e2e/result.spec.ts` |
 | EXG-A11Y-008 | `frontend/tests/css.test.ts` |
 | EXG-UX-097 | `tests/e2e/ux.spec.ts` |
