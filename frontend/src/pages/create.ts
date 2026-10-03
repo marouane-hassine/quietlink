@@ -378,10 +378,9 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       refresh();
       try {
         if (!retry || pending === null) {
-          if (state.usePassphrase) {
-            status.textContent = t('state.deriving');
-            announce(t('state.deriving'));
-          }
+          const phase = state.usePassphrase ? t('state.deriving') : t('state.encrypting');
+          status.textContent = phase;
+          announce(phase);
           const envelope = serialize({ format: state.format, language: state.format === 'code' && state.language ? state.language : null, template: state.template || null, text: state.text });
           pending = await prepare({
             envelope,
@@ -389,12 +388,13 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
             readOnce: state.readOnce,
             passphrase: state.usePassphrase ? state.passphrase : null,
             kdf: config.kdf,
-            derive: (p, salt, m, tt) => {
+            derive: async (p, salt, m, tt) => {
               status.textContent = t('state.deriving');
-              return deriveInWorker(p, salt, m, tt);
+              const key = await deriveInWorker(p, salt, m, tt);
+              status.textContent = t('state.encrypting');
+              return key;
             },
           });
-          status.textContent = t('state.encrypting');
         }
         status.textContent = t('state.sending');
         announce(t('state.sending'));

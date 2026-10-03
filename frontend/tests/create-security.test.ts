@@ -179,7 +179,7 @@ describe('publication states', () => {
 
   // DEFECT: create.ts sets state.encrypting only after prepare() has returned and overwrites
   // it synchronously with state.sending, so no encryption state is ever displayed.
-  it.fails('shows an explicit encryption state while encrypting', async () => {
+  it('shows an explicit encryption state while encrypting', async () => {
     const encryption = deferred<void>();
     const original = crypto.subtle.encrypt.bind(crypto.subtle);
     const encrypt = vi.spyOn(crypto.subtle, 'encrypt').mockImplementation(async (...args) => {
