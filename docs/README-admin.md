@@ -581,7 +581,27 @@ restore the pre-upgrade backup. The frontend assets are hashed, so mixed old/new
 collide in caches.
 
 Verify release artefacts (signatures and checksums published with each release) before
-deploying, and prefer image digests over tags.
+deploying, and prefer image digests over tags. Signatures are keyless (Sigstore, GitHub OIDC),
+so the identity to check is the release workflow of the official repository:
+
+```sh
+id='^https://github.com/marouane-hassine/quietlink/\.github/workflows/release\.yml@refs/tags/v'
+issuer=https://token.actions.githubusercontent.com
+# Images (repeat for quietlink-web and quietlink-cli); use the digest printed in the release notes.
+cosign verify --certificate-identity-regexp "$id" --certificate-oidc-issuer "$issuer" \
+  ghcr.io/marouane-hassine/quietlink-app@sha256:<digest>
+cosign verify-attestation --type spdxjson --certificate-identity-regexp "$id" \
+  --certificate-oidc-issuer "$issuer" ghcr.io/marouane-hassine/quietlink-app@sha256:<digest>
+# PHAR and frontend hashes, downloaded from the GitHub release.
+for f in quietlink.phar frontend-sha256sums.txt; do
+  cosign verify-blob --bundle "$f.sigstore.json" --certificate-identity-regexp "$id" \
+    --certificate-oidc-issuer "$issuer" "$f"
+done
+sha256sum -c quietlink.phar.sha256
+gh attestation verify quietlink.phar --repo marouane-hassine/quietlink
+# Served assets: compare with the published list.
+(cd public/build && find . -type f -exec sha256sum {} + | sort) | diff - frontend-sha256sums.txt
+```
 
 ## 16. Incident response
 

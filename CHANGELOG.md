@@ -30,3 +30,7 @@ a removed API version is announced at least one minor version in advance.
 - Trusted Types enforcement, threat model and generated requirement coverage report.
 - Optional local export (`ui.allow_export`) and controlled printing (`ui.allow_print`), both off by
   default; `app:theme:preview` and `app:cache:purge` commands.
+- Pages, Markdown, code highlighting and the QR code are loaded on demand; the first screen loads
+  about 33 KB of JavaScript, enforced by a bundle budget in `npm run qa`.
+- Capacity benchmarks (`npm run bench:purge`, `npm run bench:load`), a release checklist and a
+  release verification procedure; release notes list the signed image digests.
