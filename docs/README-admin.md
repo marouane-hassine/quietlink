@@ -618,3 +618,11 @@ assumptions:
 - Endpoint compromise (browser extensions, malware, shoulder surfing) is out of scope.
 - Deletion removes files with `unlink()`; data may remain on the underlying storage medium,
   snapshots and backups.
+
+## Argon2id calibration
+
+Default passphrase parameters are `m = 64 MiB, t = 3, p = 1` (ADR-0008). To measure them on target
+devices, run `npm ci && npm run calibration` on a workstation of the local network and open the printed
+network URL on each phone or computer, then press *Run measurements*. The page uses the production
+worker and a dummy passphrase; record the median durations in the calibration report. Lower the defaults
+only if an entry-level device exceeds about 5 seconds.

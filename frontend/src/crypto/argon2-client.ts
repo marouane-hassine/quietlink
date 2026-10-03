@@ -12,14 +12,14 @@ interface TrustedTypePolicyFactoryLike {
 
 let policy: { createScriptURL(url: string): unknown } | null = null;
 
-/** Worker URLs go through a Trusted Types policy accepting only same-origin build assets. */
+/** Worker URLs go through a Trusted Types policy accepting only same-origin http(s) URLs (no blob:/data:). */
 function workerUrl(url: string): unknown {
   const factory = (globalThis as { trustedTypes?: TrustedTypePolicyFactoryLike }).trustedTypes;
   if (!factory) return url;
   policy ??= factory.createPolicy('quietlink-worker', {
     createScriptURL(candidate: string): string {
       const parsed = new URL(candidate, location.href);
-      if (parsed.origin !== location.origin || !parsed.pathname.startsWith('/build/')) throw new TypeError('Untrusted worker URL');
+      if (parsed.origin !== location.origin || (parsed.protocol !== 'https:' && parsed.protocol !== 'http:')) throw new TypeError('Untrusted worker URL');
       return parsed.href;
     },
   });
