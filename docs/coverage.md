@@ -335,7 +335,7 @@ None.
 | EXG-PWA-002 | `tests/Web/PageTest.php` |
 | EXG-PWA-004 | `tests/Web/PageTest.php` |
 | EXG-PWA-007 | `tests/Web/PageTest.php` |
-| EXG-SEC-044 | `tests/Http/HardeningTest.php` |
+| EXG-SEC-044 | `tests/Config/ConfigLoaderTest.php`, `tests/Http/HardeningTest.php` |
 | EXG-SEC-045 | `tests/Http/ApiTest.php`, `tests/Http/HardeningTest.php` |
 | EXG-SEC-046 | `tests/Http/ApiTest.php` |
 | EXG-SEC-047 | `tests/Deploy/DeploymentConfigTest.php` |

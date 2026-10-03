@@ -224,7 +224,7 @@ Durations use the format `<integer><m|h|d>` (e.g. `30m`, `24h`, `7d`). Expiratio
 |---|---|---|
 | `http.max_request_bytes` | `1441792` | Integer; must be ≥ `ceil((max_envelope_bytes + 16) × 4/3) + ceil(max_metadata_bytes × 4/3) + 16384` (1,419,969 with the defaults). Keep the web server body limit aligned. |
 | `http.ratelimit_ipv6_prefix` | `64` | Integer 48–64. IPv6 clients are rate limited per prefix. |
-| `http.trusted_proxies` | `[]` | List of IP addresses or CIDR ranges allowed to set `X-Forwarded-*` / `Forwarded`. See §9. |
+| `http.trusted_proxies` | `[]` | List of IPv4 or IPv6 addresses or CIDR ranges (prefix 0–32 for IPv4, 0–128 for IPv6) allowed to set `X-Forwarded-*` / `Forwarded`. See §9. |
 | `http.cors_allowed_origins` | `[]` | List of `https://` origins. Empty = CORS disabled. |
 | `http.hsts_max_age` | `31536000` | Integer (seconds). `0` disables the HSTS header. |
 | `http.rate_limits` | see §10 | Map of known buckets to `['limit' => int ≥ 1, 'interval' => int 1–86400]`, exactly these two keys: `http.rate_limits.<bucket>.limit` (requests allowed) and `http.rate_limits.<bucket>.interval` (window in seconds). |

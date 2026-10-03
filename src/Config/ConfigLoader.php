@@ -367,7 +367,7 @@ final class ConfigLoader
             }
         }
         foreach ($r->stringList('http.trusted_proxies') as $proxy) {
-            if (preg_match('#^[0-9a-fA-F:.]+(/\d{1,3})?$#D', $proxy) !== 1) {
+            if (!self::isValidProxy($proxy)) {
                 $errors[] = '"http.trusted_proxies" entries must be IP addresses or CIDR ranges.';
             }
         }
@@ -457,6 +457,27 @@ final class ConfigLoader
 
         return $parts['scheme'] === 'https'
             || ($parts['scheme'] === 'http' && in_array($parts['host'], ['localhost', '127.0.0.1', '[::1]'], true));
+    }
+
+    /**
+     * An IPv4 or IPv6 address, optionally followed by a decimal prefix length within the
+     * address family bounds (0–32 or 0–128), without leading zeros.
+     */
+    private static function isValidProxy(string $proxy): bool
+    {
+        [$address, $prefix] = str_contains($proxy, '/') ? explode('/', $proxy, 2) : [$proxy, null];
+        if (filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false) {
+            $max = 32;
+        } elseif (filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false) {
+            $max = 128;
+        } else {
+            return false;
+        }
+        if ($prefix === null) {
+            return true;
+        }
+
+        return preg_match('/^(?:0|[1-9]\d{0,2})$/D', $prefix) === 1 && (int) $prefix <= $max;
     }
 
     private static function isSafeThemeFile(string $file, string $configDir): bool

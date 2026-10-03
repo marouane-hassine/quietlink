@@ -186,6 +186,9 @@ final class ConfigLoaderTest extends TestCase
         yield 'null locale' => [['app' => ['public_url' => 'https://paste.example.test', 'enabled_locales' => [null]]], 'app.enabled_locales'];
         yield 'integer expiration' => [$base + ['paste' => ['allowed_expirations' => [5]]], 'paste.allowed_expirations'];
         yield 'boolean template' => [$base + ['ui' => ['templates' => [true]]], 'ui.templates'];
+        foreach (['127.0.0.1/99', '999.1.1.1', '.', ':', '::1/129', '10.0.0.0/', '10.0.0.0/-1', '10.0.0.0/08', 'fe80::1%eth0', ' 10.0.0.1'] as $proxy) {
+            yield 'trusted proxy ' . $proxy => [$base + ['http' => ['trusted_proxies' => [$proxy]]], 'trusted_proxies'];
+        }
         yield 'envelope limit overflow' => [$base + ['paste' => ['max_envelope_bytes' => PHP_INT_MAX]], 'max_envelope_bytes'];
         yield 'envelope limit above ceiling' => [$base + ['paste' => ['max_envelope_bytes' => 16777217], 'http' => ['max_request_bytes' => PHP_INT_MAX]], 'max_envelope_bytes'];
     }
@@ -228,6 +231,15 @@ final class ConfigLoaderTest extends TestCase
         self::assertTrue($config->paste->allowForever);
         self::assertNull($config->paste->maxRetentionSeconds);
         self::assertSame(['5m', '1h', '1d', '7d', '30d', 'never'], $config->paste->acceptedExpirationCodes());
+    }
+
+    #[Group('EXG-SEC-044')]
+    public function testTrustedProxiesAcceptAddressesAndBoundedPrefixes(): void
+    {
+        $proxies = ['192.0.2.1', '10.0.0.0/8', '0.0.0.0/0', '198.51.100.7/32', '::1', '2001:db8::/32', '::/0', '::1/128'];
+        $this->writeConfig(self::MINIMAL + ['http' => ['trusted_proxies' => $proxies]]);
+
+        self::assertSame($proxies, $this->load()->http->trustedProxies);
     }
 
     public function testHttpLocalhostIsAllowedForDevelopment(): void
