@@ -500,4 +500,23 @@ final class PasteServiceTest extends TestCase
         }
         self::assertSame([], glob($this->tmp->path . '/data/pastes/*/*/*', GLOB_ONLYDIR));
     }
+
+    #[Group('EXG-API-040')]
+    #[Group('EXG-TEST-035')]
+    public function testDeletingAConsumedPasteRemovesItAndLaterReplaysFail(): void
+    {
+        // ADR-0008: spec §10 prevails, a valid token deletes in any state, including consumed.
+        [$prepared, $id] = $this->createPaste(readOnce: true);
+        $rid = Base64Url::encode(random_bytes(16));
+        $opened = $this->service->open($id, $this->proofBody($prepared, $id, 'open', ['reservation_id' => $rid]));
+        self::assertNotNull($opened['consume_challenge']);
+        $consume = $this->consumeBody($prepared, $rid, $opened['consume_challenge']);
+        $this->service->consume($id, $consume);
+
+        $this->service->delete($id, Base64Url::encode($prepared->deletionToken));
+
+        self::assertSame([], glob($this->tmp->path . '/data/pastes/*/*/*', GLOB_ONLYDIR));
+        $this->expectException(PasteUnavailableException::class);
+        $this->service->consume($id, $consume);
+    }
 }

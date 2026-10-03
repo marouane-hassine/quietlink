@@ -218,7 +218,7 @@ Orphans: `.<id>.tmp-<rand>/` staging dirs and `.state.json.tmp-<rand>` files. Th
 
 Two phases (l. 1273, 1275), all under `LOCK_EX` on `state.lock` in one operation:
 
-1. Open + lock + verify identity (§5.2). If `state = consumed` and the trigger is a **manual** deletion, keep `consumed` until `terminal_at + 10 min` and return (l. 1290).
+1. Open + lock + verify identity (§5.2). A manual deletion with a valid token removes the paste in any state, `consumed` included (spec §10, l. 1622; ADR-0008 resolves the conflict with l. 1290 in favour of §10).
 2. Write `state.json` = `deleted`, `terminal_at = now` (§6.1).
 3. `unlink(payload.bin)` if present; under `usage.lock`: `bytes -= size(payload.bin)` (size measured with `fstat`/`stat` before unlink).
 4. `unlink(meta.json)`, `unlink(state.json)`, then `unlink(state.lock)` last among files (the flock on the open descriptor stays valid), then `rmdir(<id>)`. `ENOENT` at any step is tolerated (idempotence).
@@ -266,7 +266,7 @@ Persistent states: `available`, `reserved`, `consumed`, `deleted` (technical). `
 | T8 | `consumed` | exact replay of the same proof (same rid, challenge, signature) | `consumed` (no change) | none; same success | l. 497 |
 | T9 | `available`/`reserved` | manual delete with valid deletion token, or purge of an expired paste | `deleted` → removed | §6.4 | l. 1273 |
 | T10 | `consumed` | purge, `now ≥ terminal_at + 10 min` | `deleted` → removed | §6.4 | l. 1290 |
-| T11 | `consumed` | manual delete | `consumed` (kept until T10) | none | l. 1290 |
+| T11 | `consumed` | manual delete with a valid token | `deleted` → removed | §6.4 | §10 l. 1622, ADR-0008 |
 | T12 | `deleted` | purge | removed | finish §6.4 | l. 1273 |
 
 Non-read-once pastes only use T1, T9, T12 (`open` serves the payload without state change).

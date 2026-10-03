@@ -360,9 +360,8 @@ final class PasteService
             throw new PasteUnavailableException();
         }
 
-        // A consumed paste is kept (without payload) for idempotent consume replays (T11).
-        $this->store->remove($id, static fn (PasteRecord $r): bool => hash_equals($r->meta->deletionTokenHash, $tokenHash)
-            && $r->state->name !== StateName::Consumed);
+        // A valid token deletes in any state, consumed included (spec §10, ADR-0008).
+        $this->store->remove($id, static fn (PasteRecord $r): bool => hash_equals($r->meta->deletionTokenHash, $tokenHash));
     }
 
     /**

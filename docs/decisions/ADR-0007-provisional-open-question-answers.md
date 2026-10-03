@@ -1,6 +1,6 @@
 # ADR-0007: Provisional answers to protocol and storage open questions
 
-- Status: Accepted (provisional — to be confirmed by the security review, §7.5)
+- Status: Accepted for V1 (2026-10-03, product owner); the external security audit may still require changes through a new protocol version
 - Date: 2026-10-03
 - Spec reference: `docs/protocol/sp-proto-v1.md` §16, `docs/storage-format.md` §13
 
