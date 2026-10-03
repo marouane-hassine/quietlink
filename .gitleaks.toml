@@ -14,4 +14,5 @@ paths = [
   '''^docs/schemas/[a-z]+\.v1\.schema\.json$''',
   '''^docs/protocol/sp-proto-v1\.md$''',
   '''^tools/e2e/server\.sh$''',
+  '''^tools/bench/server\.sh$''',
 ]

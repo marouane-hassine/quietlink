@@ -11,7 +11,9 @@
     "qa": "npm run typecheck && npm run test && npm run build && node tools/ci/bundle-budget.mjs",
     "e2e": "playwright test",
     "coverage:requirements": "node tools/traceability/coverage.mjs",
-    "calibration": "vite --config tools/calibration/vite.config.ts"
+    "calibration": "vite --config tools/calibration/vite.config.ts",
+    "bench:load": "vite build --config tools/bench/vite.config.ts && node var/bench/load.mjs",
+    "bench:purge": "php tools/bench/purge.php"
   },
   "engines": {
     "node": ">=24.7"

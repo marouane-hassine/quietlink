@@ -626,3 +626,24 @@ devices, run `npm ci && npm run calibration` on a workstation of the local netwo
 network URL on each phone or computer, then press *Run measurements*. The page uses the production
 worker and a dummy passphrase; record the median durations in the calibration report. Lower the defaults
 only if an entry-level device exceeds about 5 seconds.
+
+## Capacity benchmarks
+
+Two scripts check the §13 targets on a candidate machine. Run them on a disposable instance or
+directory, never on production data. Both use dummy content only.
+
+- **Purge** (`EXG-PERF-011`): `npm run bench:purge -- 100000 /path/to/scratch` creates 100,000
+  expired pastes with the real storage code in a temporary store. It then times one purge run and
+  checks that no paste is left after under 5 minutes. The directory is deleted at the end. Use a
+  path on the filesystem type that production uses.
+- **Throughput and latency** (`EXG-PERF-009`, `EXG-PERF-010`): start the disposable instance
+  `tools/bench/server.sh` (port 8095). It uses temporary storage and lifts every rate limit bucket,
+  because all requests come from one address. Then run
+  `npm run bench:load -- --creates 2000 --opens 4000 --concurrency 16`. The script builds real
+  sp-proto/v1 pastes locally, then measures creates per second, opens per second (challenge plus
+  open) and the p50/p95 latency of each endpoint. The targets are at least 50 creates/s, at least
+  200 opens/s and a p95 under 200 ms. To test a production-like stack (PHP-FPM behind Nginx),
+  pass `--url` and raise every `http.rate_limits` bucket of that test instance. Latency includes
+  the local network, so run the client on the same host or LAN.
+
+Each script exits with a non-zero status when a target is missed.
