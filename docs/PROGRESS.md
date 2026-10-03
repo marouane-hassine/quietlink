@@ -5,8 +5,9 @@ Resume from this file after a context reset; do not re-read the full specificati
 ## Status
 
 - Phase 0: closed (see git history up to `docs: add phase 0 progress tracker`).
-- V1 development: in progress on `develop` (product owner asked for the complete V1).
-  Open questions are answered provisionally by ADR-0007 (to be confirmed by the security review).
+- V1 development: feature-complete on `develop`; remaining work is Phase 3 evidence and the
+  external audit (see `docs/release-checklist.md`). ADR-0007 accepted for V1, ADR-0008 records the
+  product owner decisions. No tag before the audit; `main` stays untouched until the release PR.
 
 | Lot | Status | Notes |
 |---|---|---|
@@ -20,7 +21,8 @@ Resume from this file after a context reset; do not re-read the full specificati
 | L8 Frontend TS/Vite (crypto + vectors, pages, i18n, themes, Markdown, QR, templates) | Done | browser-tested on localhost |
 | L9 Twig pages, CSP, theme CSS generation | Done | |
 | L10 Docker, docs (README admin/dev, OpenAPI), CI | Done | compose stack tested locally |
-| L11 E2E Playwright, final security review | Done | 75 journeys × 5 browsers; validation agent fixing mobile-only failures |
+| L11 E2E Playwright, final security review | Done | journeys × 5 browser projects, run locally |
+| L13 Phase 3 tooling | Done | `bench:purge`, `bench:load`, calibration page, release checklist |
 | L12 Should/Could completion | Done | Should: 2 MAY items left; Could: pattern-based secret detection deferred (ADR-0004) |
 
 ## Decisions (see ADRs for detail)
@@ -45,12 +47,10 @@ unconfirmed_opens retry_after state`. Delete: header `X-Deletion-Token`.
 
 `npm run build`; dev config in /tmp/ql-dev (scratchpad devenv.sh); `php -S localhost:8080 -t public tools/dev/router.php`.
 
-## Open points for the product owner
+## Benchmarks (dev laptop, macOS APFS, PHP built-in server; not the reference machine)
 
-- CDC contradiction: §10 (l.1622) says a valid DELETE removes a consumed paste and a later consume
-  gets 404; §9.4.1 (l.1290) keeps a consumed paste 10 min after a manual delete. Code follows §9.4.1.
-- `metrics.enabled`, `ui.allow_print`, `ui.allow_export` are validated but have no effect yet;
-  `app:theme:preview` and the French word list (Lexique) are not built.
+- Purge: 100,000 expired pastes in 186.5 s, none left (target < 300 s).
+- Load: 803 creates/s, 781 opens/s, worst p95 48.8 ms (targets 50/s, 200/s, < 200 ms).
 
 ## Coverage (docs/coverage.md, `npm run coverage:requirements`)
 
@@ -59,7 +59,7 @@ Must 816: 502 cited by automated tests, 242 manual review or CI check, 72 not ye
 
 ## Human actions (out of scope for the agent)
 
-- Calibrate Argon2id on real devices; mobile/desktop mock-ups; real-device E2E matrix.
-- Build the `fr` word list from Lexique (§19.1).
-- External crypto audit before public release; confirm ADR-0007.
-- Approve pushing `main`/`develop` to the GitHub remote.
+- Calibrate Argon2id on real devices (`npm run calibration`); real-device E2E matrix; WCAG audit.
+- Capacity benchmarks on the reference machine (PHP-FPM + Nginx).
+- Build the `fr` word list from Lexique (§19.1); EFF list in the meantime (ADR-0008).
+- Internal security review, external crypto audit, Phase 3 user tests, then the release PR.
