@@ -383,7 +383,7 @@ summary {
 
 .action-bar {
   position: sticky;
-  inset-block-end: 0;
+  inset-block-end: var(--ql-keyboard-offset, 0px);
   display: flex;
   flex-wrap: wrap;
   align-items: center;

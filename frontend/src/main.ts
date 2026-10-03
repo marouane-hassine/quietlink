@@ -9,6 +9,7 @@ import { mountManage } from './pages/manage';
 import { mountRead } from './pages/read';
 import { initTheme, renderChrome } from './ui/chrome';
 import { watchConnectivity } from './ui/connectivity';
+import { followVirtualKeyboard } from './ui/viewport';
 
 function boot(): void {
   const main = document.getElementById('main');
@@ -20,6 +21,7 @@ function boot(): void {
   const rerender = mount();
   renderChrome(config, theme, rerender);
   watchConnectivity();
+  followVirtualKeyboard();
 }
 
 boot();
