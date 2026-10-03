@@ -83,19 +83,23 @@ final class Purger
             foreach ($this->store->ids() as $id) {
                 $dir = $this->layout->pasteDir($id);
                 $sizeBefore = self::payloadSize($dir);
-                if ($this->store->isIncomplete($id)) {
-                    $stats['removed'] += $this->store->removeIncomplete($id) ? 1 : 0;
-                } else {
-                    try {
+                // A failure on one paste (busy lock, unwritable directory, full disk) never
+                // stops the run: the paste is retried by the next purge (§9.7).
+                try {
+                    if ($this->store->isIncomplete($id)) {
+                        $stats['removed'] += $this->store->removeIncomplete($id) ? 1 : 0;
+                    } elseif ($this->store->isPendingDeletion($id)) {
+                        $stats['removed'] += $this->store->remove($id) ? 1 : 0;
+                    } else {
                         $action = $this->store->mutate($id, fn (PasteRecord $r): array => $this->decide($r));
-                    } catch (StorageException) {
-                        $action = 'busy';
+                        if (($action === 'remove' || $action === 'orphan') && $this->store->remove($id)) {
+                            ++$stats[$action === 'orphan' ? 'orphans' : 'removed'];
+                        } elseif ($action === 'released') {
+                            ++$stats['released'];
+                        }
                     }
-                    if (($action === 'remove' || $action === 'orphan') && $this->store->remove($id)) {
-                        ++$stats[$action === 'orphan' ? 'orphans' : 'removed'];
-                    } elseif ($action === 'released') {
-                        ++$stats['released'];
-                    }
+                } catch (StorageException) {
+                    // Counted below as observed when the directory is still there.
                 }
                 clearstatcache();
                 if (!is_dir($dir)) {

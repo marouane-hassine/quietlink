@@ -24,6 +24,8 @@ use QuietLink\Storage\IdempotencyRecord;
 use QuietLink\Storage\IdempotencyStore;
 use QuietLink\Storage\PasteId;
 use QuietLink\Storage\PasteMeta;
+use QuietLink\Storage\PasteState;
+use QuietLink\Storage\RecordCodec;
 use QuietLink\Storage\StateFiles;
 use QuietLink\Storage\StorageLayout;
 use QuietLink\Storage\UsageCounter;
@@ -179,6 +181,51 @@ final class PurgerTest extends TestCase
         self::assertSame(1, $stats['orphans']);
         self::assertNull($this->store->find($id));
         self::assertNotNull($this->store->find($legit));
+    }
+
+    /**
+     * A crash between writing the `deleted` state and removing the directory leaves a paste that
+     * nobody can read; the next purge completes the deletion (§9.4.1, storage-format T12).
+     */
+    #[Group('EXG-STORE-022')]
+    public function testInterruptedDeletionIsCompletedByThePurge(): void
+    {
+        [, $id] = $this->create('1d');
+        $dir = $this->layout->pasteDir($id);
+        AtomicFile::write($dir . '/state.json', RecordCodec::encodeState(PasteState::initial()->deleted($this->clock->now())));
+
+        $stats = $this->purger->run();
+
+        self::assertNotNull($stats);
+        self::assertSame(1, $stats['removed']);
+        self::assertDirectoryDoesNotExist($dir);
+        self::assertSame(['bytes' => 0, 'items' => 0], $this->usage->read());
+    }
+
+    /**
+     * One paste that cannot be removed (unwritable directory, full disk, busy lock) must not stop
+     * the purge of the others nor the rest of the run (§9.7).
+     */
+    #[Group('EXG-STORE-006')]
+    public function testOneFailingRemovalDoesNotAbortTheRun(): void
+    {
+        if (function_exists('posix_getuid') && posix_getuid() === 0) {
+            self::markTestSkipped('Permissions are not enforced for root.');
+        }
+        [, $stuck] = $this->create('5m');
+        [, $other] = $this->create('5m');
+        $this->clock->advance(400);
+        chmod($this->layout->pasteDir($stuck), 0500);
+
+        try {
+            $stats = $this->purger->run();
+        } finally {
+            chmod($this->layout->pasteDir($stuck), 0700);
+        }
+
+        self::assertNotNull($stats);
+        self::assertSame(1, $stats['removed']);
+        self::assertNull($this->store->find($other));
     }
 
     /**

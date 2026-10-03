@@ -189,6 +189,18 @@ final class FilesystemPasteStore implements PasteStore
         return is_dir($dir) && $this->removeDirectory($dir);
     }
 
+    /**
+     * True when a deletion was interrupted after writing the `deleted` state (§9.4.1): the paste
+     * is unreadable and only the purge can complete its removal.
+     */
+    public function isPendingDeletion(PasteId $id): bool
+    {
+        $state = AtomicFile::read($this->layout->pasteDir($id) . '/state.json');
+        $decoded = $state === null ? null : RecordCodec::decodeState($state);
+
+        return $decoded !== null && $decoded->name === StateName::Deleted;
+    }
+
     public function isIncomplete(PasteId $id): bool
     {
         $dir = $this->layout->pasteDir($id);
