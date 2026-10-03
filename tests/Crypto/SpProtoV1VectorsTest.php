@@ -6,7 +6,7 @@ declare(strict_types=1);
 
 namespace QuietLink\Tests\Crypto;
 
-use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
@@ -26,24 +26,22 @@ use QuietLink\Encoding\InvalidEncodingException;
 use QuietLink\Tests\Support\SpProtoV1Vectors as V;
 
 /**
- * Red tests (TDD) of the PHP sp-proto/v1 implementation against the shared vectors.
- *
- * The production classes are written in Phase 1; until then every test is
- * marked incomplete. The class and method names below are the target API
- * contract and may be refined when Phase 1 starts.
+ * PHP sp-proto/v1 implementation checked against the shared vectors.
  *
  * Specification: docs/protocol/sp-proto-v1.md
  */
-#[CoversNothing]
+#[CoversClass(AccessProof::class)]
+#[CoversClass(Aad::class)]
+#[CoversClass(Argon2id::class)]
+#[CoversClass(Challenge::class)]
+#[CoversClass(ContentCipher::class)]
+#[CoversClass(DeletionToken::class)]
+#[CoversClass(Ed25519::class)]
+#[CoversClass(Identifier::class)]
+#[CoversClass(KeyDerivation::class)]
+#[CoversClass(Base64Url::class)]
 final class SpProtoV1VectorsTest extends TestCase
 {
-    private static function requireImplementation(string $class): void
-    {
-        if (!class_exists($class)) {
-            self::markTestIncomplete(sprintf('Phase 1: %s is not implemented yet.', $class));
-        }
-    }
-
     /** @return array<string, array{array<string, mixed>}> */
     public static function hkdfNoPassphrase(): array
     {
@@ -67,7 +65,6 @@ final class SpProtoV1VectorsTest extends TestCase
     #[Group('EXG-CRYPTO-064')]
     public function testHkdfDerivationsWithoutPassphrase(array $vector): void
     {
-        self::requireImplementation(KeyDerivation::class);
         $kUrl = V::bytes($vector, 'input.k_url');
 
         self::assertSame(V::bytes($vector, 'expected.k_access_seed'), KeyDerivation::accessSeed($kUrl));
@@ -94,7 +91,6 @@ final class SpProtoV1VectorsTest extends TestCase
     #[Group('EXG-CRYPTO-064')]
     public function testHkdfDerivationsWithPassphrase(array $vector): void
     {
-        self::requireImplementation(KeyDerivation::class);
         $kUrl = V::bytes($vector, 'input.k_url');
         $kPass = V::bytes($vector, 'input.k_pass');
 
@@ -127,7 +123,6 @@ final class SpProtoV1VectorsTest extends TestCase
     #[Group('EXG-CRYPTO-061')]
     public function testArgon2idPassphraseKey(array $vector): void
     {
-        self::requireImplementation(Argon2id::class);
 
         self::assertSame(
             V::bytes($vector, 'expected.k_pass'),
@@ -152,7 +147,6 @@ final class SpProtoV1VectorsTest extends TestCase
     #[Group('EXG-CRYPTO-061')]
     public function testPassphraseIsNormalisedToNfc(array $vector): void
     {
-        self::requireImplementation(Argon2id::class);
         $expected = V::bytes($vector, 'expected.k_pass');
 
         self::assertSame($expected, V::bytes($vector, 'expected.k_pass_of_precomposed'));
@@ -184,7 +178,6 @@ final class SpProtoV1VectorsTest extends TestCase
     #[Group('EXG-URL-011')]
     public function testIdentifierBindsAccessKeyAndDeletionHash(array $vector): void
     {
-        self::requireImplementation(Identifier::class);
         $accessPk = V::bytes($vector, 'input.access_pk');
         $deletionHash = V::bytes($vector, 'expected.deletion_hash');
 
@@ -226,7 +219,6 @@ final class SpProtoV1VectorsTest extends TestCase
     #[Group('EXG-CRYPTO-062')]
     public function testAadCanonicalisation(array $vector): void
     {
-        self::requireImplementation(Aad::class);
         $canonical = V::string($vector, 'expected.canonical');
         $object = V::value($vector, 'input.object');
         self::assertIsArray($object);
@@ -251,7 +243,6 @@ final class SpProtoV1VectorsTest extends TestCase
     #[Group('EXG-CRYPTO-062')]
     public function testNonCanonicalOrInvalidAadIsRejected(array $vector): void
     {
-        self::requireImplementation(Aad::class);
 
         $this->expectException(InvalidAadException::class);
         Aad::fromBytes(V::string($vector, 'input.aad'));
@@ -280,7 +271,6 @@ final class SpProtoV1VectorsTest extends TestCase
     #[Group('EXG-CRYPTO-068')]
     public function testContentEncryptionRoundTrip(array $vector): void
     {
-        self::requireImplementation(ContentCipher::class);
         $key = V::bytes($vector, 'input.k_enc');
         $nonce = V::bytes($vector, 'input.nonce');
         $aad = V::bytes($vector, 'input.aad_hex');
@@ -302,7 +292,6 @@ final class SpProtoV1VectorsTest extends TestCase
     #[Group('EXG-CRYPTO-068')]
     public function testTamperedContentFailsToDecrypt(array $vector): void
     {
-        self::requireImplementation(ContentCipher::class);
 
         $this->expectException(DecryptionFailedException::class);
         ContentCipher::decrypt(
@@ -329,7 +318,6 @@ final class SpProtoV1VectorsTest extends TestCase
     #[Group('EXG-CRYPTO-007')]
     public function testStatelessChallengeLayoutAndMac(array $vector): void
     {
-        self::requireImplementation(Challenge::class);
         $key = Challenge::keyFromAppSecret(V::string($vector, 'input.app_secret_base64'));
 
         self::assertSame(V::bytes($vector, 'expected.k_challenge'), $key);
@@ -362,7 +350,6 @@ final class SpProtoV1VectorsTest extends TestCase
     #[Group('EXG-READ-024')]
     public function testChallengeVerificationChecksMacUsageIdentifierAndFreshness(array $vector): void
     {
-        self::requireImplementation(Challenge::class);
         $accept = V::value($vector, 'expected.accept');
         self::assertIsBool($accept);
 
@@ -393,7 +380,6 @@ final class SpProtoV1VectorsTest extends TestCase
     #[Group('EXG-CRYPTO-028')]
     public function testSmallOrderOrNonCanonicalPublicKeyIsRejected(array $vector): void
     {
-        self::requireImplementation(Ed25519::class);
 
         self::assertFalse(Ed25519::isAcceptablePublicKey(V::bytes($vector, 'input.public_key')));
     }
@@ -415,7 +401,6 @@ final class SpProtoV1VectorsTest extends TestCase
     #[Group('EXG-CRYPTO-073')]
     public function testEd25519ProofOverChallenge(array $vector): void
     {
-        self::requireImplementation(AccessProof::class);
         $message = V::bytes($vector, 'expected.message');
         $publicKey = V::bytes($vector, 'expected.public_key');
         $signature = V::bytes($vector, 'expected.signature');
@@ -451,7 +436,6 @@ final class SpProtoV1VectorsTest extends TestCase
     #[Group('EXG-CRYPTO-033')]
     public function testDeletionTokenIsBoundToIdentifier(array $vector): void
     {
-        self::requireImplementation(DeletionToken::class);
         $accept = V::value($vector, 'expected.accept');
         self::assertIsBool($accept);
         if ($accept) {
@@ -489,7 +473,6 @@ final class SpProtoV1VectorsTest extends TestCase
     #[Group('EXG-URL-011')]
     public function testNonCanonicalBase64UrlIsRejected(array $vector): void
     {
-        self::requireImplementation(Base64Url::class);
         $field = V::string($vector, 'input.field');
         self::assertArrayHasKey($field, self::FIELD_LENGTHS);
 
