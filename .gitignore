@@ -1,4 +1,5 @@
 .DS_Store
+/.claude/worktrees/
 /.idea/
 /.phpunit.cache/
 /config/config.local.php
