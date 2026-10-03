@@ -7,6 +7,7 @@ declare(strict_types=1);
 namespace QuietLink\Cli;
 
 use QuietLink\Crypto\Aad;
+use QuietLink\Crypto\Ed25519;
 use QuietLink\Crypto\InvalidAadException;
 use QuietLink\Crypto\KeyDerivation;
 use QuietLink\Encoding\Base64Url;
@@ -38,11 +39,15 @@ final class MetadataCommand extends Command
         if ($link->management) {
             throw new CliException('This is a management link; metadata needs the share link.');
         }
-        $status = $this->context->api->status($link, KeyDerivation::accessSeed($link->secret));
+        $accessSeed = KeyDerivation::accessSeed($link->secret);
+        $status = $this->context->api->status($link, $accessSeed);
         try {
             $aad = Aad::fromBytes(Base64Url::decode(is_string($status['aad'] ?? null) ? $status['aad'] : ''));
-        } catch (InvalidAadException) {
+        } catch (InvalidAadException|\QuietLink\Encoding\InvalidEncodingException) {
             throw new CliException('The server returned invalid metadata.');
+        }
+        if (!hash_equals(Ed25519::publicKeyFromSeed($accessSeed), $aad->accessPk)) {
+            throw new CliException('Integrity error: the server returned metadata of another content.');
         }
 
         $output->writeln('expires_at: ' . (is_string($status['expires_at'] ?? null) ? $status['expires_at'] : 'never'));

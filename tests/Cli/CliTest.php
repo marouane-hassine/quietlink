@@ -27,6 +27,9 @@ final class CliTest extends KernelTestCase
 {
     public int $requests = 0;
 
+    /** AAD (base64url) substituted in status responses to simulate a malicious server. */
+    public ?string $substituteAad = null;
+
     protected function setUp(): void
     {
         $this->bootInstance();
@@ -93,7 +96,15 @@ final class CliTest extends KernelTestCase
             $responseHeaders[strtolower($name)] = $values[0] ?? '';
         }
 
-        return new HttpResponse($response->getStatusCode(), $responseHeaders, (string) $response->getContent());
+        $content = (string) $response->getContent();
+        if ($this->substituteAad !== null && str_ends_with($path, '/status')) {
+            $data = json_decode($content, true);
+            self::assertIsArray($data);
+            $data['aad'] = $this->substituteAad;
+            $content = (string) json_encode($data);
+        }
+
+        return new HttpResponse($response->getStatusCode(), $responseHeaders, $content);
     }
 
     /**
@@ -228,5 +239,24 @@ final class CliTest extends KernelTestCase
         [$code, , $err] = $this->cli(['decrypt', '--url-stdin'], substr($share, 0, -5));
         self::assertSame(1, $code);
         self::assertStringContainsString('incomplete', $err);
+    }
+
+    #[Group('EXG-CRYPTO-051')]
+    public function testMetadataFromAnotherPasteIsRejected(): void
+    {
+        [$other] = $this->createPaste('other content', ['--read-once']);
+        [, $otherStatus] = $this->cli(['metadata', '--url-stdin'], $other);
+        self::assertStringContainsString('read_once: yes', $otherStatus);
+        $prepared = \QuietLink\Client\ClientCrypto::prepare('{"format":"plain","language":null,"template":null,"text":"x","v":1}', '1h', true);
+        [$share] = $this->createPaste('target content');
+
+        $this->substituteAad = $prepared->body['aad'];
+        foreach ([['metadata', '--url-stdin'], ['decrypt', '--url-stdin', '--yes']] as $arguments) {
+            $command = $arguments[0];
+            [$code, $out, $err] = $this->cli($arguments, $share);
+            self::assertSame(1, $code, $command);
+            self::assertStringContainsString('Integrity error', $err, $command);
+            self::assertStringNotContainsString('target content', $out);
+        }
     }
 }

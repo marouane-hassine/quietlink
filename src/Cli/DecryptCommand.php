@@ -9,6 +9,7 @@ namespace QuietLink\Cli;
 use QuietLink\Client\ClientCrypto;
 use QuietLink\Crypto\Aad;
 use QuietLink\Crypto\DecryptionFailedException;
+use QuietLink\Crypto\Ed25519;
 use QuietLink\Crypto\InvalidAadException;
 use QuietLink\Crypto\KeyDerivation;
 use QuietLink\Encoding\Base64Url;
@@ -57,6 +58,10 @@ final class DecryptCommand extends Command
         $accessSeed = KeyDerivation::accessSeed($link->secret);
         $status = $this->context->api->status($link, $accessSeed);
         $aad = self::aad($status);
+        // The AAD must belong to this link (sp-proto/v1 §8.3): a server cannot substitute another paste.
+        if (!hash_equals(Ed25519::publicKeyFromSeed($accessSeed), $aad->accessPk)) {
+            throw new CliException('Integrity error: the server returned metadata of another content.');
+        }
 
         // Passphrase and consume key are derived and checked before any reservation (§6.3.1).
         $kPass = null;
