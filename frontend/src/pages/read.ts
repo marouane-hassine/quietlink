@@ -8,7 +8,7 @@ import { parse, type ParsedAad } from '../crypto/aad';
 import { decode, EncodingError } from '../crypto/base64url';
 import { equal, randomBytes, wipe } from '../crypto/bytes';
 import { encode } from '../crypto/base64url';
-import { argon2Supported, deriveInWorker } from '../crypto/argon2-client';
+import { argon2Supported, deriveInWorker, preloadArgon2 } from '../crypto/argon2-client';
 import { parseEnvelope, type Envelope } from '../crypto/envelope';
 import { DecryptionError } from '../crypto/primitives';
 import { accessPublicKey, accessSeed, checkConsumeKey, decrypt, matchesAccessKey, prove, WrongPassphraseError } from '../crypto/protocol';
@@ -61,9 +61,10 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
   const newLink = () => el('a', { href: '/', class: 'button button-secondary' }, t('action.new'));
 
   const proofBody = async (link: Awaited<ReturnType<typeof parseLink>>, usage: 'open' | 'status', extra: Record<string, string> = {}) => {
-    const challenge = challenges?.[usage] ?? (await api.challenge(link.id, usage));
-    if (challenges) challenges = { ...challenges, [usage]: '' } as typeof challenges;
-    if (challenges && !challenges[usage]) challenges = null;
+    // Each embedded challenge is used once, then fresh ones are requested (§6.3.1).
+    const embedded = challenges?.[usage] ?? '';
+    if (challenges) challenges = { ...challenges, [usage]: '' };
+    const challenge = embedded !== '' ? embedded : await api.challenge(link.id, usage);
     const seed = await accessSeed(link.urlKey);
     try {
       return { challenge, access_pk: encode(link.accessPk), signature: await prove(seed, challenge), ...extra };
@@ -118,6 +119,7 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
     const inputId = nextId('passphrase');
     const input = el('input', { id: inputId, class: 'passphrase is-masked', type: 'text', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false' });
     if (!(typeof CSS !== 'undefined' && CSS.supports('-webkit-text-security', 'disc'))) input.type = 'password';
+    input.addEventListener('focus', preloadArgon2, { once: true });
     const error = el('p', { class: 'field-error', role: 'alert', id: nextId('error') });
     input.setAttribute('aria-describedby', error.id);
     const button = el('button', { type: 'button', class: 'button button-primary' }, t('read.reveal'));

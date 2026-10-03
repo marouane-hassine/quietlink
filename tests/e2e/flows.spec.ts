@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Requirements: EXG-URL-002, EXG-URL-013, EXG-CRYPTO-005, EXG-READ-007, EXG-READ-008, EXG-READ-011, EXG-READ-038, EXG-LIFE-002, EXG-LIFE-005, EXG-URL-006, EXG-URL-009, EXG-API-005, EXG-TEST-008, EXG-TEST-026, EXG-TEST-038, EXG-TEST-063, EXG-TEST-070, EXG-TEST-083, EXG-TEST-084.
 // End-to-end journeys (§12). Requirements: EXG-CRYPTO-002, EXG-READ-001, EXG-READ-002,
-// EXG-READ-006, EXG-URL-001, EXG-URL-004, EXG-URL-005, EXG-URL-010, EXG-I18N-015, EXG-GEN-003, EXG-URL-007, EXG-URL-008, EXG-SEC-001, EXG-UX-117, EXG-UX-119.
+// EXG-READ-006, EXG-PERF-008, EXG-URL-001, EXG-URL-004, EXG-URL-005, EXG-URL-010, EXG-I18N-015, EXG-GEN-003, EXG-URL-007, EXG-URL-008, EXG-SEC-001, EXG-UX-117, EXG-UX-119.
 
 import { expect, test, type Page } from '@playwright/test';
 
@@ -38,8 +38,14 @@ test('creates and reads a paste; the server never receives the text or the key',
   }
 
   const reader = await context.newPage();
+  const apiCalls: string[] = [];
+  reader.on('request', (request) => {
+    if (request.url().includes('/api/')) apiCalls.push(new URL(request.url()).pathname.split('/').pop() ?? '');
+  });
   await reader.goto(link);
   await expect(reader.locator('.reader')).toContainText(SECRET_TEXT);
+  // Challenges are embedded in the page: status and open only (≤ 2 round trips, §13).
+  expect(apiCalls).toEqual(['status', 'open']);
 });
 
 test('read once with passphrase: local check, reveal, consumption', async ({ page, context }) => {

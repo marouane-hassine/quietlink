@@ -6,7 +6,7 @@ import { api, ApiError } from '../api';
 import { encode } from '../crypto/base64url';
 import { wipe } from '../crypto/bytes';
 import type { Expiration } from '../crypto/constants';
-import { argon2Supported, deriveInWorker } from '../crypto/argon2-client';
+import { argon2Supported, deriveInWorker, preloadArgon2 } from '../crypto/argon2-client';
 import { byteLength, serialize, type Format } from '../crypto/envelope';
 import { matchesAccessKey, matchesDeletionToken, prepare, type PreparedPaste } from '../crypto/protocol';
 import { decode } from '../crypto/base64url';
@@ -454,6 +454,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     const inputId = nextId('passphrase');
     const hintId = nextId('passphrase-hint');
     const input = el('input', { id: inputId, class: 'passphrase', type: 'text', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false', 'aria-describedby': hintId });
+    input.addEventListener('focus', preloadArgon2, { once: true });
     const confirmInput = el('input', { id: nextId('confirm'), class: 'passphrase', type: 'text', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false' });
     const masking = typeof CSS !== 'undefined' && CSS.supports('-webkit-text-security', 'disc');
     const applyMask = () => {

@@ -30,10 +30,22 @@ export function argon2Supported(): boolean {
   return typeof Worker !== 'undefined' && typeof WebAssembly !== 'undefined';
 }
 
+let warm: Worker | null = null;
+
+function spawn(): Worker {
+  return new Worker(workerUrl(new URL(argon2WorkerUrl, location.href).href) as unknown as string, { type: 'module' });
+}
+
+/** Starts the worker ahead of time (passphrase field focus) so the module is loaded (§13). */
+export function preloadArgon2(): void {
+  if (warm === null && argon2Supported()) warm = spawn();
+}
+
 export function deriveInWorker(passphrase: string, salt: Uint8Array, m: number, t: number): Promise<Uint8Array> {
   if (!argon2Supported()) return Promise.reject(new Argon2UnavailableError());
   return new Promise((resolve, reject) => {
-    const worker = new Worker(workerUrl(new URL(argon2WorkerUrl, location.href).href) as unknown as string, { type: 'module' });
+    const worker = warm ?? spawn();
+    warm = null;
     worker.onmessage = (event: MessageEvent<{ ok: boolean; key?: Uint8Array }>) => {
       worker.terminate();
       if (event.data.ok && event.data.key) resolve(event.data.key);
