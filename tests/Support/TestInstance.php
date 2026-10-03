@@ -40,6 +40,14 @@ final class TestInstance
         return ConfigLoader::load($configDir, ['QUIETLINK_APP_SECRET' => self::SECRET_BASE64]);
     }
 
+    /**
+     * Loads a configuration previously written by config() without rewriting it.
+     */
+    public static function load(TempDirectory $tmp): InstanceConfig
+    {
+        return ConfigLoader::load($tmp->path . '/config', ['QUIETLINK_APP_SECRET' => self::SECRET_BASE64]);
+    }
+
     public static function layout(InstanceConfig $config): StorageLayout
     {
         $layout = new StorageLayout($config->storage->rootDir, $config->storage->idempotencyDir, $config->storage->stateDir);

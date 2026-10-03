@@ -24,7 +24,7 @@ require dirname(__DIR__, 3) . '/vendor/autoload.php';
 [, $base, $id, $bodyFile, $barrier] = $argv;
 $tmp = (new ReflectionClass(TempDirectory::class))->newInstanceWithoutConstructor();
 (new ReflectionProperty(TempDirectory::class, 'path'))->setValue($tmp, $base);
-$config = TestInstance::config($tmp);
+$config = TestInstance::load($tmp);
 $layout = TestInstance::layout($config);
 $clock = new SystemClock();
 $service = new PasteService(
