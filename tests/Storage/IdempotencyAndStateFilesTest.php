@@ -51,6 +51,7 @@ final class IdempotencyAndStateFilesTest extends TestCase
 
     #[Group('EXG-STORE-013')]
     #[Group('EXG-STORE-036')]
+    #[Group('EXG-API-020')]
     public function testRecordIsPublishedOnceAndReadBack(): void
     {
         $store = new IdempotencyStore($this->layout, $this->clock);

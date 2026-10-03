@@ -247,6 +247,9 @@ final class SpProtoV1VectorsTest extends TestCase
     #[Group('EXG-CRYPTO-023')]
     #[Group('EXG-CRYPTO-059')]
     #[Group('EXG-CRYPTO-063')]
+    #[Group('EXG-SEC-070')]
+    #[Group('EXG-SEC-106')]
+    #[Group('EXG-GEN-009')]
     public function testNonCanonicalOrInvalidAadIsRejected(array $vector): void
     {
 
@@ -477,6 +480,8 @@ final class SpProtoV1VectorsTest extends TestCase
     #[DataProvider('base64UrlRejectVectors')]
     #[Group('EXG-CRYPTO-053')]
     #[Group('EXG-URL-011')]
+    #[Group('EXG-API-008')]
+    #[Group('EXG-SEC-070')]
     public function testNonCanonicalBase64UrlIsRejected(array $vector): void
     {
         $field = V::string($vector, 'input.field');

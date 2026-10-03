@@ -8,6 +8,7 @@ namespace QuietLink\Tests\Runtime;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 use QuietLink\Runtime\Environment;
 
@@ -47,6 +48,7 @@ final class EnvironmentTest extends TestCase
         self::assertSame($expected, Environment::fromVariables(['APP_ENV' => 'test', 'APP_DEBUG' => $flag])->debug);
     }
 
+    #[Group('EXG-SEC-068')]
     public function testProductionNeverEnablesDebug(): void
     {
         self::assertFalse(Environment::fromVariables(['APP_ENV' => 'prod', 'APP_DEBUG' => '1'])->debug);

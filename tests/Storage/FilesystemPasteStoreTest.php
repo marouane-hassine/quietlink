@@ -123,6 +123,7 @@ final class FilesystemPasteStoreTest extends TestCase
     }
 
     #[Group('EXG-STORE-012')]
+    #[Group('EXG-STORE-045')]
     public function testCorruptedOrUnknownVersionStateFailsClosed(): void
     {
         $id = $this->createPaste();

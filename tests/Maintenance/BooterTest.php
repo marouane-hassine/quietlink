@@ -59,6 +59,8 @@ final class BooterTest extends TestCase
     #[Group('EXG-CONF-016')]
     #[Group('EXG-STORE-042')]
     #[Group('EXG-CRYPTO-078')]
+    #[Group('EXG-CRYPTO-076')]
+    #[Group('EXG-CRYPTO-077')]
     public function testBootPreparesStorageLocksAndAnIrreversibleMarker(): void
     {
         $config = TestInstance::config($this->tmp);

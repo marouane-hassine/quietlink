@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Shared sp-proto/v1 vectors (tests/vectors/sp-proto-v1.json), same file as PHPUnit and the CLI.
 // Requirements: EXG-CRYPTO-014, EXG-CRYPTO-022, EXG-CRYPTO-035, EXG-CRYPTO-036, EXG-CRYPTO-031,, EXG-READ-016, EXG-CRYPTO-071.
-// EXG-CRYPTO-045, EXG-CRYPTO-047, EXG-CRYPTO-053, EXG-CRYPTO-060, EXG-CRYPTO-070, EXG-CRYPTO-073.
+// EXG-CRYPTO-011, EXG-CRYPTO-030, EXG-CRYPTO-045, EXG-CRYPTO-047, EXG-CRYPTO-053, EXG-CRYPTO-060, EXG-CRYPTO-070, EXG-CRYPTO-073.
 
 import { describe, expect, it } from 'vitest';
 import vectors from '../../tests/vectors/sp-proto-v1.json';
@@ -110,3 +110,18 @@ describe('base64url', () => {
     }
   });
 });
+
+describe('fresh randomness per paste', () => {
+  // Requirements: EXG-CRYPTO-011, EXG-CRYPTO-030, EXG-URL-002.
+  it('draws a new 256-bit link key and a new 96-bit nonce for every paste', async () => {
+    const { prepare } = await import('../src/crypto/protocol');
+    const options = { envelope: '{"format":"plain","language":null,"template":null,"text":"x","v":1}', expiration: '1h' as const, readOnce: false, passphrase: null, kdf: { m: 19456, t: 2 }, derive: async () => new Uint8Array(32) };
+    const [a, b] = [await prepare(options), await prepare(options)];
+    expect(a.urlKey).toHaveLength(32);
+    expect(decode(a.body.nonce, 12)).toHaveLength(12);
+    expect(a.body.nonce).not.toBe(b.body.nonce);
+    expect(encode(a.urlKey)).not.toBe(encode(b.urlKey));
+    expect(a.idempotencyKey).not.toBe(b.idempotencyKey);
+  });
+});
+

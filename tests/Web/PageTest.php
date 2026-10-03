@@ -35,6 +35,9 @@ final class PageTest extends KernelTestCase
     #[Group('EXG-READ-014')]
     #[Group('EXG-SEC-061')]
     #[Group('EXG-API-030')]
+    #[Group('EXG-SEC-088')]
+    #[Group('EXG-SEC-089')]
+    #[Group('EXG-SEC-090')]
     public function testReadPageEmbedsStatelessChallengesAndNoInlineScript(): void
     {
         $id = Base64Url::encode(random_bytes(24));
@@ -47,6 +50,7 @@ final class PageTest extends KernelTestCase
     }
 
     #[Group('EXG-SEC-056')]
+    #[Group('EXG-SEC-089')]
     public function testPagesAreNotCacheableAndNotIndexed(): void
     {
         foreach (['/', '/how-it-works', '/manage/' . Base64Url::encode(random_bytes(24))] as $path) {
@@ -68,5 +72,24 @@ final class PageTest extends KernelTestCase
         self::assertSame(200, $response->getStatusCode());
         self::assertSame('browser', self::json($response)['display']);
         self::assertStringContainsString("manifest-src 'self'", (string) $response->headers->get('Content-Security-Policy'));
+    }
+
+    #[Group('EXG-GEN-012')]
+    #[Group('EXG-SEC-103')]
+    #[Group('EXG-SEC-098')]
+    public function testFooterLinksToSourcesAndNoAdministrationRouteExists(): void
+    {
+        $html = (string) $this->request('GET', '/')->getContent();
+        self::assertStringContainsString('href="https://github.com/marouane-hassine/quietlink"', $html);
+
+        $kernel = new \QuietLink\Kernel('test', true);
+        $kernel->boot();
+        $router = $kernel->getContainer()->get('router');
+        self::assertInstanceOf(\Symfony\Component\Routing\RouterInterface::class, $router);
+        $paths = array_map(static fn (\Symfony\Component\Routing\Route $route): string => $route->getPath(), $router->getRouteCollection()->all());
+        sort($paths);
+        self::assertSame(['/', '/api/v1/pastes', '/api/v1/pastes/{id}', '/api/v1/pastes/{id}/challenge', '/api/v1/pastes/{id}/consume', '/api/v1/pastes/{id}/open', '/api/v1/pastes/{id}/status', '/healthz', '/how-it-works', '/manage/{id}', '/manifest.json', '/p/{id}'], array_values(array_unique($paths)));
+        $kernel->shutdown();
+        self::assertSame(404, $this->request('GET', '/config/config.php')->getStatusCode());
     }
 }

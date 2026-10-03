@@ -87,6 +87,9 @@ final class ApiTest extends KernelTestCase
     #[Group('EXG-API-050')]
     #[Group('EXG-CACHE-002')]
     #[Group('EXG-CACHE-016')]
+    #[Group('EXG-SEC-105')]
+    #[Group('EXG-SEC-087')]
+    #[Group('EXG-SEC-051')]
     public function testSecurityHeadersAreSetOnEveryResponse(): void
     {
         foreach ([$this->request('GET', '/healthz'), $this->request('POST', '/api/v1/pastes/x/open', '{}')] as $response) {
@@ -112,6 +115,8 @@ final class ApiTest extends KernelTestCase
     #[Group('EXG-SEC-078')]
     #[Group('EXG-API-044')]
     #[Group('EXG-API-046')]
+    #[Group('EXG-SEC-108')]
+    #[Group('EXG-SEC-022')]
     public function testUnavailabilityIsUniform(): void
     {
         [$prepared, $id] = $this->create();
@@ -129,6 +134,8 @@ final class ApiTest extends KernelTestCase
     }
 
     #[Group('EXG-SEC-075')]
+    #[Group('EXG-SEC-086')]
+    #[Group('EXG-SEC-107')]
     public function testOversizedBodyIsRejectedBeforeParsing(): void
     {
         $response = $this->request('POST', '/api/v1/pastes', str_repeat('a', 1441793), ['Idempotency-Key' => 'x']);

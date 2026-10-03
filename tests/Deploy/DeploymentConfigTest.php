@@ -27,6 +27,8 @@ final class DeploymentConfigTest extends TestCase
 
     #[Group('EXG-SEC-047')]
     #[Group('EXG-SEC-048')]
+    #[Group('EXG-SEC-087')]
+    #[Group('EXG-SEC-049')]
     public function testWorkerPolicyIsThePagePolicyPlusWasm(): void
     {
         $nginx = self::file('docker/nginx/default.conf');

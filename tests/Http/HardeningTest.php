@@ -65,6 +65,8 @@ final class HardeningTest extends KernelTestCase
     #[Group('EXG-CACHE-001')]
     #[Group('EXG-CACHE-003')]
     #[Group('EXG-CACHE-006')]
+    #[Group('EXG-SEC-097')]
+    #[Group('EXG-MD-011')]
     public function testStorageAndCachesNeverHoldSecretsOrClientAddresses(): void
     {
         $this->boot();
@@ -165,6 +167,7 @@ final class HardeningTest extends KernelTestCase
     #[Group('EXG-SEC-044')]
     #[Group('EXG-SEC-045')]
     #[Group('EXG-SEC-074')]
+    #[Group('EXG-SEC-092')]
     public function testForwardedHeadersAreHonouredOnlyFromTrustedProxies(): void
     {
         $this->boot(['http' => ['trusted_proxies' => ['10.0.0.0/8'], 'rate_limits' => ['health' => ['limit' => 1, 'interval' => 600]]]]);

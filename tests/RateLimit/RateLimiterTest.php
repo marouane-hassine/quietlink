@@ -45,6 +45,8 @@ final class RateLimiterTest extends TestCase
     }
 
     #[Group('EXG-SEC-074')]
+    #[Group('EXG-SEC-091')]
+    #[Group('EXG-SEC-079')]
     public function testBucketsAndSubjectsAreCountedSeparately(): void
     {
         $limiter = $this->limiter(new FrozenClock(1790000000));
@@ -67,6 +69,7 @@ final class RateLimiterTest extends TestCase
     }
 
     #[Group('EXG-SEC-074')]
+    #[Group('EXG-SEC-094')]
     public function testAWindowOverlappingMidnightCountsBothDays(): void
     {
         // Daily keys change at 00:00 UTC; a window started the day before keeps counting.
@@ -85,6 +88,7 @@ final class RateLimiterTest extends TestCase
     }
 
     #[Group('EXG-OBS-007')]
+    #[Group('EXG-SEC-095')]
     public function testNoAddressIsWrittenAndExpiredEntriesArePurged(): void
     {
         $clock = new FrozenClock(1790000000);
@@ -100,6 +104,7 @@ final class RateLimiterTest extends TestCase
         self::assertSame(1, $limiter->purgeExpired());
     }
 
+    #[Group('EXG-SEC-095')]
     public function testExactly256LockFilesAreCreated(): void
     {
         $this->limiter(new FrozenClock());
@@ -109,6 +114,7 @@ final class RateLimiterTest extends TestCase
     }
 
     #[Group('EXG-SEC-074')]
+    #[Group('EXG-SEC-093')]
     public function testAddressesAreNormalised(): void
     {
         self::assertSame('192.0.2.1', ClientAddress::normalize('::ffff:192.0.2.1', 64));

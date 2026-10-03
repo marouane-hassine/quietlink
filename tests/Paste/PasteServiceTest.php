@@ -157,6 +157,8 @@ final class PasteServiceTest extends TestCase
     #[Group('EXG-API-011')]
     #[Group('EXG-CRYPTO-034')]
     #[Group('EXG-API-021')]
+    #[Group('EXG-GEN-009')]
+    #[Group('EXG-SEC-106')]
     public function testUnknownBodyMemberIsRejected(): void
     {
         $prepared = ClientCrypto::prepare(self::ENVELOPE, '1d', false);
@@ -164,6 +166,7 @@ final class PasteServiceTest extends TestCase
         $this->service->create(json_encode($prepared->body + ['text' => 'plain'], JSON_THROW_ON_ERROR), $prepared->idempotencyKey);
     }
 
+    #[Group('EXG-API-023')]
     public function testOptionDisabledByTheInstanceIsRejected(): void
     {
         $this->build(['paste' => ['allow_read_once' => false]]);
@@ -284,6 +287,7 @@ final class PasteServiceTest extends TestCase
         $this->service->consume($id, $consume);
     }
 
+    #[Group('EXG-API-036')]
     public function testConsumeWithAnotherKeyOrReservationFails(): void
     {
         [$prepared, $id] = $this->createPaste(readOnce: true);

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // @vitest-environment jsdom
-// Requirements: EXG-MD (templates §6.1.1: confirmation, undo, no silent replacement).
+// Requirements: EXG-MD (templates §6.1.1: confirmation, undo, no silent replacement), EXG-SEC-004.
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { mountCreate } from '../src/pages/create';
@@ -72,6 +72,27 @@ describe('templates on the creation page', () => {
     password.dispatchEvent(new Event('input'));
     expect(editor().value).toContain('- Password: dummy-value');
     expect((main.querySelector('textarea.editor')?.closest('.field') as HTMLElement).hidden).toBe(true);
+  });
+
+  it('disables input assistance and never stores the draft', () => {
+    const before = { local: localStorage.length, session: sessionStorage.length };
+    editor().value = 'DUMMY-DRAFT-TEXT';
+    editor().dispatchEvent(new Event('input'));
+    for (const field of [editor(), ...main.querySelectorAll('.passphrase-panel input')] as HTMLElement[]) {
+      expect(field.getAttribute('spellcheck')).toBe('false');
+      expect(field.getAttribute('autocomplete')).toBe('off');
+      expect(field.getAttribute('autocapitalize')).toBe('off');
+      expect(field.getAttribute('autocorrect')).toBe('off');
+    }
+    expect(localStorage.length).toBe(before.local);
+    expect(sessionStorage.length).toBe(before.session);
+    expect(document.cookie).toBe('');
+    expect(location.href).not.toContain('DUMMY');
+    expect(document.title).not.toContain('DUMMY');
+  });
+
+  it('moves focus to the screen title', () => {
+    expect(document.activeElement?.textContent).toBe('New confidential text');
   });
 });
 

@@ -86,6 +86,7 @@ final class ConfigLoaderTest extends TestCase
     #[Group('EXG-CONF-005')]
     #[Group('EXG-CONF-012')]
     #[Group('EXG-CONF-019')]
+    #[Group('EXG-GEN-002')]
     public function testMinimalConfigurationUsesSpecDefaults(): void
     {
         $this->writeConfig(self::MINIMAL);
@@ -181,6 +182,7 @@ final class ConfigLoaderTest extends TestCase
     #[Group('EXG-CONF-027')]
     #[Group('EXG-LIFE-006')]
     #[Group('EXG-LIFE-018')]
+    #[Group('EXG-SEC-102')]
     public function testInconsistentConfigurationIsRejected(array $config, string $field): void
     {
         $this->assertInvalid($config, $field);

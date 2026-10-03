@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Requirements: EXG-URL-002, EXG-URL-013, EXG-CRYPTO-005, EXG-READ-007, EXG-READ-008, EXG-READ-011, EXG-READ-038, EXG-LIFE-002, EXG-LIFE-005, EXG-URL-006, EXG-URL-009, EXG-API-005.
 // End-to-end journeys (§12). Requirements: EXG-CRYPTO-002, EXG-READ-001, EXG-READ-002,
-// EXG-READ-006, EXG-URL-001, EXG-URL-007, EXG-URL-008, EXG-SEC-001, EXG-UX-117, EXG-UX-119.
+// EXG-READ-006, EXG-URL-001, EXG-URL-004, EXG-URL-005, EXG-URL-010, EXG-I18N-015, EXG-GEN-003, EXG-URL-007, EXG-URL-008, EXG-SEC-001, EXG-UX-117, EXG-UX-119.
 
 import { expect, test, type Page } from '@playwright/test';
 
@@ -30,6 +30,7 @@ test('creates and reads a paste; the server never receives the text or the key',
   const bodies: string[] = [];
   page.on('request', (request) => bodies.push(`${request.url()} ${request.postData() ?? ''}`));
   const link = await create(page);
+  expect(link).toMatch(/^http:\/\/localhost:8090\/p\/[A-Za-z0-9_-]{32}#[A-Za-z0-9_-]{43}$/);
   const key = link.split('#')[1] ?? '';
   for (const body of bodies) {
     expect(body).not.toContain(SECRET_TEXT);
@@ -81,6 +82,8 @@ test('the management link deletes the paste after confirmation', async ({ page, 
   const link = await create(page);
   await page.getByRole('button', { name: 'Show the management link' }).click();
   const manageLink = await page.locator('.danger-zone input.link-field').inputValue();
+  expect(manageLink).toMatch(/^http:\/\/localhost:8090\/manage\/[A-Za-z0-9_-]{32}#[A-Za-z0-9_-]{43}$/);
+  expect(manageLink).not.toBe(link);
 
   const manager = await context.newPage();
   const calls: string[] = [];
@@ -99,6 +102,16 @@ test('the management link deletes the paste after confirmation', async ({ page, 
   const reader = await context.newPage();
   await reader.goto(link);
   await expect(reader.locator('main p.error')).toContainText('This content is unavailable');
+});
+
+test('a truncated management link is reported without contacting the API', async ({ page }) => {
+  const calls: string[] = [];
+  page.on('request', (request) => {
+    if (request.url().includes('/api/')) calls.push(request.url());
+  });
+  await page.goto('/manage/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA#cut');
+  await expect(page.locator('main p[role=alert]')).toContainText('This link is incomplete');
+  expect(calls).toHaveLength(0);
 });
 
 test('no file input and the interface switches to French', async ({ page }) => {
