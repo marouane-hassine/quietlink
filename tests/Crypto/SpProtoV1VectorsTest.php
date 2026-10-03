@@ -90,6 +90,7 @@ final class SpProtoV1VectorsTest extends TestCase
     #[Group('EXG-CRYPTO-035')]
     #[Group('EXG-CRYPTO-036')]
     #[Group('EXG-CRYPTO-064')]
+    #[Group('EXG-TEST-087')]
     public function testHkdfDerivationsWithPassphrase(array $vector): void
     {
         $kUrl = V::bytes($vector, 'input.k_url');
@@ -122,6 +123,7 @@ final class SpProtoV1VectorsTest extends TestCase
     #[Group('EXG-CRYPTO-055')]
     #[Group('EXG-CRYPTO-060')]
     #[Group('EXG-CRYPTO-061')]
+    #[Group('EXG-TEST-086')]
     public function testArgon2idPassphraseKey(array $vector): void
     {
 
@@ -146,6 +148,7 @@ final class SpProtoV1VectorsTest extends TestCase
     #[Group('EXG-CRYPTO-055')]
     #[Group('EXG-CRYPTO-060')]
     #[Group('EXG-CRYPTO-061')]
+    #[Group('EXG-TEST-090')]
     public function testPassphraseIsNormalisedToNfc(array $vector): void
     {
         $expected = V::bytes($vector, 'expected.k_pass');
@@ -218,6 +221,7 @@ final class SpProtoV1VectorsTest extends TestCase
     #[Group('EXG-CRYPTO-048')]
     #[Group('EXG-CRYPTO-049')]
     #[Group('EXG-CRYPTO-062')]
+    #[Group('EXG-TEST-091')]
     public function testAadCanonicalisation(array $vector): void
     {
         $canonical = V::string($vector, 'expected.canonical');
@@ -278,6 +282,7 @@ final class SpProtoV1VectorsTest extends TestCase
     #[Group('EXG-CRYPTO-031')]
     #[Group('EXG-CRYPTO-052')]
     #[Group('EXG-CRYPTO-068')]
+    #[Group('EXG-TEST-093')]
     public function testContentEncryptionRoundTrip(array $vector): void
     {
         $key = V::bytes($vector, 'input.k_enc');
@@ -299,6 +304,8 @@ final class SpProtoV1VectorsTest extends TestCase
     #[Group('EXG-CRYPTO-031')]
     #[Group('EXG-CRYPTO-052')]
     #[Group('EXG-CRYPTO-068')]
+    #[Group('EXG-TEST-085')]
+    #[Group('EXG-TEST-092')]
     public function testTamperedContentFailsToDecrypt(array $vector): void
     {
 
@@ -357,6 +364,7 @@ final class SpProtoV1VectorsTest extends TestCase
     #[Group('EXG-READ-017')]
     #[Group('EXG-READ-019')]
     #[Group('EXG-READ-024')]
+    #[Group('EXG-TEST-089')]
     public function testChallengeVerificationChecksMacUsageIdentifierAndFreshness(array $vector): void
     {
         $accept = V::value($vector, 'expected.accept');
@@ -387,6 +395,7 @@ final class SpProtoV1VectorsTest extends TestCase
      */
     #[DataProvider('publicKeyRejectVectors')]
     #[Group('EXG-CRYPTO-028')]
+    #[Group('EXG-TEST-057')]
     public function testSmallOrderOrNonCanonicalPublicKeyIsRejected(array $vector): void
     {
 
@@ -408,6 +417,7 @@ final class SpProtoV1VectorsTest extends TestCase
     #[Group('EXG-CRYPTO-008')]
     #[Group('EXG-CRYPTO-069')]
     #[Group('EXG-CRYPTO-073')]
+    #[Group('EXG-TEST-003')]
     public function testEd25519ProofOverChallenge(array $vector): void
     {
         $message = V::bytes($vector, 'expected.message');

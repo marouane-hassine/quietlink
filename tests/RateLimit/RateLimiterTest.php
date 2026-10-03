@@ -70,6 +70,7 @@ final class RateLimiterTest extends TestCase
 
     #[Group('EXG-SEC-074')]
     #[Group('EXG-SEC-094')]
+    #[Group('EXG-TEST-044')]
     public function testAWindowOverlappingMidnightCountsBothDays(): void
     {
         // Daily keys change at 00:00 UTC; a window started the day before keeps counting.
@@ -115,6 +116,7 @@ final class RateLimiterTest extends TestCase
 
     #[Group('EXG-SEC-074')]
     #[Group('EXG-SEC-093')]
+    #[Group('EXG-TEST-044')]
     public function testAddressesAreNormalised(): void
     {
         self::assertSame('192.0.2.1', ClientAddress::normalize('::ffff:192.0.2.1', 64));

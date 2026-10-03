@@ -109,6 +109,7 @@ final class PurgerTest extends TestCase
     #[Group('EXG-STORE-044')]
     #[Group('EXG-LIFE-019')]
     #[Group('EXG-LIFE-021')]
+    #[Group('EXG-TEST-035')]
     public function testExpiredPastesAreRemovedAndPurgeIsIdempotent(): void
     {
         [, $expired] = $this->create('5m');
@@ -160,6 +161,7 @@ final class PurgerTest extends TestCase
     }
 
     #[Group('EXG-API-026')]
+    #[Group('EXG-TEST-053')]
     public function testOrphanWithoutIdempotencyRecordIsRemovedAfterFifteenMinutes(): void
     {
         $id = $this->store->create(
@@ -180,6 +182,7 @@ final class PurgerTest extends TestCase
 
     #[Group('EXG-STORE-043')]
     #[Group('EXG-STORE-006')]
+    #[Group('EXG-TEST-045')]
     public function testHourlyRecomputationCorrectsDrift(): void
     {
         $this->create();
@@ -192,6 +195,7 @@ final class PurgerTest extends TestCase
     }
 
     #[Group('EXG-STORE-037')]
+    #[Group('EXG-TEST-051')]
     public function testConcurrentPurgeExitsImmediately(): void
     {
         $lock = FileLock::acquire(Purger::lockPath($this->layout), true);

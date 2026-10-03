@@ -52,6 +52,7 @@ final class IdempotencyAndStateFilesTest extends TestCase
     #[Group('EXG-STORE-013')]
     #[Group('EXG-STORE-036')]
     #[Group('EXG-API-020')]
+    #[Group('EXG-TEST-052')]
     public function testRecordIsPublishedOnceAndReadBack(): void
     {
         $store = new IdempotencyStore($this->layout, $this->clock);
@@ -66,6 +67,7 @@ final class IdempotencyAndStateFilesTest extends TestCase
         self::assertFalse($store->designates($found->keyHash, PasteId::fromBytes(str_repeat("\x02", 24))));
     }
 
+    #[Group('EXG-TEST-054')]
     public function testExpiredRecordIsIgnoredReplacedAndPurged(): void
     {
         $store = new IdempotencyStore($this->layout, $this->clock);

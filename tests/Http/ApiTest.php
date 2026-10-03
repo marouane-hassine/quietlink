@@ -91,6 +91,8 @@ final class ApiTest extends KernelTestCase
     #[Group('EXG-SEC-087')]
     #[Group('EXG-SEC-051')]
     #[Group('EXG-SEC-052')]
+    #[Group('EXG-TEST-062')]
+    #[Group('EXG-TEST-104')]
     public function testSecurityHeadersAreSetOnEveryResponse(): void
     {
         foreach ([$this->request('GET', '/healthz'), $this->request('POST', '/api/v1/pastes/x/open', '{}')] as $response) {
@@ -120,6 +122,8 @@ final class ApiTest extends KernelTestCase
     #[Group('EXG-API-046')]
     #[Group('EXG-SEC-108')]
     #[Group('EXG-SEC-022')]
+    #[Group('EXG-TEST-039')]
+    #[Group('EXG-TEST-099')]
     public function testUnavailabilityIsUniform(): void
     {
         [$prepared, $id] = $this->create();
@@ -149,6 +153,7 @@ final class ApiTest extends KernelTestCase
     #[Group('EXG-SEC-077')]
     #[Group('EXG-SEC-002')]
     #[Group('EXG-API-045')]
+    #[Group('EXG-TEST-031')]
     public function testOnlyJsonBodiesAreAccepted(): void
     {
         foreach (['multipart/form-data; boundary=x', 'text/plain', 'application/x-www-form-urlencoded'] as $type) {
@@ -200,6 +205,7 @@ final class ApiTest extends KernelTestCase
     #[Group('EXG-LIFE-009')]
     #[Group('EXG-API-005')]
     #[Group('EXG-URL-014')]
+    #[Group('EXG-TEST-068')]
     public function testDeletionOverHttp(): void
     {
         [$prepared, $id] = $this->create();
@@ -224,6 +230,8 @@ final class ApiTest extends KernelTestCase
     }
 
     #[Group('EXG-SEC-074')]
+    #[Group('EXG-TEST-043')]
+    #[Group('EXG-TEST-099')]
     public function testPerPasteLimitCountsOnlyValidProofs(): void
     {
         $this->tearDown();
@@ -241,6 +249,7 @@ final class ApiTest extends KernelTestCase
 
     #[Group('EXG-CONF-009')]
     #[Group('EXG-CONF-017')]
+    #[Group('EXG-TEST-050')]
     public function testMissingBootMarkerAnswers503(): void
     {
         $this->tearDown();

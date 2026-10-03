@@ -183,6 +183,7 @@ final class ConfigLoaderTest extends TestCase
     #[Group('EXG-LIFE-006')]
     #[Group('EXG-LIFE-018')]
     #[Group('EXG-SEC-102')]
+    #[Group('EXG-TEST-025')]
     public function testInconsistentConfigurationIsRejected(array $config, string $field): void
     {
         $this->assertInvalid($config, $field);
@@ -228,6 +229,7 @@ final class ConfigLoaderTest extends TestCase
     }
 
     #[Group('EXG-CONF-015')]
+    #[Group('EXG-TEST-042')]
     public function testSecretCanBeReadFromFile(): void
     {
         $this->writeConfig(self::MINIMAL);

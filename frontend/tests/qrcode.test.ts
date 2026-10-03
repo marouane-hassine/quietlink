@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // @vitest-environment jsdom
-// Requirements: EXG-SEC-017, EXG-UX-072, EXG-TEST-079.
+// Requirements: EXG-SEC-017, EXG-UX-072, EXG-TEST-079, EXG-TEST-098.
 
 import { describe, expect, it } from 'vitest';
 import { qrSvg } from '../src/ui/qrcode';

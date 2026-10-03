@@ -68,6 +68,8 @@ final class HardeningTest extends KernelTestCase
     #[Group('EXG-SEC-097')]
     #[Group('EXG-MD-011')]
     #[Group('EXG-MD-012')]
+    #[Group('EXG-TEST-012')]
+    #[Group('EXG-TEST-101')]
     public function testStorageAndCachesNeverHoldSecretsOrClientAddresses(): void
     {
         $this->boot();
@@ -134,6 +136,7 @@ final class HardeningTest extends KernelTestCase
     }
 
     #[Group('EXG-API-016')]
+    #[Group('EXG-TEST-054')]
     public function testReplaySucceedsWhenCreationLimitsWouldRefuse(): void
     {
         $this->boot(['http' => ['rate_limits' => ['create' => ['limit' => 1, 'interval' => 600]]], 'storage' => ['max_items' => 1]]);
@@ -150,6 +153,7 @@ final class HardeningTest extends KernelTestCase
     #[Group('EXG-CONF-022')]
     #[Group('EXG-CACHE-014')]
     #[Group('EXG-CACHE-015')]
+    #[Group('EXG-TEST-050')]
     public function testConfigurationChangeIsRefusedUntilBootRunsAgain(): void
     {
         $this->boot();
@@ -169,6 +173,7 @@ final class HardeningTest extends KernelTestCase
     #[Group('EXG-SEC-045')]
     #[Group('EXG-SEC-074')]
     #[Group('EXG-SEC-092')]
+    #[Group('EXG-TEST-043')]
     public function testForwardedHeadersAreHonouredOnlyFromTrustedProxies(): void
     {
         $this->boot(['http' => ['trusted_proxies' => ['10.0.0.0/8'], 'rate_limits' => ['health' => ['limit' => 1, 'interval' => 600]]]]);

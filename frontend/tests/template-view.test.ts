@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // @vitest-environment jsdom
-// Requirements: EXG-UX-042, EXG-UX-043, EXG-UX-044, EXG-SEC-020.
+// Requirements: EXG-UX-042, EXG-UX-043, EXG-UX-044, EXG-SEC-020, EXG-TEST-007.
 
 import { describe, expect, it } from 'vitest';
 import { setLocale } from '../src/i18n';

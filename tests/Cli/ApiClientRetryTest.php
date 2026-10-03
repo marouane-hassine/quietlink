@@ -55,6 +55,8 @@ final class ApiClientRetryTest extends TestCase
 
     #[Group('EXG-CLI-017')]
     #[Group('EXG-CLI-019')]
+    #[Group('EXG-TEST-055')]
+    #[Group('EXG-TEST-056')]
     public function testRetriesReuseTheSameKeyAndBody(): void
     {
         $prepared = ClientCrypto::prepare('{"format":"plain","language":null,"template":null,"text":"x","v":1}', '1h', false);

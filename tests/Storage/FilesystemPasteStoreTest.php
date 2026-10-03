@@ -70,6 +70,7 @@ final class FilesystemPasteStoreTest extends TestCase
 
     #[Group('EXG-STORE-019')]
     #[Group('EXG-STORE-003')]
+    #[Group('EXG-TEST-047')]
     public function testCreatedPasteCanBeFoundWithItsPayload(): void
     {
         $id = $this->createPaste();
@@ -162,6 +163,7 @@ final class FilesystemPasteStoreTest extends TestCase
     }
 
     #[Group('EXG-STORE-021')]
+    #[Group('EXG-TEST-049')]
     public function testConsumedPasteLosesItsPayloadAndBytes(): void
     {
         $id = $this->createPaste(readOnce: true);
@@ -188,6 +190,7 @@ final class FilesystemPasteStoreTest extends TestCase
     }
 
     #[Group('EXG-STORE-005')]
+    #[Group('EXG-TEST-045')]
     public function testQuotaRefusesCreationAndRollsBackNothing(): void
     {
         $this->createPaste();

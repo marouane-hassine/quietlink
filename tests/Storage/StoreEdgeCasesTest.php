@@ -67,6 +67,7 @@ final class StoreEdgeCasesTest extends TestCase
 
     #[DataProvider('hostileIdentifiers')]
     #[Group('EXG-STORE-001')]
+    #[Group('EXG-TEST-049')]
     public function testOnlyCanonicalIdentifiersCanReachAPath(string $id): void
     {
         $this->expectException(InvalidEncodingException::class);
@@ -96,6 +97,7 @@ final class StoreEdgeCasesTest extends TestCase
     }
 
     #[Group('EXG-STORE-026')]
+    #[Group('EXG-TEST-048')]
     public function testAMissingLockFileMeansUnavailableAndIsNeverRecreated(): void
     {
         $id = $this->create();
@@ -108,6 +110,7 @@ final class StoreEdgeCasesTest extends TestCase
     }
 
     #[Group('EXG-STORE-024')]
+    #[Group('EXG-TEST-048')]
     public function testIncompleteDirectoriesAreDetectedAndRemoved(): void
     {
         $id = $this->create();

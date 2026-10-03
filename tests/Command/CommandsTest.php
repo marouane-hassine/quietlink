@@ -57,6 +57,7 @@ final class CommandsTest extends KernelTestCase
     }
 
     #[Group('EXG-LIFE-024')]
+    #[Group('EXG-TEST-051')]
     public function testPurgeRefusesToRunWithoutAValidBootMarker(): void
     {
         $this->bootInstance([], false);
@@ -68,6 +69,7 @@ final class CommandsTest extends KernelTestCase
 
     #[Group('EXG-CLI-006')]
     #[Group('EXG-CLI-010')]
+    #[Group('EXG-TEST-066')]
     public function testCliOffersNoWayToSkipConsumptionOrPassAPassphraseInline(): void
     {
         $stdin = fopen('php://memory', 'r');

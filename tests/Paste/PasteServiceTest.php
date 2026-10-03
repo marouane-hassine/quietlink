@@ -133,6 +133,7 @@ final class PasteServiceTest extends TestCase
     #[Group('EXG-API-015')]
     #[Group('EXG-API-017')]
     #[Group('EXG-API-022')]
+    #[Group('EXG-TEST-100')]
     public function testIdempotentReplayReturnsTheSameIdentifier(): void
     {
         [$prepared, $id] = $this->createPaste();
@@ -147,6 +148,7 @@ final class PasteServiceTest extends TestCase
     }
 
     #[Group('EXG-API-014')]
+    #[Group('EXG-TEST-055')]
     public function testMissingIdempotencyKeyIsRejected(): void
     {
         $this->expectException(InvalidRequestException::class);
@@ -159,6 +161,7 @@ final class PasteServiceTest extends TestCase
     #[Group('EXG-API-021')]
     #[Group('EXG-GEN-009')]
     #[Group('EXG-SEC-106')]
+    #[Group('EXG-TEST-057')]
     public function testUnknownBodyMemberIsRejected(): void
     {
         $prepared = ClientCrypto::prepare(self::ENVELOPE, '1d', false);
@@ -183,6 +186,7 @@ final class PasteServiceTest extends TestCase
     }
 
     #[Group('EXG-STORE-008')]
+    #[Group('EXG-TEST-046')]
     public function testStaleHealthRefusesCreation(): void
     {
         $this->clock->advance(601);
@@ -193,6 +197,8 @@ final class PasteServiceTest extends TestCase
     #[Group('EXG-READ-017')]
     #[Group('EXG-READ-025')]
     #[Group('EXG-READ-026')]
+    #[Group('EXG-TEST-040')]
+    #[Group('EXG-TEST-057')]
     public function testInvalidProofNeverTouchesStorage(): void
     {
         [$prepared, $id] = $this->createPaste();
@@ -247,6 +253,8 @@ final class PasteServiceTest extends TestCase
     #[Group('EXG-LIFE-012')]
     #[Group('EXG-LIFE-015')]
     #[Group('EXG-READ-021')]
+    #[Group('EXG-TEST-036')]
+    #[Group('EXG-TEST-039')]
     public function testReadOnceReservationConsumptionAndReplay(): void
     {
         [$prepared, $id] = $this->createPaste(readOnce: true);
@@ -312,6 +320,7 @@ final class PasteServiceTest extends TestCase
     #[Group('EXG-LIFE-013')]
     #[Group('EXG-LIFE-014')]
     #[Group('EXG-LIFE-016')]
+    #[Group('EXG-TEST-037')]
     public function testUnconfirmedOpensAreCountedThenDestroyThePaste(): void
     {
         [$prepared, $id] = $this->createPaste(readOnce: true);
@@ -332,6 +341,7 @@ final class PasteServiceTest extends TestCase
     }
 
     #[Group('EXG-READ-028')]
+    #[Group('EXG-TEST-038')]
     public function testPassphraseIsCheckedLocallyAgainstConsumeKey(): void
     {
         [$prepared, $id] = $this->createPaste(readOnce: true, passphrase: 'dummy passphrase');
@@ -365,6 +375,7 @@ final class PasteServiceTest extends TestCase
     }
 
     #[Group('EXG-API-040')]
+    #[Group('EXG-TEST-035')]
     public function testDeletionCancelsAnActiveReservation(): void
     {
         [$prepared, $id] = $this->createPaste(readOnce: true);
@@ -380,6 +391,7 @@ final class PasteServiceTest extends TestCase
 
     #[Group('EXG-API-029')]
     #[Group('EXG-READ-015')]
+    #[Group('EXG-TEST-040')]
     public function testChallengeIsIdenticalInShapeForUnknownIdentifiers(): void
     {
         $this->store->accesses = 0;
@@ -390,6 +402,7 @@ final class PasteServiceTest extends TestCase
     }
 
     #[Group('EXG-READ-018')]
+    #[Group('EXG-TEST-058')]
     public function testValidProofForAnotherAccessKeyThanTheStoredAadFails(): void
     {
         // The identifier binds access_pk through A; a stored AAD with another key must still be refused.
@@ -407,6 +420,7 @@ final class PasteServiceTest extends TestCase
     }
 
     #[Group('EXG-READ-022')]
+    #[Group('EXG-TEST-042')]
     public function testConsumeChallengeSurvivesASecretRotation(): void
     {
         [$prepared, $id] = $this->createPaste(readOnce: true);
@@ -438,6 +452,7 @@ final class PasteServiceTest extends TestCase
 
     #[Group('EXG-API-027')]
     #[Group('EXG-READ-027')]
+    #[Group('EXG-TEST-056')]
     public function testSameKeysUnderANewIdempotencyKeyGetANewIdentifier(): void
     {
         [$prepared, $id] = $this->createPaste();
@@ -470,6 +485,7 @@ final class PasteServiceTest extends TestCase
     }
 
     #[Group('EXG-API-024')]
+    #[Group('EXG-TEST-053')]
     public function testFailedRecordPublicationDeletesTheNewPaste(): void
     {
         $prepared = ClientCrypto::prepare(self::ENVELOPE, '1h', false);

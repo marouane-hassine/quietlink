@@ -35,6 +35,7 @@ final class JsonLoggerTest extends TestCase
     #[Group('EXG-URL-003')]
     #[Group('EXG-URL-016')]
     #[Group('EXG-CACHE-004')]
+    #[Group('EXG-TEST-101')]
     public function testSecretsIdentifiersAndUrlsNeverReachTheLog(): void
     {
         $line = self::capture('Matched route {route} for https://paste.example.test/p/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA#BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB', [

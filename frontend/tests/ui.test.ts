@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // @vitest-environment jsdom
-// Requirements: EXG-UX-082, EXG-UX-084, EXG-A11Y-007, EXG-I18N-002, EXG-I18N-006, EXG-I18N-007, EXG-CRYPTO-004, EXG-CRYPTO-003, EXG-I18N-008, EXG-I18N-012.
+// Requirements: EXG-UX-082, EXG-UX-084, EXG-A11Y-007, EXG-I18N-002, EXG-I18N-006, EXG-I18N-007, EXG-CRYPTO-004, EXG-CRYPTO-003, EXG-I18N-008, EXG-I18N-012, EXG-TEST-026, EXG-TEST-063, EXG-TEST-064.
 
 import { describe, expect, it } from 'vitest';
 import { crossedThreshold, nextTickMs, remainingAt, synchronise } from '../src/ui/countdown';

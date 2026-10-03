@@ -128,6 +128,8 @@ final class CliTest extends KernelTestCase
     #[Group('EXG-CLI-014')]
     #[Group('EXG-CLI-004')]
     #[Group('EXG-CLI-016')]
+    #[Group('EXG-TEST-008')]
+    #[Group('EXG-TEST-066')]
     public function testCreateMetadataAndDecrypt(): void
     {
         [$share, $manage] = $this->createPaste("line one\r\nline two");
@@ -148,6 +150,8 @@ final class CliTest extends KernelTestCase
 
     #[Group('EXG-CLI-005')]
     #[Group('EXG-CLI-011')]
+    #[Group('EXG-TEST-065')]
+    #[Group('EXG-TEST-066')]
     public function testReadOnceDecryptConsumesOnlyWithConfirmation(): void
     {
         [$share] = $this->createPaste('dummy secret', ['--read-once']);
@@ -166,6 +170,7 @@ final class CliTest extends KernelTestCase
     }
 
     #[Group('EXG-CLI-009')]
+    #[Group('EXG-TEST-065')]
     public function testPassphraseFromProtectedFileAndLocalCheck(): void
     {
         $file = $this->tmp->path . '/pass';
@@ -202,6 +207,7 @@ final class CliTest extends KernelTestCase
     }
 
     #[Group('EXG-CLI-008')]
+    #[Group('EXG-TEST-065')]
     public function testStdinCarriesOnlyOneValue(): void
     {
         [$code, , $err] = $this->cli(['decrypt', '--url-stdin', '--passphrase-stdin'], 'x');
@@ -244,6 +250,7 @@ final class CliTest extends KernelTestCase
     }
 
     #[Group('EXG-CRYPTO-051')]
+    #[Group('EXG-TEST-058')]
     public function testMetadataFromAnotherPasteIsRejected(): void
     {
         [$other] = $this->createPaste('other content', ['--read-once']);

@@ -28,6 +28,7 @@ final class IdempotencyRaceTest extends TestCase
      */
     #[Group('EXG-API-025')]
     #[Group('EXG-STORE-013')]
+    #[Group('EXG-TEST-052')]
     public function testOnlyOnePublisherReplacesAnExpiredRecord(): void
     {
         for ($round = 0; $round < self::ROUNDS; ++$round) {

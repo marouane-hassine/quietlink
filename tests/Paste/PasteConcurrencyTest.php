@@ -29,6 +29,8 @@ final class PasteConcurrencyTest extends TestCase
     #[Group('EXG-LIFE-010')]
     #[Group('EXG-STORE-002')]
     #[Group('EXG-STORE-025')]
+    #[Group('EXG-TEST-037')]
+    #[Group('EXG-TEST-047')]
     public function testOnlyOneConcurrentReaderObtainsTheReservation(): void
     {
         $tmp = new TempDirectory();

@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
+// Requirements: EXG-TEST-067, EXG-TEST-068.
 // Result screen and editor conveniences (§5.1). Requirements: EXG-UX-017, EXG-UX-061,
 // EXG-UX-064, EXG-UX-065, EXG-UX-073, EXG-THEME-003, EXG-MD-009, EXG-UX-025, EXG-UX-026,
 // EXG-SEC-016, EXG-URL-015, EXG-UX-070, EXG-UX-071.

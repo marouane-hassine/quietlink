@@ -3,7 +3,8 @@
 // Requirements (templates §6.1.1, editor §5.1): EXG-SEC-003, EXG-SEC-004, EXG-SEC-007, EXG-SEC-008,
 // EXG-SEC-012, EXG-I18N-016, EXG-A11Y-004, EXG-A11Y-018, EXG-UX-019, EXG-UX-027, EXG-UX-028,
 // EXG-MD-001, EXG-MD-002, EXG-MD-003, EXG-MD-004, EXG-MD-005, EXG-MD-006, EXG-MD-007, EXG-MD-008,
-// EXG-MD-010, EXG-TEST-074.
+// EXG-MD-010, EXG-TEST-074, EXG-UX-013, EXG-UX-022, EXG-UX-023, EXG-UX-024, EXG-CRYPTO-042, EXG-TEST-029,
+// EXG-TEST-031, EXG-TEST-064, EXG-TEST-067.
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { mountCreate } from '../src/pages/create';
@@ -116,6 +117,23 @@ describe('templates on the creation page', () => {
     const preview = [...main.querySelectorAll('button')].find((b) => b.textContent === 'Preview') as HTMLButtonElement;
     preview.click();
     expect(main.querySelector('.preview h1')?.textContent).toBe('Dummy heading');
+  });
+
+  it('shows the size gauge near the limit and refuses dropped files', () => {
+    editor().value = 'x'.repeat(900 * 1024);
+    editor().dispatchEvent(new Event('input'));
+    const size = main.querySelector('.size') as HTMLElement;
+    expect(size.hidden).toBe(false);
+    expect(size.textContent).toMatch(/Size: .* of 1 MB/);
+    editor().value = 'x'.repeat(1100 * 1024);
+    editor().dispatchEvent(new Event('input'));
+    expect(size.textContent).toMatch(/^The text is too large: /);
+    expect((main.querySelector('.action-bar .button-primary') as HTMLButtonElement).disabled).toBe(true);
+
+    const drop = new Event('drop', { cancelable: true }) as Event & { dataTransfer: { types: string[] } };
+    Object.defineProperty(drop, 'dataTransfer', { value: { types: ['Files'] } });
+    editor().dispatchEvent(drop);
+    expect(drop.defaultPrevented).toBe(true);
   });
 });
 

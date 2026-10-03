@@ -21,6 +21,7 @@ final class PageTest extends KernelTestCase
 
     #[Group('EXG-I18N-005')]
     #[Group('EXG-I18N-017')]
+    #[Group('EXG-TEST-026')]
     public function testShellIsServedInTheNegotiatedLanguage(): void
     {
         $fr = $this->request('GET', '/', null, ['Accept-Language' => 'fr-FR,fr;q=0.9,en;q=0.5']);
