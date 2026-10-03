@@ -332,8 +332,9 @@ Options: `create` accepts `--server` (or `QUIETLINK_SERVER`), `--expires` (`5m`,
 `7d`, `30d`, `never`; default `1d`), `--read-once`, `--format` (`plain`, `markdown`, `code`),
 `--language` (with `--format code`), `--passphrase`, `--passphrase-file`, `--passphrase-stdin`
 (requires `--input`), `--input`. `decrypt` accepts `--url-stdin` (required),
-`--passphrase-file`, `-o/--output` (new file, mode 600), `-y/--yes`. Text is limited to 1 MiB of
-UTF-8.
+`--passphrase-file`, `-o/--output` (new file, mode 600), `-y/--yes`. The text must be UTF-8; the
+1 MiB limit applies to the serialized envelope (sp-proto §4), JSON escaping included, and is
+checked before any prompt or request.
 
 ## 16. Reviews and releases
 

@@ -20,7 +20,13 @@ use Symfony\Component\Console\Output\OutputInterface;
 #[AsCommand(name: 'create', description: 'Encrypt text locally and create a paste. Reads the text from stdin unless --input is given.')]
 final class CreateCommand extends Command
 {
-    public const MAX_TEXT_BYTES = 1048576;
+    /** Default "paste.max_envelope_bytes": the limit applies to the serialized envelope (sp-proto §4). */
+    public const MAX_ENVELOPE_BYTES = 1048576;
+
+    /** Largest raw input that can still fit once line endings are normalized ("\r\n" to "\n"). */
+    private const MAX_INPUT_BYTES = 2 * self::MAX_ENVELOPE_BYTES;
+
+    private const TOO_LARGE = 'The serialized envelope (text and its JSON escaping) exceeds the 1 MiB limit.';
 
     public function __construct(private readonly CliContext $context)
     {
@@ -68,17 +74,33 @@ final class CreateCommand extends Command
             throw new CliException('--passphrase-stdin requires --input: only one value can be read from stdin.');
         }
         if ($file !== null) {
-            $text = @file_get_contents($file, false, null, 0, self::MAX_TEXT_BYTES + 1);
+            $text = @file_get_contents($file, false, null, 0, self::MAX_INPUT_BYTES + 1);
             if ($text === false) {
                 throw new CliException('The input file cannot be read.');
             }
         } else {
-            $text = $this->context->readStdin(self::MAX_TEXT_BYTES);
+            $text = $this->context->readStdin(self::MAX_INPUT_BYTES);
         }
-        if (strlen($text) > self::MAX_TEXT_BYTES || $text === '' || !mb_check_encoding($text, 'UTF-8')) {
-            throw new CliException('The text must be non-empty UTF-8 and at most 1 MiB.');
+        if (strlen($text) > self::MAX_INPUT_BYTES) {
+            throw new CliException(self::TOO_LARGE);
+        }
+        if ($text === '' || !mb_check_encoding($text, 'UTF-8')) {
+            throw new CliException('The text must be non-empty UTF-8.');
         }
         $text = str_replace(["\r\n", "\r"], "\n", $text);
+
+        // The size limit applies to the serialized envelope, checked before any prompt.
+        $envelope = json_encode([
+            'format' => $format,
+            'language' => $language,
+            'template' => null,
+            'text' => $text,
+            'v' => 1,
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        if (strlen($envelope) > self::MAX_ENVELOPE_BYTES) {
+            sodium_memzero($envelope);
+            throw new CliException(self::TOO_LARGE);
+        }
 
         $passphrase = null;
         if (Options::flag($input, 'passphrase') || $passphraseFile !== null || $passphraseStdin) {
@@ -90,13 +112,6 @@ final class CreateCommand extends Command
             );
         }
 
-        $envelope = json_encode([
-            'format' => $format,
-            'language' => $language,
-            'template' => null,
-            'text' => $text,
-            'v' => 1,
-        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
         $prepared = ClientCrypto::prepare($envelope, $expires, Options::flag($input, 'read-once'), $passphrase, Argon2id::DEFAULT_MEMORY_KIB, Argon2id::DEFAULT_PASSES);
         if ($passphrase !== null) {
             sodium_memzero($passphrase);

@@ -221,6 +221,26 @@ final class CliTest extends KernelTestCase
         self::assertStringContainsString('do not match', $err);
     }
 
+    #[Group('EXG-CRYPTO-042')]
+    #[Group('EXG-CLI-001')]
+    public function testSizeLimitAppliesToTheSerializedEnvelope(): void
+    {
+        // 200 000 control characters: far below 1 MiB of text, but each one is escaped to six
+        // bytes in the JSON envelope, which then exceeds 1 MiB.
+        [$code, $out, $err] = $this->cli(['create', '--server=https://paste.example.test'], str_repeat("\x01", 200000));
+
+        self::assertSame(1, $code);
+        self::assertSame('', $out);
+        self::assertStringContainsString('envelope', $err);
+        self::assertStringContainsString('1 MiB', $err);
+        self::assertSame(0, $this->requests);
+
+        [$code, , $err] = $this->cli(['create', '--server=https://paste.example.test'], str_repeat('a', 1048577));
+        self::assertSame(1, $code);
+        self::assertStringContainsString('envelope', $err);
+        self::assertSame(0, $this->requests);
+    }
+
     #[Group('EXG-CLI-008')]
     #[Group('EXG-TEST-065')]
     public function testStdinCarriesOnlyOneValue(): void
