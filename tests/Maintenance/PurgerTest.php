@@ -27,6 +27,7 @@ use QuietLink\Storage\PasteMeta;
 use QuietLink\Storage\PasteState;
 use QuietLink\Storage\RecordCodec;
 use QuietLink\Storage\StateFiles;
+use QuietLink\Storage\StorageException;
 use QuietLink\Storage\StorageLayout;
 use QuietLink\Storage\UsageCounter;
 use QuietLink\Tests\Support\FrozenClock;
@@ -286,11 +287,13 @@ final class PurgerTest extends TestCase
         // A user deletes every paste not locked by the purge while it scans the first one.
         $clock = new class ($frozen, static function () use ($store, $layout, $ids): void {
             foreach ($ids as $id) {
-                $lock = FileLock::acquire($layout->pasteDir($id) . '/state.lock', true, false);
-                $lock?->release();
-                if ($lock !== null) {
-                    $store->remove($id);
+                try {
+                    // Throws while the purge holds this paste's lock (the one being scanned).
+                    FileLock::acquire($layout->pasteDir($id) . '/state.lock', true, false)?->release();
+                } catch (StorageException) {
+                    continue;
                 }
+                $store->remove($id);
             }
         }) implements \QuietLink\Clock\Clock {
             private bool $fired = false;

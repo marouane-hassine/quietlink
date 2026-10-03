@@ -210,7 +210,7 @@ describe('auto-hide', () => {
     serve(paste);
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     mount();
-    for (let i = 0; i < 400 && content()?.container.isConnected !== true; i++) await new Promise((resolve) => setImmediate(resolve));
+    await onContent();
     const container = (content() as ContentView).container;
     const hidden = () => container.classList.contains('is-hidden');
     vi.advanceTimersByTime(119_000);

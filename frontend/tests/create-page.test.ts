@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { mountCreate } from '../src/pages/create';
 import { setLocale } from '../src/i18n';
 import type { PublicConfig } from '../src/config';
+import { until } from './support/fake-api';
 
 const config: PublicConfig = {
   page: 'create', enabledLocales: ['en', 'fr'], defaultExpiration: '1d', expirations: ['5m', '1h', '1d', '7d', '30d'],
@@ -116,7 +117,7 @@ describe('templates on the creation page', () => {
     editor().dispatchEvent(new Event('input'));
     const preview = [...main.querySelectorAll('button')].find((b) => b.textContent === 'Preview') as HTMLButtonElement;
     preview.click();
-    for (let i = 0; i < 50 && !main.querySelector('.preview h1'); i++) await tick();
+    await until(() => main.querySelector('.preview h1') !== null);
     expect(main.querySelector('.preview h1')?.textContent).toBe('Dummy heading');
   });
 

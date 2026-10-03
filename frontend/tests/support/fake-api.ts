@@ -76,13 +76,20 @@ export function deferred<T>() {
 /** Lets pending promises and zero-delay timers run (real timers only). */
 export const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-/** Polls `condition` with real timers, failing after `rounds` event-loop turns. */
-export async function until(condition: () => boolean, rounds = 400): Promise<void> {
-  for (let i = 0; i < rounds; i++) {
-    if (condition()) return;
-    await flush();
+// Captured at load: tests may fake timers or mock performance.now() afterwards.
+const realImmediate = globalThis.setImmediate;
+const realNow = () => Number(process.hrtime.bigint() / 1_000_000n);
+
+/**
+ * Polls `condition` for up to `timeoutMs` of real time. Waiting by elapsed time rather than by
+ * event-loop turns keeps tests stable on slow CI runners, where Web Crypto work takes longer.
+ */
+export async function until(condition: () => boolean, timeoutMs = 5000): Promise<void> {
+  const deadline = realNow() + timeoutMs;
+  while (!condition()) {
+    if (realNow() > deadline) throw new Error('Condition not reached');
+    await new Promise((resolve) => realImmediate(resolve));
   }
-  throw new Error('Condition not reached');
 }
 
 /** jsdom leaves isSecureContext undefined; the application requires a secure context. */

@@ -5,6 +5,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PublicConfig } from '../src/config';
+import { until } from './support/fake-api';
 
 const prepared: { envelope: string; readOnce: boolean }[] = [];
 const createCalls: number[] = [];
@@ -140,6 +141,7 @@ describe('creation flow', () => {
     qr.click();
     qr.click();
     qr.click();
+    await until(() => main.querySelector('.qr-box svg') !== null);
     await settle();
 
     expect(main.querySelectorAll('.qr-box svg')).toHaveLength(1);
