@@ -27,4 +27,11 @@ describe('stylesheet', () => {
     expect(css).not.toMatch(/(margin|padding)-(left|right)\s*:/);
     expect(css).not.toMatch(/text-align:\s*(left|right)/);
   });
+  it('draws no ring on screen titles focused by script, which Tab never reaches', () => {
+    // Screen titles receive focus on each screen change for screen readers (§6.6).
+    expect(css).toMatch(/\.page-title\[tabindex="-1"\]:focus\s*\{[^}]*outline:\s*none/);
+  });
+  it('lays out every checkbox row as a centred flex row', () => {
+    expect(css).toMatch(/\.field-check\s*\{[^}]*display:\s*flex/);
+  });
 });

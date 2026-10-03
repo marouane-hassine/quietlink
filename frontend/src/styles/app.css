@@ -194,6 +194,12 @@ main {
   margin-block: 0.5rem 0.75rem;
 }
 
+/* Focused by script on each screen change for screen readers; not interactive, never reached
+   with Tab, so no focus ring. */
+.page-title[tabindex="-1"]:focus {
+  outline: none;
+}
+
 h2 {
   font-size: 1.15rem;
 }
@@ -221,6 +227,7 @@ h2 {
 }
 
 .field-check {
+  display: flex;
   flex-direction: row;
   align-items: center;
   gap: 0.75rem;
