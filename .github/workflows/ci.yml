@@ -50,13 +50,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          # Full history: the secret scan covers every commit, not only the pushed range.
+          fetch-depth: 0
       - run: tools/ci/forbidden-patterns.sh
       - name: No database service in compose
         run: "! grep -Eiq 'image: *(postgres|mysql|mariadb|redis|valkey|mongo)' compose.yaml"
-      - name: Secret scan
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Secret scan (whole history, .gitleaks.toml)
+        run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.28.0 detect --source /repo --config /repo/.gitleaks.toml --redact --no-banner
 
   phar:
     runs-on: ubuntu-latest
