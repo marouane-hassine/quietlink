@@ -18,7 +18,7 @@ final class KernelTest extends TestCase
 {
     public function testKernelBootsInTestEnvironment(): void
     {
-        $kernel = new Kernel('test', false);
+        $kernel = new Kernel('test', true);
         $kernel->boot();
 
         try {
