@@ -676,7 +676,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
               await api.remove(id, encode(prepared.deletionToken));
             } catch (error) {
               if (!(error instanceof ApiError) || error.kind !== 'unavailable') {
-                toast(t('error.network'));
+                toast(t(error instanceof ApiError && error.kind === 'network' ? 'manage.deleteNetwork' : 'manage.deleteFailed'));
                 return;
               }
             }
