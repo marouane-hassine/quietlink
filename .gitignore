@@ -5,6 +5,9 @@
 /config/config.php
 /config/reference.php
 /node_modules/
+/playwright-report/
 /public/build/
+/secrets/
+/test-results/
 /var/
 /vendor/

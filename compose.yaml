@@ -1,0 +1,74 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Demonstration deployment. No database service: storage is local files only.
+# Before the first start:
+#   mkdir -p secrets && docker compose run --rm --no-deps app php bin/console app:secret:generate > secrets/app_secret
+#   cp config/config.php.example config/config.php   # then set app.public_url
+# Put an HTTPS reverse proxy in front of port 8080 (docs/README-admin.md).
+
+x-hardening: &hardening
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs: ["/tmp:size=16m,mode=1777"]
+
+x-app: &app
+  <<: *hardening
+  build:
+    context: .
+    dockerfile: docker/php/Dockerfile
+  image: quietlink/app:dev
+  user: "10001:10001"
+  environment:
+    QUIETLINK_APP_SECRET_FILE: /run/secrets/app_secret
+  secrets: [app_secret]
+  volumes:
+    - ./config/config.php:/app/config/config.php:ro
+    - ./config/themes:/app/config/themes:ro
+    - data:/var/lib/quietlink
+    - generated:/var/lib/quietlink-generated
+
+services:
+  app:
+    <<: *app
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@fsockopen('127.0.0.1', 9000) ? 0 : 1);"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  purge:
+    <<: *app
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c", "trap 'exit 0' TERM INT; while true; do php /app/bin/console app:purge-expired --no-interaction || true; sleep 60 & wait $$!; done"]
+
+  web:
+    <<: *hardening
+    build:
+      context: .
+      dockerfile: docker/nginx/Dockerfile
+    image: quietlink/web:dev
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    tmpfs: ["/tmp:size=16m,mode=1777", "/var/cache/nginx:size=16m"]
+    ports: ["127.0.0.1:${QUIETLINK_HTTP_PORT:-8080}:8080"]
+    volumes:
+      - generated:/var/lib/quietlink-generated:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  data:
+  generated:
+
+secrets:
+  app_secret:
+    file: ./secrets/app_secret

@@ -1,0 +1,11 @@
+.git
+.idea
+node_modules
+vendor
+var
+public/build
+config/config.php
+config/config.local.php
+config/reference.php
+secrets
+docs/cahier-des-charges.md

@@ -1,0 +1,9 @@
+{
+    "main": "bin/quietlink",
+    "output": "quietlink.phar",
+    "directories": ["src"],
+    "files": ["LICENSE"],
+    "finder": [{"name": "*.php", "in": "vendor", "exclude": ["Tests", "tests", "phpunit", "phpstan"]}],
+    "compression": "GZ",
+    "check-requirements": false
+}
