@@ -47,8 +47,10 @@ const REQUIREMENTS = {
   envelope_encrypt: ['EXG-CRYPTO-031', 'EXG-CRYPTO-052', 'EXG-CRYPTO-068'],
   envelope_reject: ['EXG-CRYPTO-031', 'EXG-CRYPTO-052', 'EXG-CRYPTO-068'],
   challenge: ['EXG-CRYPTO-006', 'EXG-CRYPTO-007'],
-  proof: ['EXG-CRYPTO-008', 'EXG-CRYPTO-069', 'EXG-CRYPTO-073', 'EXG-READ-019'],
-  consume_proof: ['EXG-CRYPTO-008', 'EXG-CRYPTO-069', 'EXG-CRYPTO-073', 'EXG-READ-019'],
+  challenge_verify: ['EXG-READ-017', 'EXG-READ-019', 'EXG-READ-024'],
+  public_key_reject: ['EXG-CRYPTO-028'],
+  proof: ['EXG-CRYPTO-008', 'EXG-CRYPTO-069', 'EXG-CRYPTO-073'],
+  consume_proof: ['EXG-CRYPTO-008', 'EXG-CRYPTO-069', 'EXG-CRYPTO-073'],
   delete_check: ['EXG-API-038', 'EXG-CRYPTO-033'],
   base64url_reject: ['EXG-CRYPTO-053', 'EXG-URL-011'],
 };
@@ -316,7 +318,7 @@ const aadReject = [
   ['whitespace', replaceIn('"alg":', '"alg": ')],
   ['wrong-key-order', replaceIn(`"access_pk":"${aadPlain.access_pk}","alg":"A256GCM"`, `"alg":"A256GCM","access_pk":"${aadPlain.access_pk}"`)],
   ['duplicate-key', replaceIn('"v":1}', '"v":1,"v":1}')],
-  ['unknown-key', replaceIn('"consume_pk":null,', '"consume_pk":null,"extra":null,')],
+  ['unknown-key', replaceIn('"expiration":"7d",', '"expiration":"7d","extra":null,')],
   ['missing-key', replaceIn('"kdf":null,', '')],
   ['float', replaceIn('"v":1}', '"v":1.0}')],
   ['exponent', replaceIn('"v":1}', '"v":1e0}')],
@@ -328,8 +330,15 @@ const aadReject = [
   ['unsupported-version', replaceIn('"v":1}', '"v":2}')],
   ['unsupported-alg', replaceIn('"A256GCM"', '"A128GCM"')],
   ['unknown-expiration', replaceIn('"7d"', '"2d"')],
-  ['short-access-pk', replaceIn(aadPlain.access_pk, aadPlain.access_pk.slice(0, 42))],
+  ['short-access-pk', replaceIn(aadPlain.access_pk, b64u(noPass.access.pk.subarray(0, 30)))],
   ['non-canonical-access-pk', replaceIn(aadPlain.access_pk, nonCanonical(aadPlain.access_pk))],
+  ['escaped-string', replaceIn('"7d"', '"7\\u0064"')],
+  ['non-ascii-string', replaceIn('"7d"', '"7\u00e9"')],
+  ['integer-above-2-pow-53', replaceIn('"v":1}', '"v":9007199254740992}')],
+  ['non-canonical-consume-pk', canonicalAad({ ...aadReadOncePass, consume_pk: nonCanonical(aadReadOncePass.consume_pk) })],
+  ['non-canonical-salt', canonicalAad({ ...aadReadOncePass, kdf: { ...aadReadOncePass.kdf, salt: nonCanonical(aadReadOncePass.kdf.salt) } })],
+  ['wrong-kdf-alg', canonicalAad({ ...aadReadOncePass, kdf: { ...aadReadOncePass.kdf, alg: 'argon2i13' } })],
+  ['wrong-key-order-in-kdf', canonicalAad(aadReadOncePass).replace('"m":19456,"p":1', '"p":1,"m":19456')],
   ...[['m-too-low', 'm', 19455], ['m-too-high', 'm', 262145], ['t-too-low', 't', 1], ['t-too-high', 't', 11], ['p-not-one', 'p', 2]].map(([name, key, value]) => [
     name,
     canonicalAad({ ...aadReadOncePass, kdf: { ...aadReadOncePass.kdf, [key]: value } }),
@@ -395,19 +404,46 @@ const proofGroup = [
   proofVector('open-with-access-key', hex(noPass.accessSeed), noPass.access, challenges.open.bytes),
   proofVector('status-with-access-key', hex(noPass.accessSeed), noPass.access, challenges.status.bytes),
 ];
-proofGroup[0].negative.push({
-  name: 'open-signature-presented-for-status-challenge',
-  message: hex(Buffer.concat([PROOF_PREFIX, challenges.status.bytes])),
-  verifies: verify(noPass.access.pk, Buffer.concat([PROOF_PREFIX, challenges.status.bytes]), h(proofGroup[0].expected.signature)),
-});
 const consumeProofGroup = [proofVector('consume-with-consume-key', hex(noPass.consumeSeed), noPass.consume, challenges.consume.bytes)];
+
+// Server-side challenge verification (usage, identifier, MAC, freshness), docs §10.3.
+// Freshness boundary (OQ-7) is not asserted: only clearly valid or clearly expired cases.
+const otherId = Buffer.concat([ids.a, ids.d, h('8899aabbccddeeff')]);
+const challengeVerify = [
+  ['valid-open', challenges.open.bytes, 0x01, ids.id, ISSUED_AT + 30, true],
+  ['usage-mismatch-status-for-open', challenges.status.bytes, 0x01, ids.id, ISSUED_AT + 30, false],
+  ['usage-mismatch-consume-for-status', challenges.consume.bytes, 0x02, ids.id, ISSUED_AT + 30, false],
+  ['identifier-mismatch', challenges.open.bytes, 0x01, otherId, ISSUED_AT + 30, false],
+  ['bad-mac', flip(challenges.open.bytes, 81), 0x01, ids.id, ISSUED_AT + 30, false],
+  ['tampered-issued-at', flip(challenges.open.bytes, 33), 0x01, ids.id, ISSUED_AT + 30, false],
+  ['expired', challenges.open.bytes, 0x01, ids.id, ISSUED_AT + 120, false],
+].map(([name, ch, usage, pathId, now, accept]) => ({
+  name,
+  input: { k_challenge: hex(kChallenge), challenge: hex(ch), endpoint_usage: usage, path_id: hex(pathId), now },
+  expected: { accept },
+}));
+
+// Public keys the server must reject at creation (EXG-CRYPTO-028). Ed25519 verification
+// strictness for signatures (OQ-5) is still open and not covered here.
+const publicKeyReject = [
+  ['small-order-identity-point', `01${'00'.repeat(31)}`],
+  ['non-canonical-y-equals-p', `ed${'ff'.repeat(30)}7f`],
+  ['short-key', hex(noPass.access.pk.subarray(0, 31))],
+].map(([name, pk]) => ({ name, input: { public_key: pk }, expected: { accept: false } }));
 
 const deleteCheck = [
   ['valid-token', b64u(DELETION_TOKEN), true],
   ['other-token', b64u(pattern(0x41, 32)), false],
-  ['truncated-token', b64u(DELETION_TOKEN).slice(0, 42), false],
+  ['truncated-token', b64u(DELETION_TOKEN.subarray(0, 31)), false],
   ['padded-token', `${b64u(DELETION_TOKEN)}=`, false],
-].map(([name, token, accept]) => ({ name, input: { token_b64u: token, id: hex(ids.id) }, expected: { accept, expected_d: hex(ids.d) } }));
+].map(([name, token, accept]) => {
+  const decoded = Buffer.from(token.replace(/=+$/, ''), 'base64url');
+  return {
+    name,
+    input: { token_b64u: token, id: hex(ids.id) },
+    expected: { accept, decoded_length: decoded.length, token_hash: hex(sha256(decoded)), expected_d: hex(ids.d) },
+  };
+});
 
 const b64uReject = [
   ['padding', 'k_url', `${b64u(K_URL)}=`],
@@ -415,7 +451,7 @@ const b64uReject = [
   ['standard-alphabet-plus', 'k_url', `+${b64u(K_URL).slice(1)}`],
   ['standard-alphabet-slash', 'k_url', `/${b64u(K_URL).slice(1)}`],
   ['whitespace', 'k_url', ` ${b64u(K_URL)}`],
-  ['wrong-length-id', 'id', b64u(ids.id).slice(0, 31)],
+  ['wrong-length-id', 'id', b64u(ids.id.subarray(0, 23))],
   ['wrong-length-nonce', 'nonce', b64u(Buffer.alloc(11))],
   ['wrong-length-salt', 'salt', b64u(Buffer.alloc(15))],
   ['wrong-length-signature', 'signature', b64u(Buffer.alloc(63))],
@@ -443,6 +479,8 @@ const vectors = {
     challenge: challengeGroup,
     proof: proofGroup,
     consume_proof: consumeProofGroup,
+    challenge_verify: challengeVerify,
+    public_key_reject: publicKeyReject,
     delete_check: deleteCheck,
     base64url_reject: b64uReject,
   },

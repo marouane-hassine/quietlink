@@ -346,13 +346,66 @@ final class SpProtoV1VectorsTest extends TestCase
     }
 
     /** @return array<string, array{array<string, mixed>}> */
+    public static function challengeVerifyVectors(): array
+    {
+        return V::group('challenge_verify');
+    }
+
+    /**
+     * Requirements: EXG-READ-017, EXG-READ-019, EXG-READ-024.
+     *
+     * @param array<string, mixed> $vector
+     */
+    #[DataProvider('challengeVerifyVectors')]
+    #[Group('EXG-READ-017')]
+    #[Group('EXG-READ-019')]
+    #[Group('EXG-READ-024')]
+    public function testChallengeVerificationChecksMacUsageIdentifierAndFreshness(array $vector): void
+    {
+        self::requireImplementation(Challenge::class);
+        $accept = V::value($vector, 'expected.accept');
+        self::assertIsBool($accept);
+
+        self::assertSame(
+            $accept,
+            Challenge::verify(
+                V::bytes($vector, 'input.k_challenge'),
+                V::bytes($vector, 'input.challenge'),
+                V::int($vector, 'input.endpoint_usage'),
+                V::bytes($vector, 'input.path_id'),
+                V::int($vector, 'input.now'),
+            ),
+        );
+    }
+
+    /** @return array<string, array{array<string, mixed>}> */
+    public static function publicKeyRejectVectors(): array
+    {
+        return V::group('public_key_reject');
+    }
+
+    /**
+     * Requirements: EXG-CRYPTO-028.
+     *
+     * @param array<string, mixed> $vector
+     */
+    #[DataProvider('publicKeyRejectVectors')]
+    #[Group('EXG-CRYPTO-028')]
+    public function testSmallOrderOrNonCanonicalPublicKeyIsRejected(array $vector): void
+    {
+        self::requireImplementation(Ed25519::class);
+
+        self::assertFalse(Ed25519::isAcceptablePublicKey(V::bytes($vector, 'input.public_key')));
+    }
+
+    /** @return array<string, array{array<string, mixed>}> */
     public static function proofVectors(): array
     {
         return V::group('proof') + V::group('consume_proof');
     }
 
     /**
-     * Requirements: EXG-CRYPTO-008, EXG-CRYPTO-069, EXG-CRYPTO-073, EXG-READ-019.
+     * Requirements: EXG-CRYPTO-008, EXG-CRYPTO-069, EXG-CRYPTO-073.
      *
      * @param array<string, mixed> $vector
      */
@@ -360,7 +413,6 @@ final class SpProtoV1VectorsTest extends TestCase
     #[Group('EXG-CRYPTO-008')]
     #[Group('EXG-CRYPTO-069')]
     #[Group('EXG-CRYPTO-073')]
-    #[Group('EXG-READ-019')]
     public function testEd25519ProofOverChallenge(array $vector): void
     {
         self::requireImplementation(AccessProof::class);
@@ -402,6 +454,13 @@ final class SpProtoV1VectorsTest extends TestCase
         self::requireImplementation(DeletionToken::class);
         $accept = V::value($vector, 'expected.accept');
         self::assertIsBool($accept);
+        if ($accept) {
+            self::assertSame(32, V::int($vector, 'expected.decoded_length'));
+            self::assertSame(
+                V::bytes($vector, 'expected.token_hash'),
+                DeletionToken::hash(Base64Url::decode(V::string($vector, 'input.token_b64u'), 32)),
+            );
+        }
 
         self::assertSame(
             $accept,
