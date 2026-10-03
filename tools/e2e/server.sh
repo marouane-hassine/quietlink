@@ -37,4 +37,6 @@ export QUIETLINK_APP_SECRET="ZTJlLW9ubHktZHVtbXktc2VjcmV0LW5vdC1mb3ItcHJvZHVjdGl
 php "$root/bin/console" app:boot >/dev/null
 tools_dir="$root/tools/dev"
 "$tools_dir/purge-loop.sh" &
+# Several workers so that parallel browser requests never stall a navigation.
+export PHP_CLI_SERVER_WORKERS=4
 exec php -S localhost:8090 -t "$root/public" "$root/tools/dev/router.php"
