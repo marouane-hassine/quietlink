@@ -80,3 +80,18 @@ export const api = {
   consume: (id: string, body: object) => request<{ consumed: boolean }>('POST', `${paste(id)}/consume`, JSON.stringify(body)),
   remove: (id: string, token: string) => request<undefined>('DELETE', paste(id), null, { 'X-Deletion-Token': token }),
 };
+
+/**
+ * Resends the exact same request after network errors only (idempotent operations such as a
+ * consume with the same signature, §12.3); any HTTP answer stops the retries.
+ */
+export async function retrying<T>(call: () => Promise<T>, attempts = 3, delayMs = 500): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await call();
+    } catch (error) {
+      if (!(error instanceof ApiError) || error.kind !== 'network' || attempt >= attempts) throw error;
+      await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
+    }
+  }
+}

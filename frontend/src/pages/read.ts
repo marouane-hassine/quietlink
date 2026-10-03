@@ -2,7 +2,8 @@
 
 /** Reading page (§5.1 "Écran de lecture", §6.2, §6.3.1, parcours B). */
 
-import { api, ApiError, type OpenResponse, type StatusResponse } from '../api';
+import { api, ApiError, retrying, type OpenResponse, type StatusResponse } from '../api';
+import { clearReservation, loadReservation, saveReservation } from '../reservation';
 import { parse, type ParsedAad } from '../crypto/aad';
 import { decode, EncodingError } from '../crypto/base64url';
 import { equal, randomBytes, wipe } from '../crypto/bytes';
@@ -23,7 +24,7 @@ import { formatDate, formatRelative } from '../ui/format';
 import { cryptoAvailable } from './create';
 import DOMPurify from 'dompurify';
 
-const RESERVATION_PREFIX = 'ql-reservation-';
+const RESERVATION_MAX_SECONDS = 300;
 const AUTO_HIDE_MS = 120_000;
 
 class LinkError extends Error {}
@@ -116,8 +117,7 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
     input.setAttribute('aria-describedby', error.id);
     const button = el('button', { type: 'button', class: 'button button-primary' }, t('read.reveal'));
     const statusLine = el('p', { class: 'status', role: 'status' });
-    const reservationKey = RESERVATION_PREFIX + link.id;
-    const resumable = sessionStorage.getItem(reservationKey);
+    const resumable = loadReservation(link.id, Date.now());
 
     button.addEventListener('click', async () => {
       button.disabled = true;
@@ -138,11 +138,8 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
         let reservationId: string | null = null;
         if (aad.object.read_once) {
           reservationId = resumable ?? encode(randomBytes(16));
-          try {
-            sessionStorage.setItem(reservationKey, reservationId);
-          } catch {
-            // Resumption after reload is then unavailable.
-          }
+          // Stored before open (§6.3.1); refined with the real remaining time after open.
+          saveReservation(link.id, reservationId, Date.now(), RESERVATION_MAX_SECONDS);
         }
         await openAndShow(link, aad, kPass, consumeSeed, sync, reservationId);
       } catch (e) {
@@ -201,16 +198,16 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
 
     let consumedNotice: HTMLElement | null = null;
     if (aad.object.read_once && reservationId && consumeSeed && data.consume_challenge) {
+      saveReservation(link.id, reservationId, Date.now(), data.retry_after ?? RESERVATION_MAX_SECONDS);
+      // The same signature is resent after network errors, never re-signed (§12.3).
+      const body = { access_pk: encode(link.accessPk), reservation_id: reservationId, challenge: data.consume_challenge, signature: await prove(consumeSeed, data.consume_challenge) };
       try {
-        await api.consume(link.id, { access_pk: encode(link.accessPk), reservation_id: reservationId, challenge: data.consume_challenge, signature: await prove(consumeSeed, data.consume_challenge) });
+        await retrying(() => api.consume(link.id, body));
         consumedNotice = el('p', { class: 'banner', role: 'status' }, t('read.destroyed'));
-      } catch {
+        clearReservation(link.id);
+      } catch (error) {
         consumedNotice = el('p', { class: 'banner', role: 'status' }, t('read.consumeFailed'));
-      }
-      try {
-        sessionStorage.removeItem(RESERVATION_PREFIX + link.id);
-      } catch {
-        // Nothing to clean.
+        if (!(error instanceof ApiError && error.kind === 'network')) clearReservation(link.id);
       }
       window.addEventListener('beforeunload', (event) => {
         event.preventDefault();
