@@ -51,7 +51,8 @@ jobs:
         id: images
         run: |
           for image in app web cli; do
-            dockerfile=docker/$([ "$image" = web ] && echo nginx || ([ "$image" = app ] && echo php || echo cli))/Dockerfile
+            case "$image" in app) dir=php ;; web) dir=nginx ;; *) dir=cli ;; esac
+            dockerfile=docker/$dir/Dockerfile
             docker build -f "$dockerfile" -t "$REGISTRY/quietlink-$image:${GITHUB_REF_NAME}" .
             docker push "$REGISTRY/quietlink-$image:${GITHUB_REF_NAME}"
             digest=$(docker inspect --format='{{index .RepoDigests 0}}' "$REGISTRY/quietlink-$image:${GITHUB_REF_NAME}")
@@ -76,6 +77,13 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
+          # Digests to deploy and verify (docs/README-admin.md, "Upgrade and rollback").
+          body: |
+            Signed images (deploy by digest):
+            - `${{ steps.images.outputs.app }}`
+            - `${{ steps.images.outputs.web }}`
+            - `${{ steps.images.outputs.cli }}`
+          generate_release_notes: true
           files: |
             quietlink.phar
             quietlink.phar.sha256
