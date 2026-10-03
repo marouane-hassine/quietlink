@@ -106,6 +106,15 @@ final class CommandsTest extends KernelTestCase
         file_put_contents($this->tmp->path . '/config/themes/brand.json', '{"light":{"color-primary":"#123456"}}');
         TestInstance::config($this->tmp, ['theme' => ['custom_tokens_file' => 'brand.json']]);
         $out = $this->tmp->path . '/preview';
+        // The PHP CI job does not build the frontend: provide a minimal manifest when missing.
+        $build = dirname(__DIR__, 2) . '/public/build';
+        $fakeBuild = !is_file($build . '/.vite/manifest.json');
+        if ($fakeBuild) {
+            @mkdir($build . '/.vite', 0755, true);
+            @mkdir($build . '/assets', 0755, true);
+            file_put_contents($build . '/.vite/manifest.json', '{"src/main.ts":{"file":"assets/app-test.js","css":["assets/app-test.css"]}}');
+            file_put_contents($build . '/assets/app-test.css', ':root{}');
+        }
 
         $tester = $this->command('app:theme:preview');
         self::assertSame(0, $tester->execute(['--output' => $out]), $tester->getDisplay());
@@ -117,5 +126,12 @@ final class CommandsTest extends KernelTestCase
         self::assertStringContainsString('data-theme="dark"', $html);
         self::assertDoesNotMatchRegularExpression('#(src|href)="https?://#', $html);
         self::assertStringNotContainsString('<script', $html);
+        if ($fakeBuild) {
+            unlink($build . '/.vite/manifest.json');
+            unlink($build . '/assets/app-test.css');
+            @rmdir($build . '/.vite');
+            @rmdir($build . '/assets');
+            @rmdir($build);
+        }
     }
 }

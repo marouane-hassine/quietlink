@@ -44,6 +44,12 @@ abstract class KernelTestCase extends TestCase
                 {
                     return 90;
                 }
+
+                public function filesystemType(string $path): string
+                {
+                    // Deterministic across hosts (CI containers report overlay or tmpfs).
+                    return 'ext4';
+                }
             }, new SystemClock());
             self::assertSame([], $booter->boot($this->config, null));
         }
