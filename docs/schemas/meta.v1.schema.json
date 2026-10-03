@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/marouane-hassine/quietlink/docs/schemas/meta.v1.schema.json",
+  "title": "QuietLink paste meta.json (schema_version 1)",
+  "description": "Immutable per-paste metadata, written once at creation inside the temporary paste directory and never modified (spec §9.4, §9.4.1). Never contains plaintext, the URL key, the passphrase or the raw deletion token. Encodings (base64url without padding, Unix seconds) are Proposed (non-normative) until confirmed; see docs/storage-format.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "aad",
+    "created_at",
+    "expires_at",
+    "read_once",
+    "deletion_token_hash"
+  ],
+  "properties": {
+    "schema_version": {
+      "description": "Storage format version of this file. Readers fail closed on any other value (ADR-0002).",
+      "const": 1
+    },
+    "id": {
+      "description": "Server-assigned paste identifier (24 bytes: 64 random bits + two 64-bit fingerprints, spec §8.2), base64url without padding. Must equal the directory name.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{32}$"
+    },
+    "aad": {
+      "description": "Canonical AAD bytes (protocol version, public KDF parameters, access and consume public keys, spec §8.2.2), base64url without padding, stored byte-exact as received/validated.",
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "created_at": {
+      "description": "Creation time, Unix seconds (server clock).",
+      "type": "integer",
+      "minimum": 0
+    },
+    "expires_at": {
+      "description": "Expiration time, Unix seconds; null only when the paste never expires (allow_forever = true, max_retention = null).",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "read_once": {
+      "description": "Read-once flag. When false, state.json stays 'available' until deletion or expiry.",
+      "type": "boolean"
+    },
+    "deletion_token_hash": {
+      "description": "Hash/verifier of the deletion token (algorithm defined by the protocol spec; see open questions). Never the raw token.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    }
+  },
+  "examples": [
+    {
+      "schema_version": 1,
+      "id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "aad": "ZHVtbXktYWFkLWJ5dGVz",
+      "created_at": 1700000000,
+      "expires_at": 1700086400,
+      "read_once": true,
+      "deletion_token_hash": "ZHVtbXktZGVsZXRpb24tdG9rZW4taGFzaC0tLS0tLS0"
+    }
+  ]
+}

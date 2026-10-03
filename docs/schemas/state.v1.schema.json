@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/marouane-hassine/quietlink/docs/schemas/state.v1.schema.json",
+  "title": "QuietLink paste state.json (schema_version 1)",
+  "description": "Mutable per-paste state, rewritten only under an exclusive flock() on state.lock via temp file + fsync + rename() (spec §9.4, §9.4.1, §6.3.1). Never contains plaintext, keys, passphrase, raw reservation identifier or raw deletion token. Encodings are Proposed (non-normative); see docs/storage-format.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "state",
+    "terminal_at",
+    "unconfirmed_opens",
+    "reservation",
+    "consumed_signature_hash"
+  ],
+  "properties": {
+    "schema_version": {
+      "description": "Storage format version of this file. Readers fail closed on any other value (ADR-0002).",
+      "const": 1
+    },
+    "state": {
+      "description": "Persistent state. 'deleted' is a technical state written at the start of a deletion (§9.4.1). Expiry is not a state: it is derived from meta.json expires_at.",
+      "enum": [
+        "available",
+        "reserved",
+        "consumed",
+        "deleted"
+      ]
+    },
+    "terminal_at": {
+      "description": "Unix seconds of the transition to 'consumed' or 'deleted'; null otherwise.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "unconfirmed_opens": {
+      "description": "Number of reservations released without confirmation (§6.3.1 step 7).",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10
+    },
+    "reservation": {
+      "description": "Current or last reservation. null when no reservation is active and none led to consumption.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id_hash",
+            "consume_challenge",
+            "expires_at"
+          ],
+          "properties": {
+            "id_hash": {
+              "description": "Hash of the 128-bit client-generated reservation identifier (never the raw identifier).",
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{43}$"
+            },
+            "consume_challenge": {
+              "description": "Consume challenge bound to this reservation (82 raw bytes, base64url without padding), stored as-is (§6.3.1); not a secret.",
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{110}$"
+            },
+            "expires_at": {
+              "description": "Reservation expiry, Unix seconds (created_at of reservation + read_once_reservation_ttl, 30..300 s). Never extended by a resume.",
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      ]
+    },
+    "consumed_signature_hash": {
+      "description": "Hash of the Ed25519 signature that consumed the paste; null unless consumed by a valid consume request.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[A-Za-z0-9_-]{43}$"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "available"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "terminal_at": {
+            "type": "null"
+          },
+          "reservation": {
+            "type": "null"
+          },
+          "consumed_signature_hash": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "reserved"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "terminal_at": {
+            "type": "null"
+          },
+          "reservation": {
+            "type": "object"
+          },
+          "consumed_signature_hash": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "enum": [
+              "consumed",
+              "deleted"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "terminal_at": {
+            "type": "integer"
+          }
+        }
+      }
+    }
+  ],
+  "examples": [
+    {
+      "schema_version": 1,
+      "state": "reserved",
+      "terminal_at": null,
+      "unconfirmed_opens": 1,
+      "reservation": {
+        "id_hash": "ZHVtbXktcmVzZXJ2YXRpb24taWQtaGFzaC0tLS0tLS0",
+        "consume_challenge": "ZHVtbXktY29uc3VtZS1jaGFsbGVuZ2UtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQ",
+        "expires_at": 1700000060
+      },
+      "consumed_signature_hash": null
+    }
+  ]
+}

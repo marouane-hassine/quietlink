@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/marouane-hassine/quietlink/docs/schemas/idempotency.v1.schema.json",
+  "title": "QuietLink idempotency record (schema_version 1)",
+  "description": "Write-once record, one file per Idempotency-Key, published with link() so that only the first writer wins (spec §9.4, §9.4.1). Contains neither the raw Idempotency-Key, plaintext nor the raw deletion token. Encodings are Proposed (non-normative); see docs/storage-format.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "key_hash",
+    "request_sha256",
+    "paste_id",
+    "expires_at",
+    "retain_until"
+  ],
+  "properties": {
+    "schema_version": {
+      "description": "Storage format version of this file. Readers fail closed on any other value (ADR-0002).",
+      "const": 1
+    },
+    "key_hash": {
+      "description": "Hash of the Idempotency-Key (never the raw key). Also determines the file name.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$"
+    },
+    "request_sha256": {
+      "description": "SHA-256 fingerprint of the request body (32 bytes, base64url without padding).",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$"
+    },
+    "paste_id": {
+      "description": "Identifier assigned to the paste created by the first request.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{32}$"
+    },
+    "expires_at": {
+      "description": "expires_at of the created paste (Unix seconds), or null for a never-expiring paste.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "retain_until": {
+      "description": "Retention deadline of this record (Unix seconds), bounded by idempotency_max_ttl (default 24h, 1h..7d) independently of the paste expiry.",
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "examples": [
+    {
+      "schema_version": 1,
+      "key_hash": "ZHVtbXktaWRlbXBvdGVuY3kta2V5LWhhc2gtLS0tLS0",
+      "request_sha256": "ZHVtbXktcmVxdWVzdC1zaGEyNTYtLS0tLS0tLS0tLS0",
+      "paste_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "expires_at": 1700086400,
+      "retain_until": 1700086400
+    }
+  ]
+}
