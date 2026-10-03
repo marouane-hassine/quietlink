@@ -54,6 +54,10 @@ final class ApiTest extends KernelTestCase
     }
 
     #[Group('EXG-API-012')]
+    #[Group('EXG-API-002')]
+    #[Group('EXG-API-003')]
+    #[Group('EXG-CRYPTO-018')]
+    #[Group('EXG-CRYPTO-050')]
     public function testCreateReturnsServerAssignedIdentifierAndTimes(): void
     {
         $prepared = ClientCrypto::prepare(self::ENVELOPE, '1h', false);
@@ -79,6 +83,10 @@ final class ApiTest extends KernelTestCase
     #[Group('EXG-SEC-058')]
     #[Group('EXG-SEC-045')]
     #[Group('EXG-SEC-060')]
+    #[Group('EXG-API-048')]
+    #[Group('EXG-API-050')]
+    #[Group('EXG-CACHE-002')]
+    #[Group('EXG-CACHE-016')]
     public function testSecurityHeadersAreSetOnEveryResponse(): void
     {
         foreach ([$this->request('GET', '/healthz'), $this->request('POST', '/api/v1/pastes/x/open', '{}')] as $response) {
@@ -102,6 +110,8 @@ final class ApiTest extends KernelTestCase
 
     #[Group('EXG-SEC-025')]
     #[Group('EXG-SEC-078')]
+    #[Group('EXG-API-044')]
+    #[Group('EXG-API-046')]
     public function testUnavailabilityIsUniform(): void
     {
         [$prepared, $id] = $this->create();
@@ -128,6 +138,7 @@ final class ApiTest extends KernelTestCase
 
     #[Group('EXG-SEC-077')]
     #[Group('EXG-SEC-002')]
+    #[Group('EXG-API-045')]
     public function testOnlyJsonBodiesAreAccepted(): void
     {
         foreach (['multipart/form-data; boundary=x', 'text/plain', 'application/x-www-form-urlencoded'] as $type) {
@@ -136,6 +147,17 @@ final class ApiTest extends KernelTestCase
         }
     }
 
+    #[Group('EXG-API-004')]
+    #[Group('EXG-API-006')]
+    #[Group('EXG-API-031')]
+    #[Group('EXG-API-032')]
+    #[Group('EXG-API-033')]
+    #[Group('EXG-API-034')]
+    #[Group('EXG-API-035')]
+    #[Group('EXG-API-037')]
+    #[Group('EXG-API-047')]
+    #[Group('EXG-LIFE-007')]
+    #[Group('EXG-LIFE-011')]
     public function testFullReadOnceFlowOverHttp(): void
     {
         [$prepared, $id] = $this->create(readOnce: true);
@@ -166,6 +188,8 @@ final class ApiTest extends KernelTestCase
     }
 
     #[Group('EXG-LIFE-009')]
+    #[Group('EXG-API-005')]
+    #[Group('EXG-URL-014')]
     public function testDeletionOverHttp(): void
     {
         [$prepared, $id] = $this->create();
@@ -216,6 +240,7 @@ final class ApiTest extends KernelTestCase
         self::assertSame(503, $this->request('POST', '/api/v1/pastes', '{}', ['Idempotency-Key' => 'x'])->getStatusCode());
     }
 
+    #[Group('EXG-API-041')]
     public function testHealthIsMinimal(): void
     {
         $response = $this->request('GET', '/healthz');

@@ -34,6 +34,7 @@ final class PageTest extends KernelTestCase
 
     #[Group('EXG-READ-014')]
     #[Group('EXG-SEC-061')]
+    #[Group('EXG-API-030')]
     public function testReadPageEmbedsStatelessChallengesAndNoInlineScript(): void
     {
         $id = Base64Url::encode(random_bytes(24));

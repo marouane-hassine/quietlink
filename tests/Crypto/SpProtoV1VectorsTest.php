@@ -63,6 +63,7 @@ final class SpProtoV1VectorsTest extends TestCase
     #[Group('EXG-CRYPTO-035')]
     #[Group('EXG-CRYPTO-036')]
     #[Group('EXG-CRYPTO-064')]
+    #[Group('EXG-CLI-016')]
     public function testHkdfDerivationsWithoutPassphrase(array $vector): void
     {
         $kUrl = V::bytes($vector, 'input.k_url');
@@ -241,6 +242,11 @@ final class SpProtoV1VectorsTest extends TestCase
     #[Group('EXG-CRYPTO-048')]
     #[Group('EXG-CRYPTO-049')]
     #[Group('EXG-CRYPTO-062')]
+    #[Group('EXG-CRYPTO-016')]
+    #[Group('EXG-CRYPTO-021')]
+    #[Group('EXG-CRYPTO-023')]
+    #[Group('EXG-CRYPTO-059')]
+    #[Group('EXG-CRYPTO-063')]
     public function testNonCanonicalOrInvalidAadIsRejected(array $vector): void
     {
 

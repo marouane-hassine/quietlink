@@ -107,6 +107,8 @@ final class PurgerTest extends TestCase
     #[Group('EXG-LIFE-022')]
     #[Group('EXG-STORE-004')]
     #[Group('EXG-STORE-044')]
+    #[Group('EXG-LIFE-019')]
+    #[Group('EXG-LIFE-021')]
     public function testExpiredPastesAreRemovedAndPurgeIsIdempotent(): void
     {
         [, $expired] = $this->create('5m');
@@ -177,6 +179,7 @@ final class PurgerTest extends TestCase
     }
 
     #[Group('EXG-STORE-043')]
+    #[Group('EXG-STORE-006')]
     public function testHourlyRecomputationCorrectsDrift(): void
     {
         $this->create();

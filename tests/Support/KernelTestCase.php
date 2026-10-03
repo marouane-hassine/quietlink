@@ -54,15 +54,19 @@ abstract class KernelTestCase extends TestCase
         $this->kernel?->shutdown();
         $this->kernel = null;
         unset($_SERVER['QUIETLINK_CONFIG_DIR'], $_SERVER['QUIETLINK_APP_SECRET']);
-        $this->tmp->remove();
+        if (isset($this->tmp)) {
+            $this->tmp->remove();
+        }
     }
 
     /**
      * @param array<string, string> $headers
+     * @param array<string, string> $server  overrides of the server variables
      */
-    protected function request(string $method, string $uri, ?string $body = null, array $headers = []): Response
+    protected function request(string $method, string $uri, ?string $body = null, array $headers = [], array $server = []): Response
     {
-        $server = ['REMOTE_ADDR' => '192.0.2.10', 'HTTPS' => 'on', 'HTTP_HOST' => 'paste.example.test'];
+        $server += ['REMOTE_ADDR' => '192.0.2.10', 'HTTPS' => 'on', 'HTTP_HOST' => 'paste.example.test'];
+        $server = array_filter($server, static fn (string $value): bool => $value !== '');
         foreach ($headers as $name => $value) {
             $key = strtoupper(str_replace('-', '_', $name));
             $server[in_array($key, ['CONTENT_TYPE', 'CONTENT_LENGTH'], true) ? $key : 'HTTP_' . $key] = $value;

@@ -126,6 +126,8 @@ final class CliTest extends KernelTestCase
     #[Group('EXG-CLI-003')]
     #[Group('EXG-CLI-013')]
     #[Group('EXG-CLI-014')]
+    #[Group('EXG-CLI-004')]
+    #[Group('EXG-CLI-016')]
     public function testCreateMetadataAndDecrypt(): void
     {
         [$share, $manage] = $this->createPaste("line one\r\nline two");

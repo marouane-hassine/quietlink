@@ -113,6 +113,8 @@ final class PasteServiceTest extends TestCase
 
     #[Group('EXG-READ-009')]
     #[Group('EXG-READ-013')]
+    #[Group('EXG-CRYPTO-032')]
+    #[Group('EXG-API-013')]
     public function testCreateOpenAndDecryptRoundTrip(): void
     {
         [$prepared, $id] = $this->createPaste();
@@ -153,6 +155,8 @@ final class PasteServiceTest extends TestCase
 
     #[Group('EXG-API-010')]
     #[Group('EXG-API-011')]
+    #[Group('EXG-CRYPTO-034')]
+    #[Group('EXG-API-021')]
     public function testUnknownBodyMemberIsRejected(): void
     {
         $prepared = ClientCrypto::prepare(self::ENVELOPE, '1d', false);
@@ -221,6 +225,7 @@ final class PasteServiceTest extends TestCase
 
     #[Group('EXG-LIFE-008')]
     #[Group('EXG-LIFE-026')]
+    #[Group('EXG-LIFE-003')]
     public function testExpiredPasteIsUnavailable(): void
     {
         [$prepared, $id] = $this->createPaste(expiration: '5m');
@@ -238,6 +243,7 @@ final class PasteServiceTest extends TestCase
     #[Group('EXG-READ-036')]
     #[Group('EXG-LIFE-012')]
     #[Group('EXG-LIFE-015')]
+    #[Group('EXG-READ-021')]
     public function testReadOnceReservationConsumptionAndReplay(): void
     {
         [$prepared, $id] = $this->createPaste(readOnce: true);
@@ -377,5 +383,101 @@ final class PasteServiceTest extends TestCase
 
         self::assertSame(110, strlen($challenge));
         self::assertSame(0, $this->store->accesses);
+    }
+
+    #[Group('EXG-READ-018')]
+    public function testValidProofForAnotherAccessKeyThanTheStoredAadFails(): void
+    {
+        // The identifier binds access_pk through A; a stored AAD with another key must still be refused.
+        [$prepared, $id] = $this->createPaste();
+        [$other] = $this->createPaste();
+        $otherAad = Base64Url::decode($other->body['aad']);
+        $dir = $this->tmp->path . '/data/pastes/' . substr($id, 0, 2) . '/' . substr($id, 2, 2) . '/' . $id;
+        $meta = json_decode((string) file_get_contents($dir . '/meta.json'), true);
+        self::assertIsArray($meta);
+        $meta['aad'] = Base64Url::encode($otherAad);
+        file_put_contents($dir . '/meta.json', json_encode($meta, JSON_UNESCAPED_SLASHES));
+
+        $this->expectException(PasteUnavailableException::class);
+        $this->service->status($id, $this->proofBody($prepared, $id, 'status'));
+    }
+
+    #[Group('EXG-READ-022')]
+    public function testConsumeChallengeSurvivesASecretRotation(): void
+    {
+        [$prepared, $id] = $this->createPaste(readOnce: true);
+        $rid = Base64Url::encode(random_bytes(16));
+        $opened = $this->service->open($id, $this->proofBody($prepared, $id, 'open', ['reservation_id' => $rid]));
+        self::assertNotNull($opened['consume_challenge']);
+
+        $rotated = \QuietLink\Config\ConfigLoader::load($this->tmp->path . '/config', ['QUIETLINK_APP_SECRET' => base64_encode(str_repeat("\x42", 32))]);
+        $layout = TestInstance::layout($rotated);
+        $service = new PasteService($rotated, $this->store, new IdempotencyStore($layout, $this->clock), $this->stateFiles, $this->clock, static fn (): int => PHP_INT_MAX);
+
+        $service->consume($id, $this->consumeBody($prepared, $rid, $opened['consume_challenge']));
+        self::addToAssertionCount(1);
+    }
+
+    #[Group('EXG-LIFE-017')]
+    public function testExpiryDuringAReservationRefusesConsumption(): void
+    {
+        [$prepared, $id] = $this->createPaste(readOnce: true, expiration: '5m');
+        $this->clock->advance(290);
+        $rid = Base64Url::encode(random_bytes(16));
+        $opened = $this->service->open($id, $this->proofBody($prepared, $id, 'open', ['reservation_id' => $rid]));
+        self::assertNotNull($opened['consume_challenge']);
+        $this->clock->advance(20);
+
+        $this->expectException(PasteUnavailableException::class);
+        $this->service->consume($id, $this->consumeBody($prepared, $rid, $opened['consume_challenge']));
+    }
+
+    #[Group('EXG-API-027')]
+    #[Group('EXG-READ-027')]
+    public function testSameKeysUnderANewIdempotencyKeyGetANewIdentifier(): void
+    {
+        [$prepared, $id] = $this->createPaste();
+        $again = $this->service->create($prepared->json(), Base64Url::encode(random_bytes(16)));
+
+        self::assertTrue($again['created']);
+        self::assertNotSame($id, $again['id']->encoded());
+        self::assertSame(substr(Base64Url::decode($id), 0, 16), substr($again['id']->bytes(), 0, 16));
+    }
+
+    #[Group('EXG-API-019')]
+    public function testIdempotencyRecordIsKeptForTheShorterOfExpiryAndMaximumTtl(): void
+    {
+        $short = ClientCrypto::prepare(self::ENVELOPE, '1h', false);
+        $this->service->create($short->json(), $short->idempotencyKey);
+        $long = ClientCrypto::prepare(self::ENVELOPE, '7d', false);
+        $this->service->create($long->json(), $long->idempotencyKey);
+
+        $retain = [];
+        $records = glob($this->tmp->path . '/data/idempotency/*/*.json');
+        self::assertIsArray($records);
+        foreach ($records as $file) {
+            $record = json_decode((string) file_get_contents($file), true);
+            self::assertIsArray($record);
+            self::assertIsInt($record['retain_until']);
+            $retain[] = $record['retain_until'] - $this->clock->now();
+        }
+        sort($retain);
+        self::assertSame([3600, 86400], $retain);
+    }
+
+    #[Group('EXG-API-024')]
+    public function testFailedRecordPublicationDeletesTheNewPaste(): void
+    {
+        $prepared = ClientCrypto::prepare(self::ENVELOPE, '1h', false);
+        $dir = $this->tmp->path . '/data/idempotency';
+        chmod($dir, 0500);
+        try {
+            $this->service->create($prepared->json(), $prepared->idempotencyKey);
+            self::fail('Creation must fail when the record cannot be written.');
+        } catch (\QuietLink\Storage\StorageException) {
+        } finally {
+            chmod($dir, 0700);
+        }
+        self::assertSame([], glob($this->tmp->path . '/data/pastes/*/*/*', GLOB_ONLYDIR));
     }
 }

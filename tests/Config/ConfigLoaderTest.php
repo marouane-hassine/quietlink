@@ -83,6 +83,9 @@ final class ConfigLoaderTest extends TestCase
     #[Group('EXG-CONF-003')]
     #[Group('EXG-CONF-018')]
     #[Group('EXG-CONF-020')]
+    #[Group('EXG-CONF-005')]
+    #[Group('EXG-CONF-012')]
+    #[Group('EXG-CONF-019')]
     public function testMinimalConfigurationUsesSpecDefaults(): void
     {
         $this->writeConfig(self::MINIMAL);
@@ -176,6 +179,8 @@ final class ConfigLoaderTest extends TestCase
     #[Group('EXG-CONF-025')]
     #[Group('EXG-CONF-026')]
     #[Group('EXG-CONF-027')]
+    #[Group('EXG-LIFE-006')]
+    #[Group('EXG-LIFE-018')]
     public function testInconsistentConfigurationIsRejected(array $config, string $field): void
     {
         $this->assertInvalid($config, $field);
@@ -220,6 +225,7 @@ final class ConfigLoaderTest extends TestCase
         $this->assertInvalid(self::MINIMAL, 'QUIETLINK_APP_SECRET', $env);
     }
 
+    #[Group('EXG-CONF-015')]
     public function testSecretCanBeReadFromFile(): void
     {
         $this->writeConfig(self::MINIMAL);
