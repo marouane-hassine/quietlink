@@ -66,7 +66,7 @@ final class DecryptCommand extends Command
         // Passphrase and consume key are derived and checked before any reservation (§6.3.1).
         $kPass = null;
         if ($aad->kdf !== null) {
-            $passphrase = (new PassphraseSource($this->context->prompt))->read(Options::string($input, 'passphrase-file'), false, $this->context->stdin, false);
+            $passphrase = (new PassphraseSource($this->context->prompt))->read(Options::string($input, 'passphrase-file'), false, $this->context->stdin, false, false);
             $kPass = ClientCrypto::passphraseKey($aad, $passphrase);
             sodium_memzero($passphrase);
         }

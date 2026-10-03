@@ -18,8 +18,10 @@ final class PassphraseSource
 
     /**
      * @param resource $stdin
+     * @param bool     $stdinAllowed false when stdin already carries the link (decrypt): the
+     *                               error message then only suggests --passphrase-file
      */
-    public function read(?string $file, bool $fromStdin, $stdin, bool $confirm): string
+    public function read(?string $file, bool $fromStdin, $stdin, bool $confirm, bool $stdinAllowed = true): string
     {
         if ($file !== null) {
             return self::fromFile($file);
@@ -30,7 +32,9 @@ final class PassphraseSource
             return self::validate(rtrim($line === false ? '' : $line, "\r\n"));
         }
         if (!$this->prompt->isAvailable()) {
-            throw new CliException('A passphrase is required but no terminal is available; use --passphrase-file or --passphrase-stdin.');
+            throw new CliException($stdinAllowed
+                ? 'A passphrase is required but no terminal is available; use --passphrase-file or --passphrase-stdin.'
+                : 'A passphrase is required but no terminal is available; use --passphrase-file.');
         }
         $passphrase = self::validate($this->prompt->secret('Passphrase: '));
         if ($confirm && !hash_equals($passphrase, $this->prompt->secret('Confirm passphrase: '))) {

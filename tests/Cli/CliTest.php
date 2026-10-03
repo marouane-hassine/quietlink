@@ -317,4 +317,19 @@ final class CliTest extends KernelTestCase
         self::assertSame(0, $code);
         self::assertSame($text, $plaintext);
     }
+
+    #[Group('EXG-CLI-011')]
+    #[Group('EXG-CLI-008')]
+    public function testDecryptWithoutTerminalSuggestsOnlyThePassphraseFile(): void
+    {
+        $file = $this->tmp->path . '/pass';
+        file_put_contents($file, "dummy passphrase\n");
+        chmod($file, 0600);
+        [$share] = $this->createPaste('protected text', ['--passphrase-file=' . $file]);
+
+        [$code, , $err] = $this->cli(['decrypt', '--url-stdin'], $share);
+        self::assertSame(1, $code);
+        self::assertStringContainsString('--passphrase-file', $err);
+        self::assertStringNotContainsString('--passphrase-stdin', $err);
+    }
 }
