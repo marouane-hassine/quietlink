@@ -3,6 +3,7 @@ parameters:
     level: max
     paths:
         - bin/console
+        - bin/quietlink
         - config
         - public
         - src

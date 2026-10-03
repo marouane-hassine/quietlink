@@ -7,7 +7,7 @@ declare(strict_types=1);
 $finder = (new PhpCsFixer\Finder())
     ->in([__DIR__ . '/bin', __DIR__ . '/config', __DIR__ . '/public', __DIR__ . '/src', __DIR__ . '/tests'])
     ->notPath('reference.php')
-    ->append([__DIR__ . '/.php-cs-fixer.dist.php', __DIR__ . '/bin/console']);
+    ->append([__DIR__ . '/.php-cs-fixer.dist.php', __DIR__ . '/bin/console', __DIR__ . '/bin/quietlink']);
 
 return (new PhpCsFixer\Config())
     ->setRiskyAllowed(true)

@@ -1,0 +1,22 @@
+#!/usr/bin/env php
+<?php
+
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+declare(strict_types=1);
+
+use QuietLink\Cli\ApiClient;
+use QuietLink\Cli\CliApplication;
+use QuietLink\Cli\CliContext;
+use QuietLink\Cli\StreamTransport;
+use QuietLink\Cli\TtyPrompt;
+
+$autoload = [dirname(__DIR__) . '/vendor/autoload.php', __DIR__ . '/../../../autoload.php'];
+foreach ($autoload as $file) {
+    if (is_file($file)) {
+        require $file;
+        break;
+    }
+}
+
+exit((new CliApplication(new CliContext(new ApiClient(new StreamTransport()), new TtyPrompt(), STDIN)))->run());

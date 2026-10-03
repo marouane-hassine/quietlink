@@ -33,7 +33,7 @@ return static function (ContainerConfigurator $container): void {
     $services->load('QuietLink\\', '../src/')
         ->exclude([
             '../src/Kernel.php',
-            '../src/{Client,Config,Crypto,Encoding,Http,Log,Storage,RateLimit}/',
+            '../src/{Cli,Client,Config,Crypto,Encoding,Http,Log,Storage,RateLimit}/',
             '../src/Runtime/{Environment,ServiceFactory}.php',
             '../src/Maintenance/Booter.php',
             '../src/Paste/*Exception.php',
