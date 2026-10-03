@@ -32,6 +32,7 @@ final class BootCommand extends Command
         private readonly Clock $clock,
         #[Autowire('%kernel.project_dir%/public')] private readonly string $publicDir,
         #[AutowireIterator('quietlink.theme_builder')] private readonly iterable $themeBuilders = [],
+        #[Autowire('%kernel.project_dir%/config')] private readonly string $projectConfigDir = '',
     ) {
         parent::__construct();
     }
@@ -49,7 +50,8 @@ final class BootCommand extends Command
         }
 
         $pool = Environment::processVariables()['QUIETLINK_FPM_POOL_FILE'] ?? null;
-        $booter = new Booter($this->publicDir, $this->disk, $this->clock, array_values([...$this->themeBuilders]));
+        $configDir = Environment::processVariables()['QUIETLINK_CONFIG_DIR'] ?? null;
+        $booter = new Booter($this->publicDir, $this->disk, $this->clock, array_values([...$this->themeBuilders]), is_string($configDir) ? $configDir : $this->projectConfigDir);
         $errors = $booter->boot($config, is_string($pool) && $pool !== '' ? $pool : null);
         foreach ($booter->warnings() as $warning) {
             $output->writeln('<comment>warning: ' . $warning . '</comment>');

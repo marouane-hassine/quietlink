@@ -31,6 +31,7 @@ final class Booter
         private readonly DiskProbe $disk,
         private readonly Clock $clock,
         private readonly array $themeBuilders = [],
+        private readonly string $configDir = '',
     ) {
     }
 
@@ -82,6 +83,12 @@ final class Booter
         }
         if ($inodes !== null && $inodes < $config->storage->minFreeInodesPercent) {
             $this->warnings[] = 'Free inodes are below storage.min_free_inodes_percent: creation is refused.';
+        }
+        foreach ([$this->configDir . '/config.php', $this->configDir . '/config.local.php'] as $file) {
+            $mode = is_file($file) ? @fileperms($file) : false;
+            if ($mode !== false && ($mode & 0004) !== 0) {
+                $this->warnings[] = sprintf('%s is readable by every account: restrict it to the PHP account (chmod 640 or 600).', basename($file));
+            }
         }
         if ($config->http->trustedProxies === [] && str_starts_with($config->app->publicUrl, 'https://')) {
             $this->warnings[] = 'http.trusted_proxies is empty: behind a reverse proxy all clients share one rate limiting key.';

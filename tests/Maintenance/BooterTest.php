@@ -117,4 +117,18 @@ final class BooterTest extends TestCase
         file_put_contents($pool, "[quietlink]\nenv[QUIETLINK_APP_SECRET_FILE] = /run/secrets/app_secret\n");
         self::assertSame([], $booter->boot($config, $pool));
     }
+
+    #[Group('EXG-SEC-101')]
+    public function testAWorldReadableConfigurationFileIsReported(): void
+    {
+        $config = TestInstance::config($this->tmp);
+        chmod($this->tmp->path . '/config/config.php', 0644);
+        $booter = new Booter($this->tmp->path . '/public', self::probe('ext4'), new SystemClock(), [], $this->tmp->path . '/config');
+        self::assertSame([], $booter->boot($config, null));
+        self::assertStringContainsString('config.php is readable by every account', implode("\n", $booter->warnings()));
+
+        chmod($this->tmp->path . '/config/config.php', 0600);
+        $booter->boot($config, null);
+        self::assertStringNotContainsString('readable by every account', implode("\n", $booter->warnings()));
+    }
 }
