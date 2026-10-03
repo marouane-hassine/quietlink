@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Shared sp-proto/v1 vectors (tests/vectors/sp-proto-v1.json), same file as PHPUnit and the CLI.
-// Requirements: EXG-CRYPTO-014, EXG-CRYPTO-022, EXG-CRYPTO-035, EXG-CRYPTO-036, EXG-CRYPTO-031,
+// Requirements: EXG-CRYPTO-014, EXG-CRYPTO-022, EXG-CRYPTO-035, EXG-CRYPTO-036, EXG-CRYPTO-031,, EXG-READ-016, EXG-CRYPTO-071.
 // EXG-CRYPTO-045, EXG-CRYPTO-047, EXG-CRYPTO-053, EXG-CRYPTO-060, EXG-CRYPTO-070, EXG-CRYPTO-073.
 
 import { describe, expect, it } from 'vitest';

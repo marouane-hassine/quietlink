@@ -8,6 +8,7 @@ import { mountHow } from './pages/how';
 import { mountManage } from './pages/manage';
 import { mountRead } from './pages/read';
 import { initTheme, renderChrome } from './ui/chrome';
+import { watchConnectivity } from './ui/connectivity';
 
 function boot(): void {
   const main = document.getElementById('main');
@@ -18,6 +19,7 @@ function boot(): void {
   const mount = { create: () => mountCreate(main, config), read: () => mountRead(main, config), manage: () => mountManage(main), how: () => mountHow(main) }[config.page];
   const rerender = mount();
   renderChrome(config, theme, rerender);
+  watchConnectivity();
 }
 
 boot();

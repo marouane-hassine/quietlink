@@ -239,5 +239,7 @@
   "editor.mode.unavailable": "This text no longer follows the template structure: keep editing it as text.",
   "editor.sensitive.hide": "Hide sensitive fields",
   "editor.sensitive.show": "Show sensitive fields",
-  "tpl.notes": "Notes for {section}"
+  "tpl.notes": "Notes for {section}",
+  "net.offline": "You are offline. Nothing is lost: actions will work again when the connection is back.",
+  "net.online": "Connection restored."
 }

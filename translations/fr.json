@@ -239,5 +239,7 @@
   "editor.mode.unavailable": "Ce texte ne suit plus la structure du modèle : continuez à l’éditer en mode texte.",
   "editor.sensitive.hide": "Masquer les champs sensibles",
   "editor.sensitive.show": "Afficher les champs sensibles",
-  "tpl.notes": "Notes de la section {section}"
+  "tpl.notes": "Notes de la section {section}",
+  "net.offline": "Vous êtes hors ligne. Rien n’est perdu : les actions fonctionneront à nouveau au retour de la connexion.",
+  "net.online": "Connexion rétablie."
 }
