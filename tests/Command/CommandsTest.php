@@ -97,4 +97,25 @@ final class CommandsTest extends KernelTestCase
         self::assertFileDoesNotExist($dir . '/tokens.0123456789abcdef.css');
         self::assertFileExists($dir . '/tokens.fedcba9876543210.css');
     }
+
+    #[Group('EXG-THEME-010')]
+    #[Group('EXG-DOC-033')]
+    public function testThemePreviewWritesStaticPagesWithoutRemoteResources(): void
+    {
+        $this->bootInstance();
+        file_put_contents($this->tmp->path . '/config/themes/brand.json', '{"light":{"color-primary":"#123456"}}');
+        TestInstance::config($this->tmp, ['theme' => ['custom_tokens_file' => 'brand.json']]);
+        $out = $this->tmp->path . '/preview';
+
+        $tester = $this->command('app:theme:preview');
+        self::assertSame(0, $tester->execute(['--output' => $out]), $tester->getDisplay());
+        foreach (['index.html', 'dark.html', 'tokens.css'] as $file) {
+            self::assertFileExists($out . '/' . $file);
+        }
+        self::assertStringContainsString('#123456', (string) file_get_contents($out . '/tokens.css'));
+        $html = (string) file_get_contents($out . '/dark.html');
+        self::assertStringContainsString('data-theme="dark"', $html);
+        self::assertDoesNotMatchRegularExpression('#(src|href)="https?://#', $html);
+        self::assertStringNotContainsString('<script', $html);
+    }
 }
