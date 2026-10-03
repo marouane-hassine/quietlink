@@ -7,6 +7,8 @@ declare(strict_types=1);
 namespace QuietLink\Cli;
 
 use QuietLink\Client\ClientCrypto;
+use QuietLink\Client\Envelope;
+use QuietLink\Client\InvalidEnvelopeException;
 use QuietLink\Crypto\Aad;
 use QuietLink\Crypto\DecryptionFailedException;
 use QuietLink\Crypto\Ed25519;
@@ -115,10 +117,13 @@ final class DecryptCommand extends Command
         } catch (DecryptionFailedException|InvalidEncodingException) {
             throw new CliException('Decryption failed: the content or the link has been altered.');
         }
-        $envelope = json_decode($plaintext, true);
-        sodium_memzero($plaintext);
-        if (!is_array($envelope) || !is_string($envelope['text'] ?? null)) {
-            throw new CliException('Decryption failed: invalid content.');
+        // Strict validation before any output and before a read-once paste is consumed.
+        try {
+            $envelope = Envelope::parse($plaintext);
+        } catch (InvalidEnvelopeException) {
+            throw new CliException('Decryption failed: invalid content. A read-once paste was not consumed.');
+        } finally {
+            sodium_memzero($plaintext);
         }
 
         if (is_string($target)) {

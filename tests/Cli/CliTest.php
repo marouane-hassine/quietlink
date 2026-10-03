@@ -385,4 +385,23 @@ final class CliTest extends KernelTestCase
         self::assertSame(0, $code);
         self::assertStringNotContainsString('without being confirmed', $err);
     }
+
+    #[Group('EXG-CRYPTO-038')]
+    #[Group('EXG-CLI-005')]
+    public function testInvalidEnvelopeIsRejectedWithoutConsumingTheReadOncePaste(): void
+    {
+        $prepared = \QuietLink\Client\ClientCrypto::prepare('{"format":"plain","language":null,"template":null,"text":"dummy secret","v":1,"v":1}', '1h', true);
+        $response = $this->request('POST', '/api/v1/pastes', $prepared->json(), ['Idempotency-Key' => $prepared->idempotencyKey]);
+        self::assertSame(201, $response->getStatusCode());
+        $id = self::str(self::json($response), 'id');
+        $share = 'https://paste.example.test/p/' . $id . '#' . \QuietLink\Encoding\Base64Url::encode($prepared->urlKey);
+
+        [$code, $out, $err] = $this->cli(['decrypt', '--url-stdin', '--yes'], $share);
+        self::assertSame(1, $code);
+        self::assertSame('', $out);
+        self::assertStringContainsString('invalid content', $err);
+
+        [, $metadata] = $this->cli(['metadata', '--url-stdin'], $share);
+        self::assertStringContainsString('state: reserved', $metadata, 'an invalid envelope must not consume the paste');
+    }
 }
