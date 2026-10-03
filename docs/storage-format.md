@@ -316,7 +316,7 @@ Consistency:
 
 - Check and increment happen in one `usage.lock` critical section, so concurrent creations cannot exceed the quotas.
 - Decrements are applied under `usage.lock` by whoever performs the unlink/rmdir, after the filesystem operation succeeded (never before), and never go below zero (clamp + log).
-- Drift sources (crash between filesystem operation and counter update, orphan staging dirs) are corrected by the purge's full recompute, **at most once per hour** (l. 1521): scan `pastes/` without `usage.lock`, compute the observed totals, then under `usage.lock` apply the *difference* between observed and the counter value read at scan start, plus the deltas that happened during the scan, without overwriting concurrent creations. How exactly to isolate concurrent deltas is open (OQ-09). Proposed (non-normative): keep a monotonically increasing `generation` in `usage.json`, and have the recompute apply `observed − counter_at_scan_start` only, accepting a bounded transient error corrected on the next run.
+- Drift sources (crash between filesystem operation and counter update, orphan staging dirs) are corrected by the purge's full recompute, **at most once per hour** (l. 1521): scan `pastes/` without `usage.lock`, compute the observed totals, then under `usage.lock` replace the counters with them **only if** the counter still equals its value at scan start minus the purge's own removals. Any other value means another process created, consumed or deleted during the scan; the scan cannot tell which of those changes it saw, so nothing is written and the next purge run retries (OQ-09, resolved). Concurrent changes are never counted twice.
 
 ## 10. Purge (`app:purge-expired`, §9.7)
 
@@ -372,7 +372,7 @@ Concurrency with reads: the purge never touches a paste without its `LOCK_EX`; r
 | OQ-06 | Lock timeouts | §9.4.1 l. 1276 | Blocking vs non-blocking `flock()` and maximal wait on request paths; response on timeout. |
 | OQ-07 | Clock source and skew | §6.3.1 l. 495, 516; §9.4 l. 1231 | Wall clock assumed; no rule for backward/forward jumps. |
 | OQ-08 | Inode threshold at creation | §9.5 l. 1335, 1371 | Is `min_free_inodes_percent` enforced per creation (using `health.json`, how stale?) or only reported? |
-| OQ-09 | Hourly usage recompute | §9.7 l. 1521 | How to "apply the observed difference without overwriting concurrent creations" exactly; scan is not atomic. |
+| OQ-09 | Hourly usage recompute | §9.7 l. 1521 | How to "apply the observed difference without overwriting concurrent creations" exactly; scan is not atomic. **Resolved:** applied only when no concurrent change happened (§9). |
 | OQ-10 | Schemas for `usage.json`, `health.json`, `boot.json` | §9.4.1 l. 1259–1261 | ADR-0002 requires schemas for every JSON file; their fields are not specified. |
 | OQ-11 | Delete while `reserved` | §9.4.1 l. 1273; §6.3.1 l. 489–498 | Is manual deletion allowed during an active reservation (assumed yes: T9)? |
 | OQ-12 | Deletion file order | §9.4.1 l. 1273 vs 1275 | "`state.lock` last" vs `rmdir` requiring an empty dir; interpreted as last *file* before `rmdir`. |

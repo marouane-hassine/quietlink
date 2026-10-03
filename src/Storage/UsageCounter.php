@@ -73,15 +73,23 @@ final class UsageCounter
     }
 
     /**
-     * Applies the gap found by a full recomputation in one critical section (purge, hourly),
-     * so that changes made concurrently with the scan are kept.
+     * Replaces the counters with the totals observed by a scan, under the lock, only when no
+     * other process changed them during the scan: the counter must then equal its value at scan
+     * start minus the purge's own removals. Otherwise nothing is written and the next run retries,
+     * because the scan cannot tell which concurrent changes it saw (§9.7, storage-format OQ-09).
+     *
+     * @return bool whether the recomputation was applied
      */
-    public function applyRecomputation(int $deltaBytes, int $deltaItems, int $now): void
+    public function applyRecomputation(int $expectedBytes, int $expectedItems, int $observedBytes, int $observedItems, int $now): bool
     {
         $lock = $this->lock(true);
         try {
-            $usage = $this->load();
-            $this->save(max(0, $usage['bytes'] + $deltaBytes), max(0, $usage['items'] + $deltaItems), $now);
+            if ($this->load() !== ['bytes' => max(0, $expectedBytes), 'items' => max(0, $expectedItems)]) {
+                return false;
+            }
+            $this->save($observedBytes, $observedItems, $now);
+
+            return true;
         } finally {
             $lock->release();
         }

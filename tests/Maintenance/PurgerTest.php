@@ -268,6 +268,63 @@ final class PurgerTest extends TestCase
         self::assertLessThan(999, $usage['bytes']);
     }
 
+    /**
+     * Deletions by other processes while the recomputation scans must not be subtracted twice:
+     * the counter would fall below the real usage and let quotas be exceeded (§9.7).
+     */
+    #[Group('EXG-STORE-043')]
+    #[Group('EXG-STORE-006')]
+    public function testRecomputationIgnoresChangesMadeDuringTheScan(): void
+    {
+        $ids = [];
+        for ($i = 0; $i < 6; ++$i) {
+            $ids[] = $this->create('1d')[1];
+        }
+        $store = $this->store;
+        $layout = $this->layout;
+        $frozen = $this->clock;
+        // A user deletes every paste not locked by the purge while it scans the first one.
+        $clock = new class ($frozen, static function () use ($store, $layout, $ids): void {
+            foreach ($ids as $id) {
+                $lock = FileLock::acquire($layout->pasteDir($id) . '/state.lock', true, false);
+                $lock?->release();
+                if ($lock !== null) {
+                    $store->remove($id);
+                }
+            }
+        }) implements \QuietLink\Clock\Clock {
+            private bool $fired = false;
+
+            public function __construct(private readonly FrozenClock $inner, private readonly \Closure $hook)
+            {
+            }
+
+            public function now(): int
+            {
+                if (!$this->fired && debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 2)[1]['function'] === 'decide') {
+                    $this->fired = true;
+                    ($this->hook)();
+                }
+
+                return $this->inner->now();
+            }
+        };
+        $stateFiles = new StateFiles($this->layout);
+        $limiter = new RateLimiter($this->config->storage->ratelimitDir, $this->config->http->rateLimits, $this->config->secret, $clock);
+        $disk = new class () extends DiskProbe {
+            public function freeInodesPercent(string $path): int
+            {
+                return 80;
+            }
+        };
+        $purger = new Purger($this->config, $this->layout, $this->store, new IdempotencyStore($this->layout, $clock), $this->usage, $stateFiles, $limiter, $this->service, $disk, $clock);
+
+        self::assertNotNull($purger->run());
+        $onDisk = iterator_count($this->store->ids());
+        self::assertLessThan(6, $onDisk);
+        self::assertSame($onDisk, $this->usage->read()['items']);
+    }
+
     #[Group('EXG-STORE-037')]
     #[Group('EXG-TEST-051')]
     public function testConcurrentPurgeExitsImmediately(): void

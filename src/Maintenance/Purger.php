@@ -78,21 +78,26 @@ final class Purger
             $stats = ['removed' => 0, 'released' => 0, 'orphans' => 0, 'idempotency' => 0, 'ratelimit' => 0];
             $usageAtStart = $this->usage->read();
             $observed = ['bytes' => 0, 'items' => 0];
-            $removed = ['bytes' => 0, 'items' => 0];
+            // Usage released by this run's own removals (other processes' changes are not ours).
+            $own = ['bytes' => 0, 'items' => 0];
 
             foreach ($this->store->ids() as $id) {
                 $dir = $this->layout->pasteDir($id);
                 $sizeBefore = self::payloadSize($dir);
+                $removed = false;
                 // A failure on one paste (busy lock, unwritable directory, full disk) never
                 // stops the run: the paste is retried by the next purge (§9.7).
                 try {
                     if ($this->store->isIncomplete($id)) {
-                        $stats['removed'] += $this->store->removeIncomplete($id) ? 1 : 0;
+                        $removed = $this->store->removeIncomplete($id);
+                        $stats['removed'] += $removed ? 1 : 0;
                     } elseif ($this->store->isPendingDeletion($id)) {
-                        $stats['removed'] += $this->store->remove($id) ? 1 : 0;
+                        $removed = $this->store->remove($id);
+                        $stats['removed'] += $removed ? 1 : 0;
                     } else {
                         $action = $this->store->mutate($id, fn (PasteRecord $r): array => $this->decide($r));
                         if (($action === 'remove' || $action === 'orphan') && $this->store->remove($id)) {
+                            $removed = true;
                             ++$stats[$action === 'orphan' ? 'orphans' : 'removed'];
                         } elseif ($action === 'released') {
                             ++$stats['released'];
@@ -101,16 +106,16 @@ final class Purger
                 } catch (StorageException) {
                     // Counted below as observed when the directory is still there.
                 }
-                clearstatcache();
-                if (!is_dir($dir)) {
-                    $removed['items']++;
-                    $removed['bytes'] += $sizeBefore;
+                if ($removed) {
+                    $own['items']++;
+                    $own['bytes'] += $sizeBefore;
                     continue;
                 }
-                $sizeAfter = self::payloadSize($dir);
-                $removed['bytes'] += $sizeBefore - $sizeAfter;
-                $observed['bytes'] += $sizeAfter;
-                $observed['items']++;
+                clearstatcache();
+                if (is_dir($dir)) {
+                    $observed['bytes'] += self::payloadSize($dir);
+                    $observed['items']++;
+                }
             }
 
             foreach ($this->store->orphanStagingDirectories(self::TEMP_MIN_AGE) as $staging) {
@@ -124,10 +129,12 @@ final class Purger
 
             $recomputedAt = $this->usage->recomputedAt();
             if ($recomputedAt === null || $now - $recomputedAt >= self::RECOMPUTE_INTERVAL) {
-                // Apply the observed gap under the lock, keeping concurrent changes (§9.7).
+                // Applied only when no concurrent change happened during the scan (§9.7).
                 $this->usage->applyRecomputation(
-                    $observed['bytes'] + $removed['bytes'] - $usageAtStart['bytes'],
-                    $observed['items'] + $removed['items'] - $usageAtStart['items'],
+                    $usageAtStart['bytes'] - $own['bytes'],
+                    $usageAtStart['items'] - $own['items'],
+                    $observed['bytes'],
+                    $observed['items'],
                     $now,
                 );
             }
