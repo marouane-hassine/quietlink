@@ -8,7 +8,7 @@
     "dev": "vite build --watch --mode development",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "qa": "npm run typecheck && npm run test && npm run build && node tools/ci/bundle-budget.mjs",
+    "qa": "npm run typecheck && npm run test && npm run build && node tools/ci/bundle-budget.mjs && node tools/traceability/coverage.mjs --check",
     "e2e": "playwright test",
     "coverage:requirements": "node tools/traceability/coverage.mjs",
     "calibration": "vite --config tools/calibration/vite.config.ts",
