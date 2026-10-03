@@ -82,4 +82,19 @@ final class CommandsTest extends KernelTestCase
         }
         self::assertNotContains('passphrase', $names);
     }
+
+    #[Group('EXG-CACHE-018')]
+    public function testCachePurgeRemovesOnlyUnreferencedThemeStylesheets(): void
+    {
+        $this->bootInstance();
+        $dir = $this->config->storage->generatedAssetsDir;
+        file_put_contents($dir . '/tokens.0123456789abcdef.css', ':root{}');
+        file_put_contents($dir . '/tokens.fedcba9876543210.css', ':root{}');
+        file_put_contents($dir . '/tokens.json', '{"file":"tokens.fedcba9876543210.css"}');
+
+        $tester = $this->command('app:cache:purge');
+        self::assertSame(0, $tester->execute([]));
+        self::assertFileDoesNotExist($dir . '/tokens.0123456789abcdef.css');
+        self::assertFileExists($dir . '/tokens.fedcba9876543210.css');
+    }
 }

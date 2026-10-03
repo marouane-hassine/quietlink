@@ -383,6 +383,7 @@ All commands run as the application account with the same environment as PHP-FPM
 | `php bin/console app:config:check` | Validates and prints the effective configuration as JSON, then `secret: present (not shown)`, the configuration fingerprint and whether the boot marker matches. |
 | `php bin/console app:secret:generate` | Prints a new secret (32 random bytes, standard base64). |
 | `php bin/console app:purge-expired` | See §8.2. |
+| `php bin/console app:cache:purge` | Controlled purge of non-sensitive caches: removes generated theme stylesheets no longer referenced after a theme change and `app:boot`. Hashed frontend assets change name with each release; the prewarmed Symfony container is replaced with the image. Pastes, keys and secrets are never cached. |
 
 ### 8.1 Boot
 
