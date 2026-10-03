@@ -29,6 +29,12 @@ use QuietLink\Storage\UsageCounter;
 final class Purger
 {
     public const ORPHAN_MIN_AGE = 900;
+    /**
+     * Upper bound of orphan detection: the smallest allowed paste.idempotency_max_ttl (1h).
+     * A record's retention is fixed at creation, so the current TTL cannot be used: after it
+     * is raised, published pastes whose record already expired would be taken for orphans.
+     */
+    public const ORPHAN_MAX_AGE = 3600;
     public const TEMP_MIN_AGE = 3600;
     public const RECOMPUTE_INTERVAL = 3600;
 
@@ -153,7 +159,7 @@ final class Purger
             return [null, 'remove'];
         }
         $age = $now - $record->meta->createdAt;
-        if ($age > self::ORPHAN_MIN_AGE && $age < $this->config->paste->idempotencyMaxTtlSeconds
+        if ($age > self::ORPHAN_MIN_AGE && $age < self::ORPHAN_MAX_AGE
             && !$this->idempotency->designates($record->meta->idempotencyKeyHash, $record->meta->id)) {
             return [null, 'orphan'];
         }

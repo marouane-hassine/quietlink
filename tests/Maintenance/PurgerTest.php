@@ -20,6 +20,7 @@ use QuietLink\RateLimit\RateLimiter;
 use QuietLink\Storage\AtomicFile;
 use QuietLink\Storage\FileLock;
 use QuietLink\Storage\FilesystemPasteStore;
+use QuietLink\Storage\IdempotencyRecord;
 use QuietLink\Storage\IdempotencyStore;
 use QuietLink\Storage\PasteId;
 use QuietLink\Storage\PasteMeta;
@@ -178,6 +179,32 @@ final class PurgerTest extends TestCase
         self::assertSame(1, $stats['orphans']);
         self::assertNull($this->store->find($id));
         self::assertNotNull($this->store->find($legit));
+    }
+
+    /**
+     * A record's retention is fixed at creation with the TTL configured then. After the TTL is
+     * raised, a published paste whose record has expired must not be taken for an orphan.
+     */
+    #[Group('EXG-API-026')]
+    #[Group('EXG-TEST-053')]
+    public function testPublishedPasteIsKeptAfterItsRecordExpiredUnderAnEarlierShorterTtl(): void
+    {
+        $keyHash = str_repeat("\x07", 32);
+        $now = $this->clock->now();
+        $id = $this->store->create(
+            static fn (PasteId $id): PasteMeta => new PasteMeta($id, 'aad', $now, $now + 86400, false, str_repeat("\x01", 32), $keyHash),
+            static fn (): PasteId => PasteId::fromBytes(random_bytes(24)),
+            'payload',
+        );
+        // Published while paste.idempotency_max_ttl was 1h (the configuration now says 24h).
+        (new IdempotencyStore($this->layout, $this->clock))->publish(new IdempotencyRecord($keyHash, str_repeat("\x08", 32), $id, $now + 86400, $now + 3600));
+
+        $this->clock->advance(3601);
+        $stats = $this->purger->run();
+
+        self::assertNotNull($stats);
+        self::assertSame(0, $stats['orphans']);
+        self::assertNotNull($this->store->find($id));
     }
 
     #[Group('EXG-STORE-043')]

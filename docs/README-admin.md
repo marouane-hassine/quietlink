@@ -397,7 +397,8 @@ theme file or release. The Docker entrypoint does it automatically.
 or outdated. Each run (idempotent):
 
 - removes expired pastes, consumed pastes older than 10 minutes, incomplete pastes, orphan
-  creations (no matching idempotency record) and staging directories older than one hour;
+  creations (no matching idempotency record, detected between 15 and 60 minutes of age, so the
+  purge must run at least every 45 minutes) and staging directories older than one hour;
 - releases expired read-once reservations;
 - removes expired idempotency records and rate limiting entries;
 - refreshes `health.json`;
