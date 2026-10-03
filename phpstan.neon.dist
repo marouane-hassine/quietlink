@@ -8,3 +8,5 @@ parameters:
         - src
         - tests
     tmpDir: var/cache/phpstan
+    excludePaths:
+        - config/reference.php (?)
