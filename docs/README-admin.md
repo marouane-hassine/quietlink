@@ -157,7 +157,8 @@ The directory is `config/` by default and can be changed with `QUIETLINK_CONFIG_
 returns a PHP array. Arrays are merged key by key, except list values (marked "list" below),
 which replace the default entirely.
 
-Validation is strict: **unknown keys and wrong types are errors**. Configuration files must
+Validation is strict: **unknown keys and wrong types are errors** (list values may only contain
+strings). Configuration files must
 never contain secrets.
 
 After **any** change, run `php bin/console app:boot` (and reload PHP-FPM). Until the boot marker
@@ -210,7 +211,7 @@ Durations use the format `<integer><m|h|d>` (e.g. `30m`, `24h`, `7d`). Expiratio
 | `paste.allow_forever` | `false` | Boolean. Offers `never`; requires `paste.max_retention = null`. |
 | `paste.allow_read_once` | `true` | Boolean. |
 | `paste.allow_passphrase` | `true` | Boolean. Automatically disabled when libsodium lacks Argon2id (no silent downgrade). |
-| `paste.max_envelope_bytes` | `1048576` (1 MiB) | Integer ≥ 1024. Maximum plaintext envelope size; the ciphertext limit is this value + 16. |
+| `paste.max_envelope_bytes` | `1048576` (1 MiB) | Integer 1024–16777216 (16 MiB). Maximum plaintext envelope size; the ciphertext limit is this value + 16. |
 | `paste.max_metadata_bytes` | `4096` | Integer 512–4096. Maximum AAD size. |
 | `paste.max_retention` | `'30d'` | Duration or `null` (no upper bound, required by `allow_forever`). |
 | `paste.max_unconfirmed_opens` | `3` | Integer 1–10. Reservations of a read-once paste that may expire without confirmation before it is destroyed. |

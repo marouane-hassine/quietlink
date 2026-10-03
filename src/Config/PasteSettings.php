@@ -11,6 +11,12 @@ namespace QuietLink\Config;
  */
 final readonly class PasteSettings
 {
+    /** Smallest value "paste.max_envelope_bytes" may take. */
+    public const MIN_ENVELOPE_BYTES = 1024;
+
+    /** Largest value "paste.max_envelope_bytes" may take (16 MiB): keeps size arithmetic bounded. */
+    public const MAX_ENVELOPE_BYTES = 16777216;
+
     /** Largest value "paste.max_metadata_bytes" may take (§8.2.3): the absolute AAD ceiling. */
     public const MAX_METADATA_BYTES = 4096;
 

@@ -167,6 +167,23 @@ final class ConfigLoaderTest extends TestCase
         yield 'ipv6 prefix out of range' => [$base + ['http' => ['ratelimit_ipv6_prefix' => 32]], 'ratelimit_ipv6_prefix'];
         yield 'rate limit zero' => [$base + ['http' => ['rate_limits' => ['create' => ['limit' => 0, 'interval' => 60]]]], 'rate_limits'];
         yield 'unknown rate limit bucket' => [$base + ['http' => ['rate_limits' => ['upload' => ['limit' => 1, 'interval' => 60]]]], 'rate_limits'];
+        // Non-string list items must be validation errors, never an internal failure.
+        yield 'integer trusted proxy' => [$base + ['http' => ['trusted_proxies' => [1]]], 'http.trusted_proxies'];
+        yield 'nested cors origin' => [$base + ['http' => ['cors_allowed_origins' => [['x']]]], 'http.cors_allowed_origins'];
+        yield 'null locale' => [['app' => ['public_url' => 'https://paste.example.test', 'enabled_locales' => [null]]], 'app.enabled_locales'];
+        yield 'integer expiration' => [$base + ['paste' => ['allowed_expirations' => [5]]], 'paste.allowed_expirations'];
+        yield 'boolean template' => [$base + ['ui' => ['templates' => [true]]], 'ui.templates'];
+        yield 'envelope limit overflow' => [$base + ['paste' => ['max_envelope_bytes' => PHP_INT_MAX]], 'max_envelope_bytes'];
+        yield 'envelope limit above ceiling' => [$base + ['paste' => ['max_envelope_bytes' => 16777217], 'http' => ['max_request_bytes' => PHP_INT_MAX]], 'max_envelope_bytes'];
+    }
+
+    #[Group('EXG-CONF-002')]
+    #[Group('EXG-CONF-004')]
+    public function testEnvelopeLimitCeilingIsAccepted(): void
+    {
+        $this->writeConfig(self::MINIMAL + ['paste' => ['max_envelope_bytes' => 16777216], 'http' => ['max_request_bytes' => 22396929]]);
+
+        self::assertSame(16777232, $this->load()->paste->maxCiphertextBytes);
     }
 
     /**

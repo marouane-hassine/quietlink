@@ -45,6 +45,7 @@ return [
         'allow_forever' => false,
         'allow_read_once' => true,
         'allow_passphrase' => true,
+        // Serialized envelope limit, 1024 to 16777216 (16 MiB); raise http.max_request_bytes with it.
         'max_envelope_bytes' => 1048576,
         'max_metadata_bytes' => 4096,
         'max_retention' => '30d',

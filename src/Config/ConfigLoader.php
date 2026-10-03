@@ -189,7 +189,8 @@ final class ConfigLoader
     {
         return match (true) {
             $default === null => is_string($value),
-            is_array($default) => is_array($value) && array_is_list($value),
+            // Every free-form list holds strings only (locales, codes, addresses, origins, templates).
+            is_array($default) => is_array($value) && array_is_list($value) && array_filter($value, 'is_string') === $value,
             default => get_debug_type($default) === get_debug_type($value),
         };
     }
@@ -319,13 +320,22 @@ final class ConfigLoader
         }
         $envelope = $r->int('paste.max_envelope_bytes');
         $metadata = $r->int('paste.max_metadata_bytes');
-        if ($envelope < 1024 || $metadata < PasteSettings::MIN_METADATA_BYTES || $metadata > PasteSettings::MAX_METADATA_BYTES) {
-            $errors[] = '"paste.max_envelope_bytes" must be at least 1024 and "paste.max_metadata_bytes" between 512 and 4096.';
+        $sizesValid = $envelope >= PasteSettings::MIN_ENVELOPE_BYTES && $envelope <= PasteSettings::MAX_ENVELOPE_BYTES
+            && $metadata >= PasteSettings::MIN_METADATA_BYTES && $metadata <= PasteSettings::MAX_METADATA_BYTES;
+        if (!$sizesValid) {
+            $errors[] = sprintf(
+                '"paste.max_envelope_bytes" must be between %d and %d and "paste.max_metadata_bytes" between %d and %d.',
+                PasteSettings::MIN_ENVELOPE_BYTES,
+                PasteSettings::MAX_ENVELOPE_BYTES,
+                PasteSettings::MIN_METADATA_BYTES,
+                PasteSettings::MAX_METADATA_BYTES,
+            );
         }
         $ciphertext = $envelope + 16;
 
         $maxRequest = $r->int('http.max_request_bytes');
-        $requiredRequest = (int) ceil($ciphertext * 4 / 3) + (int) ceil($metadata * 4 / 3) + 16384;
+        // Only computed on bounded sizes, so the arithmetic can never overflow.
+        $requiredRequest = $sizesValid ? (int) ceil($ciphertext * 4 / 3) + (int) ceil($metadata * 4 / 3) + 16384 : 0;
         if ($maxRequest < $requiredRequest) {
             $errors[] = sprintf('"http.max_request_bytes" must be at least %d for the configured sizes.', $requiredRequest);
         }
