@@ -14,6 +14,7 @@ use QuietLink\Config\AppSecret;
 use QuietLink\Config\RateLimitSettings;
 use QuietLink\Http\ClientAddress;
 use QuietLink\RateLimit\RateLimiter;
+use QuietLink\Storage\FileLock;
 use QuietLink\Tests\Support\FrozenClock;
 use QuietLink\Tests\Support\TempDirectory;
 use RecursiveDirectoryIterator;
@@ -125,5 +126,33 @@ final class RateLimiterTest extends TestCase
         self::assertSame('2001:db8:1:2::/63', ClientAddress::normalize('2001:db8:1:3::1', 63));
         self::assertSame('unknown', ClientAddress::normalize(null, 64));
         self::assertSame('unknown', ClientAddress::normalize('not-an-ip', 64));
+    }
+
+    /**
+     * The purge takes each shard's lock, like consume(): otherwise it could unlink a counter
+     * consume() had just rewritten for a new window, letting an extra request through.
+     */
+    #[Group('EXG-SEC-074')]
+    public function testPurgeLeavesShardsLockedByAConsumer(): void
+    {
+        $clock = new FrozenClock(1790000000);
+        $limiter = $this->limiter($clock);
+        $limiter->consume('open', '198.51.100.77');
+        $clock->advance(120);
+        $locks = glob($this->tmp->path . '/locks/*.lock');
+        self::assertNotFalse($locks);
+        $held = [];
+        foreach ($locks as $lock) {
+            $held[] = FileLock::acquire($lock, true);
+        }
+
+        try {
+            self::assertSame(0, $limiter->purgeExpired());
+        } finally {
+            foreach ($held as $lock) {
+                $lock?->release();
+            }
+        }
+        self::assertSame(1, $limiter->purgeExpired());
     }
 }

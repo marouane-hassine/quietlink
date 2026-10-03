@@ -561,7 +561,7 @@ None.
 | EXG-API-023 | `tests/Paste/PasteServiceTest.php` |
 | EXG-API-024 | `tests/Paste/PasteServiceTest.php` |
 | EXG-API-025 | `frontend/tests/create-flows.test.ts`, `tests/Storage/IdempotencyRaceTest.php` |
-| EXG-API-026 | `tests/Maintenance/PurgerTest.php` |
+| EXG-API-026 | `tests/Maintenance/PurgerTest.php`, `tests/Storage/IdempotencyAndStateFilesTest.php` |
 | EXG-API-027 | `tests/Paste/PasteServiceTest.php` |
 | EXG-API-028 | `tests/Http/HardeningTest.php` |
 | EXG-API-029 | `tests/Paste/PasteServiceTest.php` |

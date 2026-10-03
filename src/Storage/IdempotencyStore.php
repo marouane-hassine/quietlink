@@ -57,6 +57,14 @@ final class IdempotencyStore
                 return true;
             }
             clearstatcache(true, $path);
+            // The purge may have removed an expired record between link() and this check:
+            // that is a race, not a write error, so link() is tried once more (§10 step 4).
+            if (!is_file($path) && @link($tmp, $path)) {
+                AtomicFile::syncDirectory($dir);
+
+                return true;
+            }
+            clearstatcache(true, $path);
             if (!is_file($path)) {
                 throw new StorageException('Unable to publish the idempotency record.');
             }
@@ -74,15 +82,7 @@ final class IdempotencyStore
      */
     private function replaceExpired(string $path, string $tmp): bool
     {
-        $lockPath = $this->layout->idempotencyDir . '/.replace.lock';
-        if (!is_file($lockPath)) {
-            try {
-                AtomicFile::createExclusive($lockPath, '', false);
-            } catch (StorageException) {
-                // Created concurrently by another publisher.
-            }
-        }
-        $lock = FileLock::acquire($lockPath, true) ?? throw new StorageException('Idempotency lock unavailable.');
+        $lock = $this->replaceLock(true) ?? throw new StorageException('Idempotency lock unavailable.');
         try {
             clearstatcache(true, $path);
             $existing = AtomicFile::read($path);
@@ -102,6 +102,33 @@ final class IdempotencyStore
     }
 
     /**
+     * Lock serialising every removal of an existing record (replacement by a publisher, purge):
+     * without it, the purge could unlink a record a publisher has just put in place.
+     *
+     * @return FileLock|null null when $wait is false and the lock is busy
+     */
+    private function replaceLock(bool $wait): ?FileLock
+    {
+        $lockPath = $this->layout->idempotencyDir . '/.replace.lock';
+        if (!is_file($lockPath)) {
+            try {
+                AtomicFile::createExclusive($lockPath, '', false);
+            } catch (StorageException) {
+                // Created concurrently by another process.
+            }
+        }
+        try {
+            return FileLock::acquire($lockPath, true, $wait);
+        } catch (StorageException $e) {
+            if ($wait) {
+                throw $e;
+            }
+
+            return null;
+        }
+    }
+
+    /**
      * Whether a live record designates the paste (orphan detection by the purge).
      */
     public function designates(string $keyHash, PasteId $id): bool
@@ -109,6 +136,30 @@ final class IdempotencyStore
         $record = $this->find($keyHash);
 
         return $record !== null && hash_equals($record->pasteId->bytes(), $id->bytes());
+    }
+
+    /**
+     * Removes the record at $path if it is still expired once the replacement lock is held. A
+     * busy lock means a publisher is replacing it: the next purge will look again.
+     */
+    private function removeIfExpired(string $path, int $now): bool
+    {
+        $lock = $this->replaceLock(false);
+        if ($lock === null) {
+            return false;
+        }
+        try {
+            clearstatcache(true, $path);
+            $json = AtomicFile::read($path);
+            $record = $json === null ? null : self::decode($json);
+            if ($json === null || ($record !== null && $record->retainUntil > $now)) {
+                return false;
+            }
+
+            return @unlink($path);
+        } finally {
+            $lock->release();
+        }
     }
 
     /**
@@ -131,7 +182,7 @@ final class IdempotencyStore
                     $json = AtomicFile::read($path);
                     $record = $json === null ? null : self::decode($json);
                     if ($record === null || $record->retainUntil <= $now) {
-                        $removed += @unlink($path) ? 1 : 0;
+                        $removed += $this->removeIfExpired($path, $now) ? 1 : 0;
                     }
                 } elseif (preg_match('/^\.[0-9a-f]{16}\.tmp$/D', $name) === 1) {
                     $mtime = @filemtime($path);

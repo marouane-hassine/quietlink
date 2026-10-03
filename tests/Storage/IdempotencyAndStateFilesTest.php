@@ -9,6 +9,7 @@ namespace QuietLink\Tests\Storage;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
+use QuietLink\Storage\FileLock;
 use QuietLink\Storage\IdempotencyRecord;
 use QuietLink\Storage\IdempotencyStore;
 use QuietLink\Storage\PasteId;
@@ -79,6 +80,30 @@ final class IdempotencyAndStateFilesTest extends TestCase
         $this->clock->advance(4000);
         self::assertSame(1, $store->purgeExpired(3600));
         self::assertSame(0, $store->purgeExpired(3600));
+    }
+
+    /**
+     * The purge must never remove a record a publisher is replacing at the same moment: it uses
+     * the replacement lock and leaves records it cannot lock to the next run (§10 step 6).
+     */
+    #[Group('EXG-API-026')]
+    #[Group('EXG-STORE-013')]
+    public function testPurgeLeavesRecordsBeingReplaced(): void
+    {
+        $store = new IdempotencyStore($this->layout, $this->clock);
+        $store->publish($this->record(ttl: 10));
+        $this->clock->advance(4000);
+        $lockPath = $this->layout->idempotencyDir . '/.replace.lock';
+        touch($lockPath);
+        $held = FileLock::acquire($lockPath, true);
+        self::assertNotNull($held);
+
+        try {
+            self::assertSame(0, $store->purgeExpired(3600));
+        } finally {
+            $held->release();
+        }
+        self::assertSame(1, $store->purgeExpired(3600));
     }
 
     #[Group('EXG-STORE-008')]

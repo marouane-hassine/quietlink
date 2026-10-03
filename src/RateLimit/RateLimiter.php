@@ -99,15 +99,29 @@ final class RateLimiter
             if (preg_match('/^[0-9a-f]{2}$/D', $shard) !== 1 || is_link($dir) || !is_dir($dir)) {
                 continue;
             }
-            $names = @scandir($dir);
-            foreach ($names === false ? [] : $names as $name) {
-                if (preg_match('/^[0-9a-f]{64}\.json$/D', $name) !== 1) {
-                    continue;
+            // Same shard lock as consume(), so a counter rewritten for a new window is never
+            // unlinked; a shard busy with requests is left to the next purge.
+            try {
+                $lock = FileLock::acquire(sprintf('%s/locks/%s.lock', $this->directory, $shard), true, false);
+            } catch (StorageException) {
+                continue;
+            }
+            if ($lock === null) {
+                continue;
+            }
+            try {
+                $names = @scandir($dir);
+                foreach ($names === false ? [] : $names as $name) {
+                    if (preg_match('/^[0-9a-f]{64}\.json$/D', $name) !== 1) {
+                        continue;
+                    }
+                    $entry = $this->read($dir . '/' . $name);
+                    if ($entry === null || $entry['expires_at'] <= $now) {
+                        $removed += @unlink($dir . '/' . $name) ? 1 : 0;
+                    }
                 }
-                $entry = $this->read($dir . '/' . $name);
-                if ($entry === null || $entry['expires_at'] <= $now) {
-                    $removed += @unlink($dir . '/' . $name) ? 1 : 0;
-                }
+            } finally {
+                $lock->release();
             }
         }
 
