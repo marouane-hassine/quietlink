@@ -7,7 +7,23 @@
 - Dépôt : https://github.com/marouane-hassine/quietlink (public)
 - Licence : **AGPL-3.0** (fichier `LICENSE` et en-têtes SPDX à créer à l’initialisation du dépôt).
 - Spécification de référence : `docs/cahier-des-charges.md` (v0.18). Toute décision de conception s’appuie sur ce document ; en cas de doute ou de contradiction, le signaler plutôt que trancher seul.
-- État : **pré-Phase 0** — aucun code n’existe encore. Les commandes de build, de test et de lint seront ajoutées ici lors de l’initialisation du projet Symfony.
+- État : **Phase 0 (cadrage)** — squelette Symfony micro-kernel initialisé (aucun code métier). Suivi : `docs/PROGRESS.md` ; décisions : `docs/decisions/ADR-*.md`.
+
+## Commandes
+
+```bash
+composer install          # dépendances PHP
+composer test             # PHPUnit (tests/)
+composer stan             # PHPStan niveau max (+ strict-rules, phpunit)
+composer cs               # PHP-CS-Fixer PSR-12, vérification seule
+composer cs-fix           # PHP-CS-Fixer, correction
+composer qa               # cs + stan + test (doit être vert avant chaque commit)
+bin/console --env=test    # console Symfony
+```
+
+- Point d’entrée HTTP : `public/index.php` ; noyau : `src/Kernel.php` ; configuration PHP dans `config/` (pas de YAML ni de `.env`).
+- Composants Symfony installés : framework-bundle (requis par MicroKernelTrait), http-foundation, routing, validator, console, rate-limiter, twig-bundle. Ne pas en ajouter sans justification.
+- Le frontend (TypeScript + Vite + Vitest) n’est pas encore initialisé.
 
 ## Stack imposée
 

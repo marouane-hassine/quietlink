@@ -1,0 +1,6 @@
+/vendor/
+/var/
+/node_modules/
+/.phpunit.cache/
+.DS_Store
+/.idea/

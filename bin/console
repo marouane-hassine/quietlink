@@ -1,0 +1,20 @@
+#!/usr/bin/env php
+<?php
+
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+declare(strict_types=1);
+
+use QuietLink\Kernel;
+use Symfony\Bundle\FrameworkBundle\Console\Application;
+use Symfony\Component\Console\Input\ArgvInput;
+
+require dirname(__DIR__) . '/vendor/autoload.php';
+
+$input = new ArgvInput();
+$defaultEnv = getenv('APP_ENV');
+$defaultEnv = is_string($defaultEnv) && $defaultEnv !== '' ? $defaultEnv : 'prod';
+$env = $input->getParameterOption(['--env', '-e'], $defaultEnv, true);
+$kernel = new Kernel(is_string($env) ? $env : $defaultEnv, false);
+
+exit((new Application($kernel))->run($input));
