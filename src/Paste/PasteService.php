@@ -109,8 +109,11 @@ final class PasteService
 
         // Step 3: configuration-dependent checks, rate limiting, quotas, creation.
         $paste = $this->config->paste;
-        if (strlen($aadBytes) > $paste->maxMetadataBytes || strlen($ciphertext) > $paste->maxCiphertextBytes) {
-            throw new InvalidRequestException('Payload larger than this instance allows.');
+        if (strlen($ciphertext) > $paste->maxCiphertextBytes) {
+            throw new PayloadTooLargeException('Payload larger than this instance allows.');
+        }
+        if (strlen($aadBytes) > $paste->maxMetadataBytes) {
+            throw new InvalidRequestException('Metadata larger than this instance allows.');
         }
         if (!in_array($aad->expiration, $paste->acceptedExpirationCodes(), true)
             || ($aad->readOnce && !$paste->allowReadOnce)

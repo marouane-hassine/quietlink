@@ -18,6 +18,7 @@ use QuietLink\Paste\IdempotencyConflictException;
 use QuietLink\Paste\InvalidRequestException;
 use QuietLink\Paste\PasteService;
 use QuietLink\Paste\PasteUnavailableException;
+use QuietLink\Paste\PayloadTooLargeException;
 use QuietLink\Paste\ReservationConflictException;
 use QuietLink\Storage\FilesystemPasteStore;
 use QuietLink\Storage\IdempotencyStore;
@@ -166,7 +167,7 @@ final class PasteServiceTest extends TestCase
         self::assertSame($created['expires_at'], $replay['expires_at']);
 
         $other = ClientCrypto::prepare($envelope, '1d', false);
-        $this->expectException(InvalidRequestException::class);
+        $this->expectException(PayloadTooLargeException::class);
         $this->service->create($other->json(), $other->idempotencyKey);
     }
 

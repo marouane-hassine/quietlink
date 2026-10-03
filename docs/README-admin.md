@@ -504,7 +504,7 @@ IPv6 is grouped by `http.ratelimit_ipv6_prefix`.
 
 Exceeded limits return `429` with `Retry-After`. Override any bucket in `http.rate_limits`; the
 other buckets keep their defaults. Other limits: request body ≤ `http.max_request_bytes`
-(`413` beyond), quotas (§7.4), `max_unconfirmed_opens` for read-once pastes. Uploads and
+and decoded ciphertext ≤ `paste.max_envelope_bytes` + 16 (`413` beyond), quotas (§7.4), `max_unconfirmed_opens` for read-once pastes. Uploads and
 `multipart/form-data` are not supported.
 
 ## 11. Logging policy and retention

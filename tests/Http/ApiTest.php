@@ -229,6 +229,20 @@ final class ApiTest extends KernelTestCase
         self::assertSame(404, $this->request('POST', "/api/v1/pastes/$id/open", json_encode($this->proof($prepared, $id, 'open'), JSON_THROW_ON_ERROR))->getStatusCode());
     }
 
+    #[Group('EXG-API-047')]
+    #[Group('EXG-CONF-003')]
+    public function testCiphertextAboveTheInstanceLimitIsPayloadTooLarge(): void
+    {
+        $this->tearDown();
+        $this->bootInstance(['paste' => ['max_envelope_bytes' => 1024]]);
+        $envelope = '{"format":"plain","language":null,"template":null,"text":"' . str_repeat('a', 2000) . '","v":1}';
+        $prepared = ClientCrypto::prepare($envelope, '1h', false);
+        $response = $this->request('POST', '/api/v1/pastes', $prepared->json(), ['Idempotency-Key' => $prepared->idempotencyKey]);
+
+        self::assertSame(413, $response->getStatusCode());
+        self::assertSame('application/problem+json', $response->headers->get('Content-Type'));
+    }
+
     #[Group('EXG-SEC-074')]
     public function testCreationIsRateLimited(): void
     {

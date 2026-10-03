@@ -415,7 +415,7 @@ None.
 | EXG-CRYPTO-052 | `tests/Crypto/SpProtoV1VectorsTest.php`, `tests/vectors/sp-proto-v1.json` |
 | EXG-CRYPTO-053 | `frontend/tests/vectors.test.ts`, `tests/Crypto/SpProtoV1VectorsTest.php`, `tests/vectors/sp-proto-v1.json` |
 | EXG-CONF-002 | `tests/Config/ConfigLoaderTest.php` |
-| EXG-CONF-003 | `tests/Config/ConfigLoaderTest.php` |
+| EXG-CONF-003 | `tests/Config/ConfigLoaderTest.php`, `tests/Http/ApiTest.php` |
 | EXG-CONF-004 | `tests/Config/ConfigLoaderTest.php` |
 | EXG-SEC-086 | `tests/Http/ApiTest.php` |
 | EXG-URL-003 | `tests/Log/JsonLoggerTest.php` |

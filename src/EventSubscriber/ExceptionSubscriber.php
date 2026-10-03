@@ -12,6 +12,7 @@ use QuietLink\Http\Problem;
 use QuietLink\Paste\IdempotencyConflictException;
 use QuietLink\Paste\InvalidRequestException;
 use QuietLink\Paste\PasteUnavailableException;
+use QuietLink\Paste\PayloadTooLargeException;
 use QuietLink\Paste\ReservationConflictException;
 use QuietLink\Storage\QuotaExceededException;
 use QuietLink\Storage\StorageException;
@@ -44,6 +45,7 @@ final class ExceptionSubscriber implements EventSubscriberInterface
         $response = match (true) {
             $exception instanceof PasteUnavailableException, $exception instanceof NotFoundHttpException => Problem::response(404),
             $exception instanceof InvalidRequestException => Problem::response(400),
+            $exception instanceof PayloadTooLargeException => Problem::response(413),
             $exception instanceof ReservationConflictException => Problem::response(409, ['retry_after' => $exception->retryAfter], $exception->retryAfter),
             $exception instanceof IdempotencyConflictException => Problem::response(422),
             $exception instanceof QuotaExceededException => Problem::response(503, [], 300),

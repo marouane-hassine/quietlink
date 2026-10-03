@@ -125,8 +125,9 @@ paths:
         and the `Idempotency-Key` header, independent of the configuration (`400`);
         (2) idempotent replay: same key and same body (SHA-256 of the raw body) returns the
         recorded result with `200`, a different body returns `422`, even if the current limits
-        would refuse the body; (3) configuration checks (`paste.max_metadata_bytes`,
-        `paste.max_ciphertext_bytes`, allowed expiration, read-once, passphrase; `400`),
+        would refuse the body; (3) configuration checks: decoded ciphertext above
+        `paste.max_ciphertext_bytes` (`413`), then `paste.max_metadata_bytes`, allowed
+        expiration, read-once, passphrase (`400`),
         creation rate limit (`429`), storage
         thresholds (`503`), then creation (`201`). Replays are not counted against the
         creation limit but against their own, wider per-address `create_replay` bucket
@@ -164,6 +165,9 @@ paths:
             not allowed by this instance.
           $ref: '#/components/responses/BadRequest'
         '413':
+          description: |
+            Body larger than `http.max_request_bytes` (checked before parsing), or decoded
+            ciphertext larger than this instance's `paste.max_ciphertext_bytes`.
           $ref: '#/components/responses/PayloadTooLarge'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
