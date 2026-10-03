@@ -259,5 +259,6 @@
   "tpl.wifiQrHide": "Masquer le QR code Wi-Fi",
   "tpl.wifiQrLabel": "QR code pour rejoindre le réseau Wi-Fi",
   "preset.suggestSecret": "Ce modèle contient des champs sensibles : utiliser le préréglage Secret (lecture unique, 1 heure) ?",
-  "preset.apply": "Utiliser Secret"
+  "preset.apply": "Utiliser Secret",
+  "template.replace": "Remplacer le texte"
 }

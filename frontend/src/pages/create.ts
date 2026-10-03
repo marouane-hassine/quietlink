@@ -251,7 +251,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
         return;
       }
       const previous = editor.value;
-      if (previous.trim() !== '' && !(await confirmInline(templateSelect, t('template.confirmReplace'), t('template.label')))) {
+      if (previous.trim() !== '' && !(await confirmInline(templateSelect, t('template.confirmReplace'), t('template.replace')))) {
         // Only revert when no newer choice replaced this one meanwhile.
         if (templateSelect.value === id) templateSelect.value = state.template;
         return;
