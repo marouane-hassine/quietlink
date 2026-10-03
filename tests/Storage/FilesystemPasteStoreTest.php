@@ -103,6 +103,7 @@ final class FilesystemPasteStoreTest extends TestCase
 
     #[Group('EXG-STORE-011')]
     #[Group('EXG-STORE-018')]
+    #[Group('EXG-CRYPTO-067')]
     public function testStoredFilesContainNoForbiddenField(): void
     {
         $id = $this->createPaste();

@@ -49,6 +49,7 @@ final class EnvironmentTest extends TestCase
     }
 
     #[Group('EXG-SEC-068')]
+    #[Group('EXG-CONF-031')]
     public function testProductionNeverEnablesDebug(): void
     {
         self::assertFalse(Environment::fromVariables(['APP_ENV' => 'prod', 'APP_DEBUG' => '1'])->debug);

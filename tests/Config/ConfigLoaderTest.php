@@ -132,6 +132,7 @@ final class ConfigLoaderTest extends TestCase
     }
 
     #[Group('EXG-CONF-021')]
+    #[Group('EXG-DEPLOY-023')]
     public function testUnknownKeyIsRejected(): void
     {
         $this->assertInvalid(self::MINIMAL + ['secret' => 'nope'], 'secret');
@@ -230,6 +231,7 @@ final class ConfigLoaderTest extends TestCase
 
     #[Group('EXG-CONF-015')]
     #[Group('EXG-TEST-042')]
+    #[Group('EXG-DEPLOY-023')]
     public function testSecretCanBeReadFromFile(): void
     {
         $this->writeConfig(self::MINIMAL);

@@ -55,6 +55,7 @@ final class JsonLoggerTest extends TestCase
         self::assertSame(404, $record['status']);
     }
 
+    #[Group('EXG-OBS-010')]
     public function testLevelThresholdIsApplied(): void
     {
         self::assertSame('', self::capture('debug detail', [], 'debug'));

@@ -260,6 +260,7 @@ final class ApiTest extends KernelTestCase
     }
 
     #[Group('EXG-API-041')]
+    #[Group('EXG-DEPLOY-008')]
     public function testHealthIsMinimal(): void
     {
         $response = $this->request('GET', '/healthz');
