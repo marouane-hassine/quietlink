@@ -147,7 +147,7 @@ final class FilesystemPasteStore implements PasteStore
 
     /**
      * Two-phase deletion under the exclusive lock (§6.4). $guard may veto the removal
-     * (e.g. a manual deletion of a consumed paste kept for 10 minutes).
+     * (e.g. a manual deletion whose token hash no longer matches the record re-read under lock).
      *
      * @param (Closure(PasteRecord): bool)|null $guard
      */

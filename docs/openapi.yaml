@@ -113,7 +113,8 @@ paths:
         with `200`, a different body returns `422`; (3) configuration checks (allowed
         expiration, read-once, passphrase; `400`), creation rate limit (`429`), storage
         thresholds (`503`), then creation (`201`). Replays are not counted against the
-        creation limit but against the wider per-address `challenge` bucket.
+        creation limit but against their own, wider per-address `create_replay` bucket
+        (`http.rate_limits.create_replay`, default 120 requests per 600 s).
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -302,11 +303,8 @@ paths:
         its expiry, the consume challenge (constant-time equality) and the Ed25519 signature
         with the stored `consume_pk`. Resending exactly the consuming proof (same reservation,
         challenge and signature) returns `200` again while the consumed state is retained
-        (10 minutes). Any other invalid, expired or reused proof yields `404`.
-
-        Note: a body that is not a JSON object with exactly the four members, or whose members
-        are not canonical base64url of the exact length, yields `400` (unlike `status`/`open`,
-        where malformed proofs yield `404`). A malformed path identifier yields `404`.
+        (10 minutes, unless the paste was deleted in the meantime). Any other invalid, expired
+        or reused proof yields `404`, as does a malformed body or path identifier.
       parameters:
         - $ref: '#/components/parameters/PasteId'
       requestBody:
@@ -325,9 +323,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ConsumeResponse'
-        '400':
-          description: Malformed body.
-          $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotAvailable'
         '413':
@@ -351,9 +346,9 @@ paths:
         malformed or unbound token, an unknown or expired paste, or a token whose hash does
         not match yields `404`. No request body is read.
 
-        A valid token deletes `available` and `reserved` content (cancelling any running
-        reservation). For `consumed` content the code answers `204` but keeps the payload-less
-        record until its retention ends, so that exact `consume` replays still succeed.
+        A valid token deletes the paste whatever its state (`available`, `reserved` or
+        `consumed`), cancelling any running reservation. Any later `consume`, including an
+        exact replay of the consuming proof, then yields `404` (spec §10, ADR-0008).
       parameters:
         - $ref: '#/components/parameters/PasteId'
         - $ref: '#/components/parameters/DeletionToken'
