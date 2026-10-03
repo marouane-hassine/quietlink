@@ -8,11 +8,14 @@ import { parse, type ParsedAad } from '../crypto/aad';
 import { decode, EncodingError } from '../crypto/base64url';
 import { equal, randomBytes, wipe } from '../crypto/bytes';
 import { encode } from '../crypto/base64url';
-import { argon2Supported, deriveInWorker, preloadArgon2 } from '../crypto/argon2-client';
+import { Argon2UnavailableError, argon2Supported, deriveInWorker, preloadArgon2 } from '../crypto/argon2-client';
 import { parseEnvelope, type Envelope } from '../crypto/envelope';
 import { DecryptionError } from '../crypto/primitives';
 import { accessPublicKey, accessSeed, checkConsumeKey, decrypt, matchesAccessKey, prove, WrongPassphraseError } from '../crypto/protocol';
 import type { PublicConfig } from '../config';
+import type { buildContentView } from '../render/content-view';
+
+type BuildContentView = typeof buildContentView;
 import { t } from '../i18n';
 import { exportButton, printButton } from '../ui/local-output';
 import { announce, toast } from '../ui/announcer';
@@ -48,7 +51,11 @@ async function parseLink(): Promise<{ id: string; idBytes: Uint8Array; urlKey: U
 export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
   let challenges = config.challenges ?? null;
 
+  /** Redraws the current screen in a new language; null while busy or once content is shown. */
+  let redraw: (() => void) | null = null;
+
   const fail = (messageKey: string, values: Record<string, string | number> = {}, retry: (() => void) | null = null) => {
+    redraw = () => fail(messageKey, values, retry);
     const message = t(messageKey, values);
     let retryButton: HTMLButtonElement | null = null;
     if (retry) {
@@ -116,6 +123,7 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
   }
 
   function showReveal(link: Awaited<ReturnType<typeof parseLink>>, aad: ParsedAad, status: StatusResponse, sync: Sync | null, initialError = ''): void {
+    redraw = () => showReveal(link, aad, status, sync, initialError);
     const needsPassphrase = aad.object.kdf !== null;
     const inputId = nextId('passphrase');
     const input = el('input', { id: inputId, class: 'passphrase is-masked', type: 'text', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false' });
@@ -128,6 +136,7 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
     const resumable = loadReservation(link.id, Date.now());
 
     button.addEventListener('click', async () => {
+      redraw = null;
       button.disabled = true;
       error.textContent = '';
       let kPass: Uint8Array | null = null;
@@ -157,7 +166,7 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
           showReveal(link, aad, status, sync, t('error.wrongPassphrase'));
           return;
         }
-        if (e instanceof Error && e.message === 'argon2') return fail('error.argon2');
+        if (e instanceof Argon2UnavailableError || (e instanceof Error && e.message === 'argon2')) return fail('error.argon2');
         handleError(e);
       } finally {
         wipe(kPass, consumeSeed);
@@ -189,6 +198,9 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
 
   async function openAndShow(link: Awaited<ReturnType<typeof parseLink>>, aad: ParsedAad, kPass: Uint8Array | null, consumeSeed: Uint8Array | null, sync: Sync | null, reservationId: string | null = null): Promise<void> {
     showScreen(main, el('h1', { class: 'page-title' }, t('page.read.title')), el('p', { class: 'status', role: 'status' }, t('state.opening')));
+    // The rendering code is loaded before open: a read-once paste is never consumed without
+    // the means to display it (stale chunk after a redeploy, network failure) (§6.3.1).
+    const view = await import('../render/content-view');
     const opened = await withRetry(async () => api.open(link.id, await proofBody(link, 'open', reservationId ? { reservation_id: reservationId } : {})));
     const data: OpenResponse = opened.data;
     // The AAD returned by open must be byte-identical to the one returned by status (§8.3).
@@ -222,12 +234,11 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
         event.returnValue = t('read.leaveWarning');
       });
     }
-    await showContent(envelope, data, consumedNotice, sync ?? (data.expires_at === null ? null : synchronise(data.expires_at, data.server_time, opened.t0, opened.t1)), data.unconfirmed_opens ?? 0);
+    showContent(view.buildContentView, envelope, data, consumedNotice, sync ?? (data.expires_at === null ? null : synchronise(data.expires_at, data.server_time, opened.t0, opened.t1)), data.unconfirmed_opens ?? 0);
   }
 
-  async function showContent(envelope: Envelope, data: OpenResponse, consumedNotice: HTMLElement | null, sync: Sync | null, priorOpens: number): Promise<void> {
-    // Markdown, highlighting and QR code are loaded only once the content is decrypted (§13).
-    const { buildContentView } = await import('../render/content-view');
+  function showContent(buildContentView: BuildContentView, envelope: Envelope, data: OpenResponse, consumedNotice: HTMLElement | null, sync: Sync | null, priorOpens: number): void {
+    redraw = null;
     const { container, controls } = buildContentView(envelope, { wifiQr: config.enableQrCode });
 
     const hiddenNotice = el('p', { class: 'hint', hidden: true }, t('read.hidden'));
@@ -283,5 +294,6 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
   }
 
   void start();
-  return () => undefined;
+  // Decrypted content is not redrawn: a read-once paste cannot be fetched again.
+  return () => redraw?.();
 }
