@@ -463,6 +463,20 @@ summary {
   padding: 0.75rem;
 }
 
+.confirm-panel {
+  margin-block: 0.5rem;
+  padding: 0.75rem;
+  border: 2px solid var(--ql-color-border-control);
+  border-radius: var(--ql-radius);
+  background: var(--ql-color-surface);
+  flex-basis: 100%;
+}
+
+.confirm-message {
+  margin-block: 0 0.5rem;
+  font-weight: 600;
+}
+
 .inline-notice {
   margin: 0;
 }

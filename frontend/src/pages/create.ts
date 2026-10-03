@@ -16,6 +16,7 @@ import { LANGUAGE_IDS } from '../render/highlight';
 import { renderTemplate } from '../templates';
 import { announce, toast } from '../ui/announcer';
 import { canReadClipboard, copyText } from '../ui/clipboard';
+import { confirmInline } from '../ui/confirm';
 import { crossedThreshold, nextTickMs, remainingAt, synchronise, type Sync } from '../ui/countdown';
 import { el, nextId, showScreen } from '../ui/dom';
 import { formatBytes, formatDate, formatRelative } from '../ui/format';
@@ -177,7 +178,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     const templateSelect = el('select', { id: nextId('template') });
     templateSelect.append(el('option', { value: '' }, t('template.none')));
     for (const id of config.templates) templateSelect.append(el('option', { value: id, selected: id === state.template }, t(`template.${id}`)));
-    templateSelect.addEventListener('change', () => {
+    templateSelect.addEventListener('change', async () => {
       const id = templateSelect.value;
       if (!id) {
         state.template = '';
@@ -185,7 +186,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
         return;
       }
       const previous = editor.value;
-      if (previous.trim() !== '' && !window.confirm(t('template.confirmReplace'))) {
+      if (previous.trim() !== '' && !(await confirmInline(templateSelect, t('template.confirmReplace'), t('template.label')))) {
         templateSelect.value = state.template;
         return;
       }
@@ -413,7 +414,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     });
     const generateButton = el('button', { type: 'button', class: 'button button-secondary' }, t('passphrase.generate'));
     generateButton.addEventListener('click', async () => {
-      if (input.value !== '' && !state.generated && !window.confirm(t('passphrase.replaceConfirm'))) return;
+      if (input.value !== '' && !state.generated && !(await confirmInline(generateButton, t('passphrase.replaceConfirm'), t('passphrase.generate')))) return;
       input.value = generate(await wordlist(locale()));
       confirmInput.value = '';
       state.generated = true;
@@ -536,7 +537,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
         });
         const remove = el('button', { type: 'button', class: 'button button-danger' }, t('manage.delete'));
         remove.addEventListener('click', async () => {
-          if (!window.confirm(t('manage.confirm'))) return;
+          if (!(await confirmInline(remove, t('manage.confirm'), t('manage.delete'), true))) return;
           try {
             await api.remove(id, encode(prepared.deletionToken));
           } catch (error) {
@@ -556,8 +557,8 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
 
     const newButton = () => {
       const button = el('button', { type: 'button', class: 'button button-secondary' }, t('action.new'));
-      button.addEventListener('click', () => {
-        if (!manageCopied && !window.confirm(t('result.leaveWarning'))) return;
+      button.addEventListener('click', async () => {
+        if (!manageCopied && !(await confirmInline(button, t('result.leaveWarning'), t('action.new')))) return;
         setUnloadGuard(false, '');
         window.clearTimeout(timer);
         busy = false;

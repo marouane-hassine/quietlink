@@ -89,8 +89,10 @@ test('the management link deletes the paste after confirmation', async ({ page, 
   await manager.goto(manageLink);
   await expect(manager.getByRole('button', { name: 'Delete permanently' })).toBeVisible();
   expect(calls).toHaveLength(0);
-  manager.on('dialog', (dialog) => void dialog.accept());
   await manager.getByRole('button', { name: 'Delete permanently' }).click();
+  await expect(manager.getByRole('alertdialog')).toContainText('This cannot be undone');
+  expect(calls).toHaveLength(0);
+  await manager.getByRole('alertdialog').getByRole('button', { name: 'Delete permanently' }).click();
   await expect(manager.locator('main p[role=alert]')).toHaveText('Deleted, or already unavailable.');
 
   const reader = await context.newPage();

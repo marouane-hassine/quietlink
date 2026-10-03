@@ -10,6 +10,7 @@ import { decode, encode, EncodingError } from '../crypto/base64url';
 import { matchesDeletionToken } from '../crypto/protocol';
 import { t } from '../i18n';
 import { announce } from '../ui/announcer';
+import { confirmInline } from '../ui/confirm';
 import { el, showScreen } from '../ui/dom';
 import { cryptoAvailable } from './create';
 
@@ -34,7 +35,7 @@ export function mountManage(main: HTMLElement): () => void {
 
     const button = el('button', { type: 'button', class: 'button button-danger' }, t('manage.delete'));
     button.addEventListener('click', async () => {
-      if (!window.confirm(t('manage.confirm'))) return;
+      if (!(await confirmInline(button, t('manage.confirm'), t('manage.delete'), true))) return;
       button.disabled = true;
       announce(t('state.deleting'));
       try {
