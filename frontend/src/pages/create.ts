@@ -60,6 +60,10 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
   let busy = false;
   let inResult = false;
   let pending: PreparedPaste | null = null;
+  /** Settings the pending (failed, retryable) paste was prepared with; any change drops it. */
+  let pendingFor: { key: string; readOnce: boolean; usePassphrase: boolean } | null = null;
+  /** Keyboard shortcuts of the current form only: earlier renders must not submit stale text. */
+  let detachKeys: (() => void) | null = null;
   let unloadGuard: ((event: BeforeUnloadEvent) => void) | null = null;
 
   const setUnloadGuard = (active: boolean, message: string) => {
@@ -74,6 +78,8 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     }
   };
 
+  const settingsKey = () => JSON.stringify([state.text, state.format, state.language, state.template, state.expiration, state.readOnce, state.usePassphrase, state.passphrase]);
+
   const envelopeSize = () => byteLength(serialize({ format: state.format, language: state.format === 'code' && state.language ? state.language : null, template: state.template || null, text: state.text }));
 
   const disabledReason = (): string | null => {
@@ -86,6 +92,8 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
 
   function render(): void {
     inResult = false;
+    detachKeys?.();
+    detachKeys = null;
     const editorId = nextId('editor');
     const hintId = nextId('hint');
     const editor = el('textarea', {
@@ -132,6 +140,13 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
 
     const refresh = () => {
       state.text = editor.value;
+      if (pending !== null && !busy && pendingFor !== null && pendingFor.key !== settingsKey()) {
+        // A retry resends the exact prepared request (§10); edited content needs a new paste.
+        pending = null;
+        pendingFor = null;
+        errorBox.hidden = true;
+        errorBox.replaceChildren();
+      }
       previewButton.hidden = state.format !== 'markdown';
       if (previewButton.hidden && previewOpen) previewButton.click();
       window.clearTimeout(previewTimer);
@@ -396,6 +411,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
               return key;
             },
           });
+          pendingFor = { key: settingsKey(), readOnce: state.readOnce, usePassphrase: state.usePassphrase };
         }
         status.textContent = t('state.sending');
         announce(t('state.sending'));
@@ -403,10 +419,12 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
         const id = decode(response.data.id, 24);
         if (!(await matchesAccessKey(id, pending.accessPk)) || !(await matchesDeletionToken(id, pending.deletionToken))) throw new ApiError('server');
         const prepared = pending;
+        const settings = pendingFor ?? { readOnce: state.readOnce, usePassphrase: state.usePassphrase };
         pending = null;
+        pendingFor = null;
         setUnloadGuard(false, '');
         const sync = response.data.expires_at === null ? null : synchronise(response.data.expires_at, response.data.server_time, response.t0, response.t1);
-        showResult(response.data.id, prepared, response.data.expires_at, sync);
+        showResult(response.data.id, prepared, settings, response.data.expires_at, sync);
       } catch (error) {
         busy = false;
         submit.textContent = t('action.create');
@@ -419,6 +437,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
         cancelButton.addEventListener('click', () => {
           // A new attempt must use a new key and a new link (§10).
           pending = null;
+          pendingFor = null;
           errorBox.hidden = true;
           refresh();
         });
@@ -440,6 +459,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       }
     };
     main.addEventListener('keydown', onKey);
+    detachKeys = () => main.removeEventListener('keydown', onKey);
 
     editorField.append(el('label', { for: editorId, class: 'field-label' }, t('editor.label')), editor, emptyHint, pasteButton);
     showScreen(
@@ -533,13 +553,15 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     return panel;
   }
 
-  function showResult(id: string, prepared: PreparedPaste, expiresAt: string | null, sync: Sync | null): void {
+  function showResult(id: string, prepared: PreparedPaste, settings: { readOnce: boolean; usePassphrase: boolean }, expiresAt: string | null, sync: Sync | null): void {
     inResult = true;
+    detachKeys?.();
+    detachKeys = null;
     const shareLink = `${location.origin}/p/${id}#${encode(prepared.urlKey)}`;
     const manageLink = `${location.origin}/manage/${id}#${encode(prepared.deletionToken)}`;
     wipe(prepared.urlKey);
-    const usedPassphrase = state.usePassphrase;
-    const readOnceMode = state.readOnce;
+    const usedPassphrase = settings.usePassphrase;
+    const readOnceMode = settings.readOnce;
     state.text = '';
     state.passphrase = '';
     state.confirmation = '';
@@ -652,6 +674,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
 
   render();
   return () => {
-    if (!inResult) render();
+    // Never rebuild the form under an in-flight submission: its result would land in detached nodes.
+    if (!inResult && !busy) render();
   };
 }
