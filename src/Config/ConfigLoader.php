@@ -274,8 +274,14 @@ final class ConfigLoader
             $errors[] = sprintf('"theme.name" must be one of: %s.', implode(', ', self::AVAILABLE_THEMES));
         }
         $tokensFile = $r->nullableString('theme.custom_tokens_file');
+        $tokensDigest = null;
         if ($tokensFile !== null && !self::isSafeThemeFile($tokensFile, $configDir)) {
             $errors[] = '"theme.custom_tokens_file" must be a relative .json file inside config/themes/.';
+        } elseif ($tokensFile !== null) {
+            $tokensDigest = @hash_file('sha256', $configDir . '/themes/' . $tokensFile);
+            if ($tokensDigest === false) {
+                $errors[] = '"theme.custom_tokens_file" is not readable.';
+            }
         }
 
         foreach (['root_dir', 'idempotency_dir', 'ratelimit_dir', 'state_dir', 'generated_assets_dir'] as $dir) {
@@ -407,7 +413,7 @@ final class ConfigLoader
 
         return [
             'app' => new AppSettings($r->string('app.name'), rtrim($publicUrl, '/'), $locales, $r->string('app.source_url')),
-            'theme' => new ThemeSettings($r->string('theme.name'), $tokensFile),
+            'theme' => new ThemeSettings($r->string('theme.name'), $tokensFile, $tokensDigest === false ? null : $tokensDigest),
             'storage' => new StorageSettings(
                 $r->string('storage.root_dir'),
                 $r->string('storage.idempotency_dir'),

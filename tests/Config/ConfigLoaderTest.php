@@ -311,6 +311,23 @@ final class ConfigLoaderTest extends TestCase
         self::assertNotSame($first, $this->load()->fingerprint());
     }
 
+    #[Group('EXG-CONF-009')]
+    #[Group('EXG-THEME-012')]
+    public function testFingerprintTracksTheThemeTokensFileContent(): void
+    {
+        $this->writeConfig(self::MINIMAL);
+        $without = $this->load()->fingerprint();
+
+        file_put_contents($this->dir . '/themes/brand.json', '{"light":{"radius":"0.5rem"}}');
+        $this->writeConfig(self::MINIMAL + ['theme' => ['custom_tokens_file' => 'brand.json']]);
+        $first = $this->load()->fingerprint();
+        self::assertNotSame($without, $first);
+        self::assertSame($first, $this->load()->fingerprint());
+
+        file_put_contents($this->dir . '/themes/brand.json', '{"light":{"radius":"1rem"}}');
+        self::assertNotSame($first, $this->load()->fingerprint());
+    }
+
     public function testSecretCheckDoesNotRevealTheSecret(): void
     {
         $this->writeConfig(self::MINIMAL);

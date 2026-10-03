@@ -170,6 +170,19 @@ final class HardeningTest extends KernelTestCase
         self::assertSame(503, $this->request('POST', '/api/v1/pastes', '{}', ['Idempotency-Key' => 'x'])->getStatusCode());
     }
 
+    #[Group('EXG-CONF-009')]
+    #[Group('EXG-CONF-022')]
+    #[Group('EXG-THEME-012')]
+    public function testThemeTokensChangeIsRefusedUntilBootRunsAgain(): void
+    {
+        $this->bootInstance(['theme' => ['custom_tokens_file' => 'brand.json']], true, ['themes/brand.json' => '{"light":{"radius":"0.5rem"}}']);
+        self::assertSame(200, $this->request('GET', '/healthz')->getStatusCode());
+
+        file_put_contents($this->tmp->path . '/config/themes/brand.json', '{"light":{"radius":"1rem"}}');
+
+        self::assertSame(503, $this->request('GET', '/healthz')->getStatusCode());
+    }
+
     /**
      * @return iterable<string, array{string}>
      */

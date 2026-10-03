@@ -28,11 +28,17 @@ final readonly class InstanceConfig
     }
 
     /**
-     * Fingerprint of the effective configuration recorded in boot.json (§9.5).
+     * Fingerprint of the effective configuration recorded in boot.json (§9.5). It covers the
+     * content of the theme tokens file, so editing that file also requires app:boot.
      */
     public function fingerprint(): string
     {
-        return hash('sha256', json_encode($this->effective, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+        $fingerprint = hash('sha256', json_encode($this->effective, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+        if ($this->theme->customTokensSha256 === null) {
+            return $fingerprint;
+        }
+
+        return hash('sha256', $fingerprint . "\0" . $this->theme->customTokensSha256);
     }
 
     /**

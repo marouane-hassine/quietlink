@@ -26,10 +26,15 @@ abstract class KernelTestCase extends TestCase
 
     /**
      * @param array<string, array<string, mixed>> $overrides
+     * @param array<string, string>               $configFiles extra files written below config/ first
      */
-    protected function bootInstance(array $overrides = [], bool $writeBootMarker = true): void
+    protected function bootInstance(array $overrides = [], bool $writeBootMarker = true, array $configFiles = []): void
     {
         $this->tmp = new TempDirectory();
+        foreach ($configFiles as $name => $content) {
+            @mkdir(dirname($this->tmp->path . '/config/' . $name), 0700, true);
+            file_put_contents($this->tmp->path . '/config/' . $name, $content);
+        }
         $this->config = TestInstance::config($this->tmp, $overrides);
         $_SERVER['QUIETLINK_CONFIG_DIR'] = $this->tmp->path . '/config';
         $_SERVER['QUIETLINK_APP_SECRET'] = TestInstance::SECRET_BASE64;

@@ -161,7 +161,9 @@ Validation is strict: **unknown keys and wrong types are errors** (list values m
 strings). Configuration files must
 never contain secrets.
 
-After **any** change, run `php bin/console app:boot` (and reload PHP-FPM). Until the boot marker
+After **any** change, including an edit of the theme tokens file referenced by
+`theme.custom_tokens_file` (its content is part of the fingerprint), run
+`php bin/console app:boot` (and reload PHP-FPM). Until the boot marker
 matches the loaded configuration, every request is answered with a generic `503` and
 `/healthz` returns `{"status":"unavailable"}`.
 

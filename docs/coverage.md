@@ -273,7 +273,7 @@ None.
 | EXG-THEME-009 | `tests/Theme/TokenThemeBuilderTest.php` |
 | EXG-THEME-010 | `tests/Command/CommandsTest.php` |
 | EXG-THEME-011 | `frontend/tests/contrast.test.ts` |
-| EXG-THEME-012 | `tests/Theme/TokenThemeBuilderTest.php` |
+| EXG-THEME-012 | `tests/Config/ConfigLoaderTest.php`, `tests/Http/HardeningTest.php`, `tests/Theme/TokenThemeBuilderTest.php` |
 | EXG-SEC-030 | `tests/Theme/TokenThemeBuilderTest.php` |
 | EXG-SEC-031 | `tests/Theme/TokenThemeBuilderTest.php` |
 | EXG-A11Y-010 | `frontend/tests/contrast.test.ts` |
@@ -494,7 +494,7 @@ None.
 | EXG-CONF-006 | `tests/Config/ExampleConfigTest.php` |
 | EXG-CONF-007 | `tests/Maintenance/BooterTest.php` |
 | EXG-CONF-008 | `tests/Maintenance/BooterTest.php` |
-| EXG-CONF-009 | `tests/Http/ApiTest.php`, `tests/Http/HardeningTest.php`, `tests/Storage/IdempotencyAndStateFilesTest.php` |
+| EXG-CONF-009 | `tests/Config/ConfigLoaderTest.php`, `tests/Http/ApiTest.php`, `tests/Http/HardeningTest.php`, `tests/Storage/IdempotencyAndStateFilesTest.php` |
 | EXG-CONF-010 | `tests/Http/HardeningTest.php` |
 | EXG-CONF-011 | `tests/Config/ExampleConfigTest.php` |
 | EXG-CONF-012 | `tests/Config/ConfigLoaderTest.php` |
