@@ -73,13 +73,15 @@ final class UsageCounter
     }
 
     /**
-     * Replaces the counters with recomputed values (purge, at most hourly).
+     * Applies the gap found by a full recomputation in one critical section (purge, hourly),
+     * so that changes made concurrently with the scan are kept.
      */
-    public function overwrite(int $bytes, int $items, int $now): void
+    public function applyRecomputation(int $deltaBytes, int $deltaItems, int $now): void
     {
         $lock = $this->lock(true);
         try {
-            $this->save(max(0, $bytes), max(0, $items), $now);
+            $usage = $this->load();
+            $this->save(max(0, $usage['bytes'] + $deltaBytes), max(0, $usage['items'] + $deltaItems), $now);
         } finally {
             $lock->release();
         }
