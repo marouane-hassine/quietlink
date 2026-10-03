@@ -224,5 +224,20 @@
   "tpl.field.start": "Start",
   "tpl.field.end": "End",
   "tpl.field.procedure": "Procedure",
-  "tpl.fieldLine": "- {label}:"
+  "tpl.fieldLine": "- {label}:",
+  "tpl.view.fields": "Fields",
+  "tpl.view.markdown": "Markdown",
+  "tpl.view.label": "Display",
+  "tpl.field.copy": "Copy {label}",
+  "tpl.field.copied": "{label} copied.",
+  "tpl.field.show": "Show {label}",
+  "tpl.field.hide": "Hide {label}",
+  "tpl.field.masked": "Hidden sensitive value",
+  "editor.mode.label": "Editing mode",
+  "editor.mode.text": "Text",
+  "editor.mode.form": "Form",
+  "editor.mode.unavailable": "This text no longer follows the template structure: keep editing it as text.",
+  "editor.sensitive.hide": "Hide sensitive fields",
+  "editor.sensitive.show": "Show sensitive fields",
+  "tpl.notes": "Notes for {section}"
 }

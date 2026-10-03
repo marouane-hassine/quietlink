@@ -2,6 +2,8 @@
 
 /** Markdown templates (§6.1.1), filled entirely in the browser. Labels come from the catalogs. */
 
+import en from '../../translations/en.json';
+import fr from '../../translations/fr.json';
 import { t } from './i18n';
 
 interface Section {
@@ -57,6 +59,69 @@ export function renderTemplate(id: string): string {
     lines.push(`## ${t(`tpl.section.${section.title}`)}`);
     for (const field of section.fields) lines.push(t('tpl.fieldLine', { label: t(`tpl.field.${field}`) }));
     lines.push('');
+  }
+  return lines.join('\n');
+}
+
+
+/** Fields whose value is masked by default in the form editor and the reading view. */
+export const SENSITIVE_FIELDS = ['password', 'token', 'relatedToken', 'keyOrPath', 'value'];
+
+const SENSITIVE_LABELS = new Set(
+  [en, fr].flatMap((catalog) => SENSITIVE_FIELDS.map((field) => String((catalog as Record<string, unknown>)[`tpl.field.${field}`] ?? '').toLowerCase())),
+);
+
+export function isSensitiveLabel(label: string): boolean {
+  return SENSITIVE_LABELS.has(label.trim().toLowerCase());
+}
+
+export interface TemplateField {
+  label: string;
+  value: string;
+  separator: string;
+}
+
+export interface TemplateSection {
+  title: string;
+  fields: TemplateField[];
+  notes: string[];
+}
+
+export interface ParsedTemplate {
+  title: string;
+  sections: TemplateSection[];
+}
+
+/** Parses text written from a template (# title, ## sections, "- label: value" lines). */
+export function parseTemplateText(text: string): ParsedTemplate | null {
+  const lines = text.replace(/\r\n?/g, '\n').split('\n');
+  const first = lines.findIndex((line) => line.trim() !== '');
+  const heading = first >= 0 ? /^# (.+)$/.exec(lines[first] ?? '') : null;
+  if (!heading?.[1]) return null;
+  const parsed: ParsedTemplate = { title: heading[1].trim(), sections: [] };
+  let current: TemplateSection | null = null;
+  for (const line of lines.slice(first + 1)) {
+    const section = /^## (.+)$/.exec(line);
+    if (section?.[1]) {
+      current = { title: section[1].trim(), fields: [], notes: [] };
+      parsed.sections.push(current);
+      continue;
+    }
+    if (line.trim() === '') continue;
+    if (!current) return null;
+    const field = /^- (.+?)( ?:)(?: (.*))?$/.exec(line);
+    if (field?.[1] && field[2]) current.fields.push({ label: field[1], separator: field[2], value: field[3] ?? '' });
+    else current.notes.push(line);
+  }
+  return parsed.sections.length > 0 ? parsed : null;
+}
+
+export function serializeTemplate(template: ParsedTemplate): string {
+  const lines = [`# ${template.title}`, ''];
+  for (const section of template.sections) {
+    lines.push(`## ${section.title}`);
+    for (const field of section.fields) lines.push(`- ${field.label}${field.separator}${field.value === '' ? '' : ` ${field.value}`}`);
+    lines.push(...section.notes, '');
   }
   return lines.join('\n');
 }

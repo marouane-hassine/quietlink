@@ -463,6 +463,54 @@ summary {
   padding: 0.75rem;
 }
 
+.chip[aria-pressed="true"] {
+  background: var(--ql-color-surface-accent);
+  border-color: var(--ql-color-primary-text);
+  font-weight: 600;
+}
+
+.template-fields {
+  display: grid;
+  grid-template-columns: minmax(8rem, max-content) 1fr;
+  gap: 0.5rem 1rem;
+  margin: 0;
+}
+
+.template-fields dt {
+  font-weight: 600;
+}
+
+.template-fields dd {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+}
+
+.field-value {
+  font-family: var(--ql-font-mono);
+  overflow-wrap: anywhere;
+}
+
+.template-section {
+  border: 0;
+  padding: 0;
+  margin-block: 1rem;
+}
+
+.template-section legend,
+.template-section h3 {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+@media (max-width: 30rem) {
+  .template-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
 .confirm-panel {
   margin-block: 0.5rem;
   padding: 0.75rem;

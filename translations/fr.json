@@ -224,5 +224,20 @@
   "tpl.field.start": "Début",
   "tpl.field.end": "Fin",
   "tpl.field.procedure": "Procédure",
-  "tpl.fieldLine": "- {label} :"
+  "tpl.fieldLine": "- {label} :",
+  "tpl.view.fields": "Champs",
+  "tpl.view.markdown": "Markdown",
+  "tpl.view.label": "Affichage",
+  "tpl.field.copy": "Copier {label}",
+  "tpl.field.copied": "{label} copié.",
+  "tpl.field.show": "Afficher {label}",
+  "tpl.field.hide": "Masquer {label}",
+  "tpl.field.masked": "Valeur sensible masquée",
+  "editor.mode.label": "Mode d’édition",
+  "editor.mode.text": "Texte",
+  "editor.mode.form": "Formulaire",
+  "editor.mode.unavailable": "Ce texte ne suit plus la structure du modèle : continuez à l’éditer en mode texte.",
+  "editor.sensitive.hide": "Masquer les champs sensibles",
+  "editor.sensitive.show": "Afficher les champs sensibles",
+  "tpl.notes": "Notes de la section {section}"
 }

@@ -60,4 +60,18 @@ describe('templates on the creation page', () => {
     (undos[0] as HTMLButtonElement).click();
     expect(editor().value).toBe('my notes');
   });
+
+  it('edits a template as a form and masks sensitive fields', async () => {
+    choose('credentials');
+    await tick();
+    const inputs = [...main.querySelectorAll('.template-form input')] as HTMLInputElement[];
+    expect(inputs.length).toBeGreaterThan(5);
+    const password = inputs.find((input) => main.querySelector(`label[for="${input.id}"]`)?.textContent === 'Password') as HTMLInputElement;
+    expect(password.type === 'password' || password.classList.contains('is-masked')).toBe(true);
+    password.value = 'dummy-value';
+    password.dispatchEvent(new Event('input'));
+    expect(editor().value).toContain('- Password: dummy-value');
+    expect((main.querySelector('textarea.editor')?.closest('.field') as HTMLElement).hidden).toBe(true);
+  });
 });
+

@@ -13,7 +13,8 @@ import { decode } from '../crypto/base64url';
 import type { PublicConfig } from '../config';
 import { t } from '../i18n';
 import { LANGUAGE_IDS } from '../render/highlight';
-import { renderTemplate } from '../templates';
+import { parseTemplateText, renderTemplate } from '../templates';
+import { buildTemplateForm } from '../ui/template-form';
 import { announce, toast } from '../ui/announcer';
 import { canReadClipboard, copyText } from '../ui/clipboard';
 import { confirmInline } from '../ui/confirm';
@@ -178,6 +179,40 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     const templateSelect = el('select', { id: nextId('template') });
     templateSelect.append(el('option', { value: '' }, t('template.none')));
     for (const id of config.templates) templateSelect.append(el('option', { value: id, selected: id === state.template }, t(`template.${id}`)));
+    // Text or form editing of a template (§6.1.1).
+    const editorField = el('div', { class: 'field' });
+    const formHost = el('div', { class: 'form-host', hidden: true });
+    const textMode = el('button', { type: 'button', class: 'chip', 'aria-pressed': 'true' }, t('editor.mode.text'));
+    const formMode = el('button', { type: 'button', class: 'chip', 'aria-pressed': 'false' }, t('editor.mode.form'));
+    const modeBar = el('div', { class: 'presets', role: 'group', 'aria-label': t('editor.mode.label'), hidden: state.template === '' }, textMode, formMode);
+    const showText = () => {
+      editorField.hidden = false;
+      formHost.hidden = true;
+      formHost.replaceChildren();
+      textMode.setAttribute('aria-pressed', 'true');
+      formMode.setAttribute('aria-pressed', 'false');
+    };
+    const showForm = (): boolean => {
+      const parsed = parseTemplateText(editor.value);
+      if (!parsed) {
+        toast(t('editor.mode.unavailable'));
+        return false;
+      }
+      formHost.replaceChildren(buildTemplateForm(parsed, (text) => {
+        editor.value = text;
+        refresh();
+      }));
+      editorField.hidden = true;
+      formHost.hidden = false;
+      textMode.setAttribute('aria-pressed', 'false');
+      formMode.setAttribute('aria-pressed', 'true');
+      return true;
+    };
+    textMode.addEventListener('click', showText);
+    formMode.addEventListener('click', () => {
+      if (showForm()) formHost.querySelector('input')?.focus();
+    });
+
     // Text typed before the first applied template, restored by the single Undo action.
     let textBeforeTemplates: string | null = null;
     let undoLine: HTMLElement | null = null;
@@ -185,6 +220,8 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       const id = templateSelect.value;
       if (!id) {
         state.template = '';
+        modeBar.hidden = true;
+        showText();
         refresh();
         return;
       }
@@ -202,12 +239,16 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       formatSelect.value = 'markdown';
       languageField.hidden = true;
       refresh();
+      modeBar.hidden = false;
+      showForm();
       const undo = el('button', { type: 'button', class: 'link-button' }, t('template.undo'));
       undo.addEventListener('click', () => {
         editor.value = restored;
         state.template = '';
         templateSelect.value = '';
         textBeforeTemplates = null;
+        modeBar.hidden = true;
+        showText();
         refresh();
         undoLine?.remove();
         undoLine = null;
@@ -363,12 +404,15 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     };
     main.addEventListener('keydown', onKey);
 
+    editorField.append(el('label', { for: editorId, class: 'field-label' }, t('editor.label')), editor, emptyHint, pasteButton);
     showScreen(
       main,
       el('h1', { class: 'page-title' }, t('page.create.title')),
       el('p', { class: 'lead' }, t('app.tagline')),
-      el('div', { class: 'field' }, el('label', { for: editorId, class: 'field-label' }, t('editor.label')), editor, emptyHint, pasteButton),
       templateRow,
+      modeBar,
+      editorField,
+      formHost,
       options,
       sent,
       el('div', { class: 'action-bar' }, sizeLine, gauge, summary, submit, reason, status),
