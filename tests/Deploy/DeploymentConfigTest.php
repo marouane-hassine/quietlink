@@ -53,6 +53,22 @@ final class DeploymentConfigTest extends TestCase
         self::assertStringNotContainsString('fastcgi_param HTTPS', $nginx);
     }
 
+    /**
+     * Error responses (a 404 during an upgrade) must not be cached as immutable, and nginx must
+     * not add security headers to PHP responses that already carry them: a doubled
+     * Cross-Origin-Resource-Policy value is invalid and ignored by browsers.
+     */
+    #[Group('EXG-CACHE-008')]
+    #[Group('EXG-SEC-058')]
+    public function testNginxNeitherCachesErrorsNorDuplicatesPhpHeaders(): void
+    {
+        $nginx = self::file('docker/nginx/default.conf');
+        $serverLevel = substr($nginx, 0, (int) strpos($nginx, 'location'));
+
+        self::assertDoesNotMatchRegularExpression('/immutable"\s+always/', $nginx);
+        self::assertStringNotContainsString('add_header', $serverLevel);
+    }
+
     #[Group('EXG-DEPLOY-001')]
     public function testComposeHasNoDatabaseAndRunsHardened(): void
     {
