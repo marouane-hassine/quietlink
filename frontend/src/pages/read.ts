@@ -51,9 +51,14 @@ async function parseLink(): Promise<{ id: string; idBytes: Uint8Array; urlKey: U
 export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
   let challenges = config.challenges ?? null;
 
-  const fail = (messageKey: string, values: Record<string, string | number> = {}) => {
+  const fail = (messageKey: string, values: Record<string, string | number> = {}, retry: (() => void) | null = null) => {
     const message = t(messageKey, values);
-    showScreen(main, el('h1', { class: 'page-title' }, t('page.read.title')), el('p', { class: 'error', role: 'alert' }, message), newLink());
+    let retryButton: HTMLButtonElement | null = null;
+    if (retry) {
+      retryButton = el('button', { type: 'button', class: 'button button-primary' }, t('action.retry'));
+      retryButton.addEventListener('click', retry);
+    }
+    showScreen(main, el('h1', { class: 'page-title' }, t('page.read.title')), el('p', { class: 'error', role: 'alert' }, message), el('div', { class: 'action-bar' }, ...[retryButton, newLink()].filter((n): n is NonNullable<typeof n> => n !== null)));
     announce(message, true);
   };
 
@@ -87,8 +92,10 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
   const handleError = (error: unknown) => {
     if (error instanceof LinkError) return fail(error.message === 'altered' ? 'error.alteredLink' : 'error.incompleteLink');
     if (error instanceof ApiError) {
-      if (error.kind === 'reserved') return fail('error.reserved', { seconds: error.retryAfter ?? 60 });
-      return fail(({ network: 'error.network', rate: 'error.rateLimited', unavailable: 'error.unavailable' } as Record<string, string>)[error.kind] ?? 'error.server');
+      // Recoverable states offer a retry; unavailability is final (§5.1).
+      if (error.kind === 'reserved') return fail('error.reserved', { seconds: error.retryAfter ?? 60 }, () => void start());
+      const recoverable = error.kind === 'network' || error.kind === 'rate' || error.kind === 'server' || error.kind === 'quota';
+      return fail(({ network: 'error.network', rate: 'error.rateLimited', unavailable: 'error.unavailable' } as Record<string, string>)[error.kind] ?? 'error.server', {}, recoverable ? () => void start() : null);
     }
     if (error instanceof DecryptionError) return fail('error.integrity');
     return fail('error.server');

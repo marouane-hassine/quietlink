@@ -19,6 +19,7 @@ return [
         'allow_unsupported_fs' => true,
         'min_free_bytes' => 1,
     ],
+    'paste' => ['read_once_reservation_ttl' => 30],
     'log' => ['level' => 'warning'],
 ];
 PHP
