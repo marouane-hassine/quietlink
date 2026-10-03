@@ -175,7 +175,7 @@ None.
 | EXG-LIFE-003 | `tests/Paste/PasteServiceTest.php` |
 | EXG-SEC-022 | `tests/Http/ApiTest.php` |
 | EXG-READ-004 | `tests/e2e/read-once.spec.ts` |
-| EXG-READ-005 | `tests/e2e/read-once.spec.ts` |
+| EXG-READ-005 | `tests/Cli/CliTest.php`, `tests/e2e/read-once.spec.ts` |
 | EXG-READ-006 | `tests/e2e/flows.spec.ts` |
 | EXG-URL-001 | `tests/e2e/flows.spec.ts` |
 | EXG-UX-085 | `frontend/tests/css.test.ts`, `frontend/tests/highlight-budget.test.ts`, `tests/e2e/ux.spec.ts` |

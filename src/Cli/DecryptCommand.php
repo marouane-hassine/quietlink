@@ -63,6 +63,11 @@ final class DecryptCommand extends Command
             throw new CliException('Integrity error: the server returned metadata of another content.');
         }
 
+        $errors = $output instanceof ConsoleOutputInterface ? $output->getErrorOutput() : $output;
+        // Expired reservations of a read-once paste are reported before anything else (§6.3.1).
+        $priorOpens = self::unconfirmedOpens($status);
+        self::warnPriorOpens($errors, $priorOpens);
+
         // Passphrase and consume key are derived and checked before any reservation (§6.3.1).
         $kPass = null;
         if ($aad->kdf !== null) {
@@ -78,7 +83,6 @@ final class DecryptCommand extends Command
 
         $reservationId = null;
         if ($aad->readOnce) {
-            $errors = $output instanceof ConsoleOutputInterface ? $output->getErrorOutput() : $output;
             $errors->writeln('This content can be read only once: it will be destroyed after decryption.');
             if (!Options::flag($input, 'yes')) {
                 if (!$this->context->prompt->isAvailable()) {
@@ -94,6 +98,11 @@ final class DecryptCommand extends Command
         $opened = $this->context->api->open($link, $accessSeed, $reservationId);
         if (!hash_equals($aad->bytes(), self::aad($opened)->bytes())) {
             throw new CliException('Integrity error: the metadata changed between status and open.');
+        }
+        // Another reservation may have expired since status: warn again before the text.
+        $openedOpens = self::unconfirmedOpens($opened);
+        if ($openedOpens > $priorOpens) {
+            self::warnPriorOpens($errors, $openedOpens);
         }
         try {
             $plaintext = ClientCrypto::decrypt(
@@ -128,6 +137,23 @@ final class DecryptCommand extends Command
         }
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * @param array<string, mixed> $response
+     */
+    private static function unconfirmedOpens(array $response): int
+    {
+        $opens = $response['unconfirmed_opens'] ?? null;
+
+        return is_int($opens) && $opens > 0 ? $opens : 0;
+    }
+
+    private static function warnPriorOpens(OutputInterface $errors, int $opens): void
+    {
+        if ($opens > 0) {
+            $errors->writeln(sprintf('Warning: this content was opened %d time(s) before without being confirmed. Someone may have read it: consider asking for a new one.', $opens));
+        }
     }
 
     /**

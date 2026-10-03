@@ -30,6 +30,12 @@ final class CliTest extends KernelTestCase
     /** AAD (base64url) substituted in status responses to simulate a malicious server. */
     public ?string $substituteAad = null;
 
+    /** unconfirmed_opens substituted in status and open responses (expired reservations). */
+    public ?int $substituteOpens = null;
+
+    /** unconfirmed_opens substituted in open responses only. */
+    public ?int $opensOnOpenOnly = null;
+
     protected function setUp(): void
     {
         $this->bootInstance();
@@ -101,6 +107,18 @@ final class CliTest extends KernelTestCase
             $data = json_decode($content, true);
             self::assertIsArray($data);
             $data['aad'] = $this->substituteAad;
+            $content = (string) json_encode($data);
+        }
+        if ($this->substituteOpens !== null && (str_ends_with($path, '/status') || str_ends_with($path, '/open'))) {
+            $data = json_decode($content, true);
+            self::assertIsArray($data);
+            $data['unconfirmed_opens'] = $this->substituteOpens;
+            $content = (string) json_encode($data);
+        }
+        if ($this->opensOnOpenOnly !== null && str_ends_with($path, '/open')) {
+            $data = json_decode($content, true);
+            self::assertIsArray($data);
+            $data['unconfirmed_opens'] = $this->opensOnOpenOnly;
             $content = (string) json_encode($data);
         }
 
@@ -331,5 +349,40 @@ final class CliTest extends KernelTestCase
         self::assertSame(1, $code);
         self::assertStringContainsString('--passphrase-file', $err);
         self::assertStringNotContainsString('--passphrase-stdin', $err);
+    }
+
+    #[Group('EXG-READ-005')]
+    #[Group('EXG-CLI-005')]
+    public function testDecryptWarnsAboutPriorUnconfirmedOpens(): void
+    {
+        [$share] = $this->createPaste('dummy secret', ['--read-once']);
+        $this->substituteOpens = 2;
+
+        [$code, , $err] = $this->cli(['decrypt', '--url-stdin'], $share);
+        self::assertSame(1, $code);
+        self::assertStringContainsString('opened 2 time(s) before without being confirmed', $err, 'the warning precedes the confirmation');
+
+        [$code, $plaintext, $err] = $this->cli(['decrypt', '--url-stdin', '--yes'], $share);
+        self::assertSame(0, $code);
+        self::assertSame('dummy secret', $plaintext);
+        self::assertSame(1, substr_count($err, 'without being confirmed'));
+
+        // A count that grew between status and open is reported again before the text.
+        [$other] = $this->createPaste('dummy secret', ['--read-once']);
+        $this->substituteOpens = null;
+        $this->opensOnOpenOnly = 1;
+        [$code, , $err] = $this->cli(['decrypt', '--url-stdin', '--yes'], $other);
+        self::assertSame(0, $code);
+        self::assertStringContainsString('opened 1 time(s) before without being confirmed', $err);
+    }
+
+    #[Group('EXG-READ-005')]
+    public function testDecryptDoesNotWarnWithoutPriorOpens(): void
+    {
+        [$share] = $this->createPaste('dummy secret', ['--read-once']);
+
+        [$code, , $err] = $this->cli(['decrypt', '--url-stdin', '--yes'], $share);
+        self::assertSame(0, $code);
+        self::assertStringNotContainsString('without being confirmed', $err);
     }
 }
