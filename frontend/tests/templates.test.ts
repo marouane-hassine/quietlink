@@ -32,3 +32,25 @@ describe('template text', () => {
     for (const label of ['URL', 'Hôte', 'Username']) expect(isSensitiveLabel(label)).toBe(false);
   });
 });
+
+describe('lossless template editing (§6.1.1, §6.2)', () => {
+  it('refuses texts the form could not write back unchanged', () => {
+    // Notes before fields would move after them.
+    expect(parseTemplateText('# T\n\n## S\nnote first\n- A: 1\n')).toBeNull();
+    // A blank line inside a code block would disappear and "## " in it would start a section.
+    expect(parseTemplateText('# T\n\n## S\n- A: x\n```\nl1\n\nl2\n## not section\n```\n')).toBeNull();
+  });
+
+  it('accepts every generated template and keeps shell comments in notes', () => {
+    setLocale('en');
+    const text = renderTemplate('incident');
+    expect(parseTemplateText(text)).not.toBeNull();
+    const parsed = parseTemplateText(text)!;
+    const section = parsed.sections.find((s) => s.fields.length === 0) ?? parsed.sections[0]!;
+    section.notes = ['```bash', '# restart nginx', 'systemctl restart nginx', '```'];
+    const written = serializeTemplate(parsed);
+    expect(written).toContain('# restart nginx');
+    expect(parseTemplateText(written)).not.toBeNull();
+  });
+});
+

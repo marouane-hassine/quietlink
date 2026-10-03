@@ -19,6 +19,13 @@ describe('Wi-Fi QR code', () => {
     const open = parseTemplateText('# Connexion Wi-Fi\n\n## Réseau\n- SSID : Invités\n- Sécurité : aucune\n')!;
     expect(wifiPayload(open)).toBe('WIFI:T:nopass;S:Invités;;');
     expect(wifiPayload(parseTemplateText('# Wi-Fi connection\n\n## Network\n- SSID:\n')!)).toBeNull();
+    const wifi = (security: string, password: string) => wifiPayload(parseTemplateText(`# Wi-Fi connection\n\n## Network\n- SSID: Net\n- Security: ${security}\n- Password: ${password}\n`)!);
+    // A password that was entered is never dropped, whatever the security wording.
+    expect(wifi('WPA2 / WPA3 / none', 'dummy')).toBe('WIFI:T:WPA;S:Net;P:dummy;;');
+    expect(wifi('Aucune', 'dummy')).toBe('WIFI:T:WPA;S:Net;P:dummy;;');
+    expect(wifi('WPA2/WEP', 'dummy')).toBe('WIFI:T:WPA;S:Net;P:dummy;;');
+    expect(wifi('WEP', 'dummy')).toBe('WIFI:T:WEP;S:Net;P:dummy;;');
+    expect(wifi('Ouverte', '')).toBe('WIFI:T:nopass;S:Net;;');
   });
 
   it('is hidden until requested and only offered when enabled', () => {

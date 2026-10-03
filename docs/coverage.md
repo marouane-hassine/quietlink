@@ -97,7 +97,7 @@ None.
 | EXG-UX-027 | `frontend/tests/create-page.test.ts` |
 | EXG-UX-028 | `frontend/tests/create-page.test.ts` |
 | EXG-UX-029 | `tests/e2e/ux.spec.ts` |
-| EXG-UX-030 | `frontend/tests/create-page.test.ts` |
+| EXG-UX-030 | `frontend/tests/create-page.test.ts`, `frontend/tests/template-form.test.ts` |
 | EXG-UX-032 | `tests/e2e/ux.spec.ts` |
 | EXG-UX-033 | `tests/e2e/ux.spec.ts` |
 | EXG-UX-034 | `tests/e2e/ux.spec.ts` |

@@ -47,7 +47,9 @@ export function buildTemplateForm(template: ParsedTemplate, onChange: (text: str
     const notes = el('textarea', { id: notesId, rows: section.fields.length > 0 ? '2' : '4', spellcheck: 'false', autocomplete: 'off' });
     notes.value = section.notes.join('\n');
     notes.addEventListener('input', () => {
-      section.notes = notes.value.split('\n').filter((line) => line.trim() !== '' && !/^#{1,2} /.test(line));
+      // Kept as typed (nothing is dropped silently); trailing blank lines only are trimmed.
+      const typed = notes.value.replace(/\s+$/, '');
+      section.notes = typed === '' ? [] : typed.split('\n');
       emit();
     });
     group.append(el('div', { class: 'field' }, el('label', { for: notesId }, t('tpl.notes', { section: section.title })), notes));

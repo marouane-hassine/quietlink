@@ -113,7 +113,10 @@ export function parseTemplateText(text: string): ParsedTemplate | null {
     if (field?.[1] && field[2]) current.fields.push({ label: field[1], separator: field[2], value: field[3] ?? '' });
     else current.notes.push(line);
   }
-  return parsed.sections.length > 0 ? parsed : null;
+  if (parsed.sections.length === 0) return null;
+  // Form and field views only for texts they can write back unchanged (§6.1.1, §6.2): notes
+  // before fields, blank lines or "## " inside code blocks would be moved or lost.
+  return serializeTemplate(parsed).trimEnd() === text.replace(/\r\n?/g, '\n').trimEnd() ? parsed : null;
 }
 
 export function serializeTemplate(template: ParsedTemplate): string {
@@ -155,6 +158,8 @@ export function wifiPayload(template: ParsedTemplate): string | null {
   if (ssid === '') return null;
   const security = (values.get('security') ?? '').toLowerCase();
   const password = values.get('password') ?? '';
-  const type = /\b(none|open|aucun|ouvert|nopass)\b/.test(security) || password === '' ? 'nopass' : /wep/.test(security) ? 'WEP' : 'WPA';
+  // Open only without a password: one that was entered is never dropped from the code. WEP
+  // only when named without WPA ("WPA2/WEP" networks accept WPA).
+  const type = password === '' ? 'nopass' : /\bwep\b/.test(security) && !/wpa/.test(security) ? 'WEP' : 'WPA';
   return `WIFI:T:${type};S:${escapeWifi(ssid)};${type === 'nopass' ? '' : `P:${escapeWifi(password)};`};`;
 }
