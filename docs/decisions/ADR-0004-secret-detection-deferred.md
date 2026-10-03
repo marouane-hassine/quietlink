@@ -16,3 +16,5 @@ Defer the definition of detection patterns to **V1.1**. No pattern list is froze
 
 - No code or tests for secret detection in V1 unless all Must items are complete.
 - This ADR will be superseded by the ADR that fixes the pattern list.
+- Update 2026-10-03: the Secret preset is suggested (never applied silently) when a built-in template
+  with sensitive fields is chosen; only pattern-based detection of pasted secrets remains deferred.

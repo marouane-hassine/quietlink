@@ -4,7 +4,7 @@
 // EXG-SEC-012, EXG-I18N-016, EXG-A11Y-004, EXG-A11Y-018, EXG-UX-019, EXG-UX-027, EXG-UX-028,
 // EXG-MD-001, EXG-MD-002, EXG-MD-003, EXG-MD-004, EXG-MD-005, EXG-MD-006, EXG-MD-007, EXG-MD-008,
 // EXG-MD-010, EXG-TEST-074, EXG-UX-013, EXG-UX-022, EXG-UX-023, EXG-UX-024, EXG-CRYPTO-042, EXG-TEST-029,
-// EXG-TEST-031, EXG-TEST-064, EXG-TEST-067.
+// EXG-TEST-031, EXG-TEST-064, EXG-TEST-067, EXG-UX-030.
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { mountCreate } from '../src/pages/create';
@@ -134,6 +134,17 @@ describe('templates on the creation page', () => {
     Object.defineProperty(drop, 'dataTransfer', { value: { types: ['Files'] } });
     editor().dispatchEvent(drop);
     expect(drop.defaultPrevented).toBe(true);
+  });
+
+  it('suggests the Secret preset for a template with sensitive fields, without forcing it', async () => {
+    choose('credentials');
+    await tick();
+    const suggestion = main.querySelector('.secret-suggestion') as HTMLElement;
+    expect(suggestion.textContent).toContain('use the Secret preset');
+    expect(main.querySelector('.summary')?.textContent).not.toContain('read once');
+    (suggestion.querySelector('button') as HTMLButtonElement).click();
+    expect(main.querySelector('.summary')?.textContent).toContain('read once');
+    expect(main.querySelector('.secret-suggestion')).toBeNull();
   });
 });
 

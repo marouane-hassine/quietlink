@@ -257,5 +257,7 @@
   "read.printConfirm": "Print anyway",
   "tpl.wifiQr": "Show Wi-Fi QR code",
   "tpl.wifiQrHide": "Hide Wi-Fi QR code",
-  "tpl.wifiQrLabel": "QR code to join the Wi-Fi network"
+  "tpl.wifiQrLabel": "QR code to join the Wi-Fi network",
+  "preset.suggestSecret": "This template contains sensitive fields: use the Secret preset (read once, 1 hour)?",
+  "preset.apply": "Use Secret"
 }

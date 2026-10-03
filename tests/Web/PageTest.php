@@ -63,6 +63,9 @@ final class PageTest extends KernelTestCase
     }
 
     #[Group('EXG-PWA-002')]
+    #[Group('EXG-PWA-004')]
+    #[Group('EXG-PWA-007')]
+    #[Group('EXG-TEST-081')]
     public function testManifestIsServedOnlyWhenEnabled(): void
     {
         self::assertSame(404, $this->request('GET', '/manifest.json')->getStatusCode());

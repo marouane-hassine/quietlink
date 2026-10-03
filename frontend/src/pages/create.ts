@@ -14,7 +14,7 @@ import type { PublicConfig } from '../config';
 import { t } from '../i18n';
 import { HIGHLIGHT_LIMIT_BYTES, LANGUAGE_IDS } from '../render/highlight';
 import { renderMarkdown } from '../render/markdown';
-import { parseTemplateText, renderTemplate } from '../templates';
+import { parseTemplateText, renderTemplate, SENSITIVE_FIELDS, TEMPLATES } from '../templates';
 import { buildTemplateForm } from '../ui/template-form';
 import { announce, toast } from '../ui/announcer';
 import { canReadClipboard, copyText } from '../ui/clipboard';
@@ -266,6 +266,17 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       refresh();
       modeBar.hidden = false;
       showForm();
+      // Non-blocking suggestion of the Secret preset for templates with sensitive fields (§5.1).
+      main.querySelector('.secret-suggestion')?.remove();
+      if (config.allowReadOnce && !state.readOnce && (TEMPLATES[id] ?? []).some((section) => section.fields.some((field) => SENSITIVE_FIELDS.includes(field)))) {
+        const apply = el('button', { type: 'button', class: 'link-button' }, t('preset.apply'));
+        const suggestion = el('p', { class: 'notice secret-suggestion' }, t('preset.suggestSecret'), ' ', apply);
+        apply.addEventListener('click', () => {
+          applyPreset('1h', true);
+          suggestion.remove();
+        });
+        modeBar.before(suggestion);
+      }
       const undo = el('button', { type: 'button', class: 'link-button' }, t('template.undo'));
       undo.addEventListener('click', () => {
         editor.value = restored;

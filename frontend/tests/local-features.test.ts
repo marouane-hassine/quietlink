@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // @vitest-environment jsdom
 // Could features (§0.3): Wi-Fi QR code, local export, controlled printing.
-// Requirements: EXG-TEST-074, EXG-UX-101, EXG-UX-109, EXG-UX-110, EXG-UX-111, EXG-UX-112, EXG-UX-113, EXG-UX-114, EXG-UX-115.
+// Requirements: EXG-TEST-074, EXG-UX-101, EXG-UX-109, EXG-UX-110, EXG-UX-111, EXG-UX-112, EXG-UX-113, EXG-UX-114, EXG-UX-115, EXG-MD-018, EXG-TEST-080.
 
 import { describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
