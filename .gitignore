@@ -1,9 +1,10 @@
-/vendor/
-/var/
-/node_modules/
-/.phpunit.cache/
 .DS_Store
 /.idea/
-/config/config.php
+/.phpunit.cache/
 /config/config.local.php
+/config/config.php
 /config/reference.php
+/node_modules/
+/public/build/
+/var/
+/vendor/
