@@ -89,7 +89,7 @@ The defaults are subject to confirmation by the Phase 0 calibration on supported
 - The encoding MUST be **canonical**: the unused low-order bits of the last character MUST be zero. Any non-canonical string, any character outside the alphabet `A–Z a–z 0–9 - _`, and any `=` padding MUST be rejected by the frontend, the backend and the CLI (§8.2.3, L1061).
 - The same rule applies to the identifier, the fragment key and the deletion token in URLs (§8.2.3, L1061).
 - The AAD is transmitted as the base64url string of its bytes (§8.2.3, L1061).
-- The instance secret `QUIETLINK_APP_SECRET` is an exception: it is **standard** base64 (RFC 4648 §4) and decodes to at least 32 bytes; the decoded bytes are the HKDF IKM (§ CDC L1426, outside the requested ranges; grep result).
+- The instance secret `QUIETLINK_APP_SECRET` is an exception: it is **standard** base64 (RFC 4648 §4) and decodes to at least 32 bytes; the decoded bytes are the HKDF IKM (§9.5, L1426).
 
 ### 3.2 Lengths
 
@@ -322,6 +322,8 @@ Template (line breaks for readability only; the real bytes contain none):
 ```
 
 PHP equivalent: recursive `ksort($a, SORT_STRING)` then `json_encode($a, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)`; a full RFC 8785 library is not required (§8.2.2, L1052).
+
+The round-trip comparison alone is **not** sufficient: with associative decoding, `[]` and `{}` decode to the same PHP value and re-encode identically, so `"kdf":[]` would pass. Implementations MUST decode while keeping objects distinct from arrays (e.g. `json_decode($bytes, false, …)` producing `stdClass`) and MUST apply the type checks of §8.1 to every member in addition to the byte-for-byte comparison *(derived from L1049–L1051)*.
 
 ### 8.3 Validation (server and client)
 
@@ -636,7 +638,9 @@ All binary values in a vector file SHOULD be given as lowercase hex, and additio
 | `consume_proof` | consume challenge, `K_consume_seed` | signed message, signature |
 | `delete_check` | deletion token (base64url), `id` | decoded length, `SHA-256(token)`, expected `D`, accept/reject |
 | `base64url_reject` | strings with padding, non-zero trailing bits, `+`/`/`, wrong length for each typed field | expected: reject |
-| `full_create` | `K_url`, optional passphrase/salt/params, nonce, deletion token, envelope, `R` | every intermediate above plus the complete creation request body and resulting URLs |
+| `full_create` *(deferred to Phase 1, needs OQ-14 field names)* | `K_url`, optional passphrase/salt/params, nonce, deletion token, envelope, `R` | every intermediate above plus the complete creation request body and resulting URLs |
+| `challenge_verify` | `K_challenge`, challenge, endpoint usage, path `id`, `now` | accept/reject (usage mismatch, id mismatch, bad MAC, tampered `issued_at`, expired); boundary of OQ-7 not asserted |
+| `public_key_reject` | 32-byte candidate public keys (small-order, non-canonical, wrong length) | expected: reject at creation |
 
 Vectors MUST use only dummy values, never real secrets or personal data (CLAUDE.md). Each vector SHOULD reference its `EXG-<domain>-<n>` requirement identifier once assigned (CLAUDE.md).
 
@@ -663,7 +667,7 @@ Each item cites the CDC location. "Proposed:" text is **non-normative**.
 - **OQ-10 — Challenge `id` check.** L437 lists checking "the identifier" of the challenge; L464 omits it. Explicit rule needed: challenge `id` MUST equal path `{id}` bytes. Proposed: yes, before the `A` check.
 - **OQ-11 — Challenge endpoint request body.** §10, L1568: "the body specifies the usage" — member name and values (`"open"`/`"status"` strings?) unspecified; behaviour for a malformed path id (400 vs 404) unspecified (§10, L1615 lists `400`).
 - **OQ-12 — HTML `<meta>` challenge format.** L434, §10, L1568: element name/attributes, encoding, and whether `expires_in` is also embedded are unspecified.
-- **OQ-13 — Creation-time key validation.** §8.2, L977 requires an "explicit check" for non-canonical/small-order `access_pk`/`consume_pk` but names no function. Proposed: `sodium_crypto_core_ed25519_is_valid_point()` plus canonical-encoding check; no proof of possession at creation (none is specified).
+- **OQ-13 — Creation-time key validation.** §8.2, L977 requires an "explicit check" for non-canonical/small-order `access_pk`/`consume_pk` but names no function. Note: PHP's sodium extension does **not** expose `crypto_core_ed25519_is_valid_point`. `sodium_crypto_sign_ed25519_pk_to_curve25519()` throws on the small-order and non-canonical vectors of the `public_key_reject` group, but whether it rejects every non-canonical encoding must be confirmed in the security review. Proposed: use it plus an explicit canonical-encoding check (`y < p`); no proof of possession at creation (none is specified).
 - **OQ-14 — JSON member names.** §10, L1572, L1580, L1582, L1588 describe fields in prose: reservation identifier, signature, consume challenge, state, remaining reservation delay (name and unit), `409` body. Only `aad`, `nonce`, `ciphertext`, `deletion_hash`, `challenge`, `expires_in`, `access_pk`, `expires_at`, `server_time`, `unconfirmed_opens` are named. Required for OpenAPI and CLI interop.
 - **OQ-19 — Open request for non-read-once content.** §10, L1572: the reservation identifier is sent "for read-once". Behaviour when it is present for normal content, or absent for read-once content (client did not call `status` first), is unspecified. Proposed: ignored for normal content; read-once without it → `400`.
 - **OQ-20 — ISO 8601 profile.** §10, L1542–1543: precision (seconds vs fractions) and suffix (`Z` vs `+00:00`) unspecified. Proposed: `YYYY-MM-DDTHH:MM:SSZ`.
