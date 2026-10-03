@@ -1,0 +1,381 @@
+<?php
+
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+declare(strict_types=1);
+
+namespace QuietLink\Tests\Paste;
+
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\Group;
+use PHPUnit\Framework\TestCase;
+use QuietLink\Client\ClientCrypto;
+use QuietLink\Client\PreparedPaste;
+use QuietLink\Crypto\Aad;
+use QuietLink\Crypto\DecryptionFailedException;
+use QuietLink\Encoding\Base64Url;
+use QuietLink\Paste\IdempotencyConflictException;
+use QuietLink\Paste\InvalidRequestException;
+use QuietLink\Paste\PasteService;
+use QuietLink\Paste\PasteUnavailableException;
+use QuietLink\Paste\ReservationConflictException;
+use QuietLink\Storage\FilesystemPasteStore;
+use QuietLink\Storage\IdempotencyStore;
+use QuietLink\Storage\QuotaExceededException;
+use QuietLink\Storage\StateFiles;
+use QuietLink\Storage\UsageCounter;
+use QuietLink\Tests\Support\FrozenClock;
+use QuietLink\Tests\Support\SpyPasteStore;
+use QuietLink\Tests\Support\TempDirectory;
+use QuietLink\Tests\Support\TestInstance;
+
+#[CoversClass(PasteService::class)]
+#[CoversClass(ClientCrypto::class)]
+final class PasteServiceTest extends TestCase
+{
+    private const ENVELOPE = '{"format":"plain","language":null,"template":null,"text":"dummy text","v":1}';
+
+    private TempDirectory $tmp;
+    private FrozenClock $clock;
+    private SpyPasteStore $store;
+    private PasteService $service;
+    private StateFiles $stateFiles;
+    private int $freeSpace = PHP_INT_MAX;
+
+    protected function setUp(): void
+    {
+        $this->tmp = new TempDirectory();
+        $this->clock = new FrozenClock();
+        $this->build();
+    }
+
+    protected function tearDown(): void
+    {
+        $this->tmp->remove();
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $overrides
+     */
+    private function build(array $overrides = []): void
+    {
+        $config = TestInstance::config($this->tmp, $overrides);
+        $layout = TestInstance::layout($config);
+        $usage = new UsageCounter($layout, $config->storage->maxTotalBytes, $config->storage->maxItems);
+        $this->store = new SpyPasteStore(new FilesystemPasteStore($layout, $usage, $this->clock));
+        $this->stateFiles = new StateFiles($layout);
+        $this->stateFiles->writeHealth($this->clock->now(), 1 << 40, 90);
+        $this->service = new PasteService(
+            $config,
+            $this->store,
+            new IdempotencyStore($layout, $this->clock),
+            $this->stateFiles,
+            $this->clock,
+            fn (string $dir): int => $this->freeSpace,
+        );
+    }
+
+    /**
+     * @return array{PreparedPaste, string}
+     */
+    private function createPaste(bool $readOnce = false, ?string $passphrase = null, string $expiration = '1d'): array
+    {
+        $prepared = ClientCrypto::prepare(self::ENVELOPE, $expiration, $readOnce, $passphrase, 19456, 2);
+        $result = $this->service->create($prepared->json(), $prepared->idempotencyKey);
+        self::assertTrue($result['created']);
+
+        return [$prepared, $result['id']->encoded()];
+    }
+
+    /**
+     * @param array<string, string> $extra
+     */
+    private function proofBody(PreparedPaste $prepared, string $id, string $usage, array $extra = []): string
+    {
+        $challenge = $this->service->challenge($id, json_encode(['usage' => $usage], JSON_THROW_ON_ERROR));
+
+        return json_encode([
+            'challenge' => $challenge,
+            'access_pk' => ClientCrypto::accessPublicKey($prepared->urlKey),
+            'signature' => ClientCrypto::prove($prepared->accessSeed, $challenge),
+        ] + $extra, JSON_THROW_ON_ERROR);
+    }
+
+    private function consumeBody(PreparedPaste $prepared, string $reservationId, string $challenge, ?string $seed = null): string
+    {
+        return json_encode([
+            'access_pk' => ClientCrypto::accessPublicKey($prepared->urlKey),
+            'reservation_id' => $reservationId,
+            'challenge' => $challenge,
+            'signature' => ClientCrypto::prove($seed ?? (string) $prepared->consumeSeed, $challenge),
+        ], JSON_THROW_ON_ERROR);
+    }
+
+    #[Group('EXG-READ-009')]
+    #[Group('EXG-READ-013')]
+    public function testCreateOpenAndDecryptRoundTrip(): void
+    {
+        [$prepared, $id] = $this->createPaste();
+
+        $status = $this->service->status($id, $this->proofBody($prepared, $id, 'status'));
+        self::assertFalse($status['read_once']);
+        self::assertSame($this->clock->now() + 86400, $status['expires_at']);
+
+        $opened = $this->service->open($id, $this->proofBody($prepared, $id, 'open'));
+        $aad = Aad::fromBytes(Base64Url::decode($opened['aad']));
+        $plaintext = ClientCrypto::decrypt($prepared->urlKey, null, $aad, Base64Url::decode($opened['nonce']), Base64Url::decode($opened['ciphertext']));
+
+        self::assertSame(self::ENVELOPE, $plaintext);
+    }
+
+    #[Group('EXG-API-015')]
+    #[Group('EXG-API-017')]
+    #[Group('EXG-API-022')]
+    public function testIdempotentReplayReturnsTheSameIdentifier(): void
+    {
+        [$prepared, $id] = $this->createPaste();
+        $replay = $this->service->create($prepared->json(), $prepared->idempotencyKey);
+
+        self::assertFalse($replay['created']);
+        self::assertSame($id, $replay['id']->encoded());
+
+        $this->expectException(IdempotencyConflictException::class);
+        $other = ClientCrypto::prepare(self::ENVELOPE, '1d', false);
+        $this->service->create($other->json(), $prepared->idempotencyKey);
+    }
+
+    #[Group('EXG-API-014')]
+    public function testMissingIdempotencyKeyIsRejected(): void
+    {
+        $this->expectException(InvalidRequestException::class);
+        $this->service->create(ClientCrypto::prepare(self::ENVELOPE, '1d', false)->json(), null);
+    }
+
+    #[Group('EXG-API-010')]
+    #[Group('EXG-API-011')]
+    public function testUnknownBodyMemberIsRejected(): void
+    {
+        $prepared = ClientCrypto::prepare(self::ENVELOPE, '1d', false);
+        $this->expectException(InvalidRequestException::class);
+        $this->service->create(json_encode($prepared->body + ['text' => 'plain'], JSON_THROW_ON_ERROR), $prepared->idempotencyKey);
+    }
+
+    public function testOptionDisabledByTheInstanceIsRejected(): void
+    {
+        $this->build(['paste' => ['allow_read_once' => false]]);
+        $this->expectException(InvalidRequestException::class);
+        $this->createPaste(readOnce: true);
+    }
+
+    #[Group('EXG-STORE-007')]
+    public function testLowDiskSpaceRefusesCreation(): void
+    {
+        $this->freeSpace = 1024;
+        $this->expectException(QuotaExceededException::class);
+        $this->createPaste();
+    }
+
+    #[Group('EXG-STORE-008')]
+    public function testStaleHealthRefusesCreation(): void
+    {
+        $this->clock->advance(601);
+        $this->expectException(QuotaExceededException::class);
+        $this->createPaste();
+    }
+
+    #[Group('EXG-READ-017')]
+    #[Group('EXG-READ-025')]
+    #[Group('EXG-READ-026')]
+    public function testInvalidProofNeverTouchesStorage(): void
+    {
+        [$prepared, $id] = $this->createPaste();
+        $intruder = ClientCrypto::prepare(self::ENVELOPE, '1d', false);
+        $this->store->accesses = 0;
+
+        foreach (['status', 'open'] as $usage) {
+            try {
+                $body = $this->proofBody($intruder, $id, $usage);
+                $usage === 'status' ? $this->service->status($id, $body) : $this->service->open($id, $body);
+                self::fail('Proof with a foreign key must fail.');
+            } catch (PasteUnavailableException) {
+            }
+        }
+        try {
+            $this->service->status($id, $this->proofBody($prepared, $id, 'open'));
+            self::fail('A challenge of another usage must fail.');
+        } catch (PasteUnavailableException) {
+        }
+
+        self::assertSame(0, $this->store->accesses);
+    }
+
+    public function testExpiredChallengeIsRefused(): void
+    {
+        [$prepared, $id] = $this->createPaste();
+        $body = $this->proofBody($prepared, $id, 'status');
+        $this->clock->advance(61);
+
+        $this->expectException(PasteUnavailableException::class);
+        $this->service->status($id, $body);
+    }
+
+    #[Group('EXG-LIFE-008')]
+    #[Group('EXG-LIFE-026')]
+    public function testExpiredPasteIsUnavailable(): void
+    {
+        [$prepared, $id] = $this->createPaste(expiration: '5m');
+        $this->clock->advance(300);
+        $this->stateFiles->writeHealth($this->clock->now(), 1 << 40, 90);
+
+        $this->expectException(PasteUnavailableException::class);
+        $this->service->open($id, $this->proofBody($prepared, $id, 'open'));
+    }
+
+    #[Group('EXG-READ-030')]
+    #[Group('EXG-READ-031')]
+    #[Group('EXG-READ-032')]
+    #[Group('EXG-READ-034')]
+    #[Group('EXG-READ-036')]
+    #[Group('EXG-LIFE-012')]
+    #[Group('EXG-LIFE-015')]
+    public function testReadOnceReservationConsumptionAndReplay(): void
+    {
+        [$prepared, $id] = $this->createPaste(readOnce: true);
+        $rid = Base64Url::encode(random_bytes(16));
+
+        $status = $this->service->status($id, $this->proofBody($prepared, $id, 'status'));
+        self::assertSame('available', $status['state']);
+        self::assertSame(0, $status['unconfirmed_opens']);
+
+        $opened = $this->service->open($id, $this->proofBody($prepared, $id, 'open', ['reservation_id' => $rid]));
+        self::assertNotNull($opened['consume_challenge']);
+        self::assertSame(0, $opened['unconfirmed_opens']);
+
+        try {
+            $this->service->open($id, $this->proofBody($prepared, $id, 'open', ['reservation_id' => Base64Url::encode(random_bytes(16))]));
+            self::fail('A concurrent reader must get a conflict.');
+        } catch (ReservationConflictException $e) {
+            self::assertSame(60, $e->retryAfter);
+        }
+
+        $this->clock->advance(10);
+        $resumed = $this->service->open($id, $this->proofBody($prepared, $id, 'open', ['reservation_id' => $rid]));
+        self::assertSame($opened['consume_challenge'], $resumed['consume_challenge']);
+        self::assertSame(50, $resumed['retry_after']);
+
+        $consume = $this->consumeBody($prepared, $rid, $opened['consume_challenge']);
+        $this->service->consume($id, $consume);
+        $this->service->consume($id, $consume);
+
+        try {
+            $this->service->open($id, $this->proofBody($prepared, $id, 'open', ['reservation_id' => $rid]));
+            self::fail('A consumed paste must be unavailable.');
+        } catch (PasteUnavailableException) {
+        }
+
+        $this->clock->advance(PasteService::CONSUMED_RETENTION);
+        $this->expectException(PasteUnavailableException::class);
+        $this->service->consume($id, $consume);
+    }
+
+    public function testConsumeWithAnotherKeyOrReservationFails(): void
+    {
+        [$prepared, $id] = $this->createPaste(readOnce: true);
+        $rid = Base64Url::encode(random_bytes(16));
+        $opened = $this->service->open($id, $this->proofBody($prepared, $id, 'open', ['reservation_id' => $rid]));
+        self::assertNotNull($opened['consume_challenge']);
+
+        foreach ([
+            $this->consumeBody($prepared, $rid, $opened['consume_challenge'], $prepared->accessSeed),
+            $this->consumeBody($prepared, Base64Url::encode(random_bytes(16)), $opened['consume_challenge']),
+        ] as $body) {
+            try {
+                $this->service->consume($id, $body);
+                self::fail('Invalid consumption must fail.');
+            } catch (PasteUnavailableException) {
+            }
+        }
+        $this->service->consume($id, $this->consumeBody($prepared, $rid, $opened['consume_challenge']));
+        self::addToAssertionCount(1);
+    }
+
+    #[Group('EXG-LIFE-013')]
+    #[Group('EXG-LIFE-014')]
+    #[Group('EXG-LIFE-016')]
+    public function testUnconfirmedOpensAreCountedThenDestroyThePaste(): void
+    {
+        [$prepared, $id] = $this->createPaste(readOnce: true);
+
+        for ($i = 0; $i < 2; ++$i) {
+            $opened = $this->service->open($id, $this->proofBody($prepared, $id, 'open', ['reservation_id' => Base64Url::encode(random_bytes(16))]));
+            self::assertSame($i, $opened['unconfirmed_opens']);
+            $this->clock->advance(60);
+        }
+        $status = $this->service->status($id, $this->proofBody($prepared, $id, 'status'));
+        self::assertSame(2, $status['unconfirmed_opens']);
+
+        $this->service->open($id, $this->proofBody($prepared, $id, 'open', ['reservation_id' => Base64Url::encode(random_bytes(16))]));
+        $this->clock->advance(60);
+
+        $this->expectException(PasteUnavailableException::class);
+        $this->service->status($id, $this->proofBody($prepared, $id, 'status'));
+    }
+
+    #[Group('EXG-READ-028')]
+    public function testPassphraseIsCheckedLocallyAgainstConsumeKey(): void
+    {
+        [$prepared, $id] = $this->createPaste(readOnce: true, passphrase: 'dummy passphrase');
+        $status = $this->service->status($id, $this->proofBody($prepared, $id, 'status'));
+        $aad = Aad::fromBytes(Base64Url::decode($status['aad']));
+
+        $kPass = ClientCrypto::passphraseKey($aad, 'dummy passphrase');
+        self::assertSame($prepared->consumeSeed, ClientCrypto::consumeSeed($aad, $prepared->urlKey, $kPass));
+
+        $this->expectException(DecryptionFailedException::class);
+        ClientCrypto::consumeSeed($aad, $prepared->urlKey, ClientCrypto::passphraseKey($aad, 'wrong'));
+    }
+
+    #[Group('EXG-API-038')]
+    #[Group('EXG-API-039')]
+    public function testDeletionRequiresTheBoundToken(): void
+    {
+        [$prepared, $id] = $this->createPaste();
+        $this->store->accesses = 0;
+
+        try {
+            $this->service->delete($id, Base64Url::encode(random_bytes(32)));
+            self::fail('Wrong token must fail.');
+        } catch (PasteUnavailableException) {
+        }
+        self::assertSame(0, $this->store->accesses);
+
+        $this->service->delete($id, Base64Url::encode($prepared->deletionToken));
+        $this->expectException(PasteUnavailableException::class);
+        $this->service->open($id, $this->proofBody($prepared, $id, 'open'));
+    }
+
+    #[Group('EXG-API-040')]
+    public function testDeletionCancelsAnActiveReservation(): void
+    {
+        [$prepared, $id] = $this->createPaste(readOnce: true);
+        $rid = Base64Url::encode(random_bytes(16));
+        $opened = $this->service->open($id, $this->proofBody($prepared, $id, 'open', ['reservation_id' => $rid]));
+        self::assertNotNull($opened['consume_challenge']);
+
+        $this->service->delete($id, Base64Url::encode($prepared->deletionToken));
+
+        $this->expectException(PasteUnavailableException::class);
+        $this->service->consume($id, $this->consumeBody($prepared, $rid, $opened['consume_challenge']));
+    }
+
+    #[Group('EXG-API-029')]
+    #[Group('EXG-READ-015')]
+    public function testChallengeIsIdenticalInShapeForUnknownIdentifiers(): void
+    {
+        $this->store->accesses = 0;
+        $challenge = $this->service->challenge(Base64Url::encode(random_bytes(24)), '{"usage":"open"}');
+
+        self::assertSame(110, strlen($challenge));
+        self::assertSame(0, $this->store->accesses);
+    }
+}

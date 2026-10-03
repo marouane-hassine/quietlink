@@ -18,7 +18,7 @@ use Throwable;
  * unless consumed, payload.bin. Every state transition happens under an exclusive
  * flock() on state.lock with an inode identity check and an atomic state.json rename.
  */
-final class FilesystemPasteStore
+final class FilesystemPasteStore implements PasteStore
 {
     private const MAX_ID_DRAWS = 8;
 
