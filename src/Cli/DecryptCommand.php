@@ -113,13 +113,7 @@ final class DecryptCommand extends Command
         }
 
         if (is_string($target)) {
-            $handle = @fopen($target, 'x');
-            if ($handle === false) {
-                throw new CliException('The output file cannot be created.');
-            }
-            chmod($target, 0600);
-            fwrite($handle, $envelope['text']);
-            fclose($handle);
+            OutputFile::write($target, $envelope['text']);
         } else {
             $output->write($envelope['text'], false, OutputInterface::OUTPUT_RAW);
         }
