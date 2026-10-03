@@ -214,4 +214,35 @@ describe('creation flow', () => {
     expect(writeText).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
   });
+
+  it('offers a way out of the full-screen QR code, for touch screens without Escape', async () => {
+    document.body.innerHTML = '<main id="main"></main>';
+    main = document.getElementById('main') as HTMLElement;
+    mountCreate(main, { ...config, enableQrCode: true });
+    type('dummy text');
+    (main.querySelector('.action-bar .button-primary') as HTMLButtonElement).click();
+    await settle();
+    button(t('result.qr')).click();
+    await until(() => main.querySelector('.qr-box svg') !== null);
+    const box = main.querySelector('.qr-box') as HTMLElement;
+    let current: Element | null = null;
+    Object.defineProperty(document, 'fullscreenElement', { get: () => current, configurable: true });
+    box.requestFullscreen = vi.fn(async () => {
+      current = box;
+      document.dispatchEvent(new Event('fullscreenchange'));
+    });
+    const exit = vi.fn(async () => {
+      current = null;
+      document.dispatchEvent(new Event('fullscreenchange'));
+    });
+    Object.defineProperty(document, 'exitFullscreen', { value: exit, configurable: true });
+
+    button(t('result.qrFullscreen')).click();
+    await settle();
+    expect(box.requestFullscreen).toHaveBeenCalledOnce();
+    button(t('result.qrExitFullscreen')).click();
+    await settle();
+    expect(exit).toHaveBeenCalledOnce();
+    expect(button(t('result.qrFullscreen'))).toBeDefined();
+  });
 });

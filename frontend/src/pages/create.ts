@@ -634,7 +634,16 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
           if (open && !qrLoaded) {
             qrLoaded = true;
             const full = el('button', { type: 'button', class: 'button button-tertiary' }, t('result.qrFullscreen'));
-            full.addEventListener('click', () => void qrBox.requestFullscreen?.());
+            // A visible way out: touch screens have no Escape key.
+            full.addEventListener('click', () => {
+              if (document.fullscreenElement === qrBox) void document.exitFullscreen?.();
+              else void qrBox.requestFullscreen?.();
+            });
+            const onFullscreen = () => {
+              if (!qrBox.isConnected) return document.removeEventListener('fullscreenchange', onFullscreen);
+              full.textContent = t(document.fullscreenElement === qrBox ? 'result.qrExitFullscreen' : 'result.qrFullscreen');
+            };
+            document.addEventListener('fullscreenchange', onFullscreen);
             const { qrSvg } = await import('../ui/qrcode');
             qrBox.append(qrSvg(shareLink, t('result.qrLabel')), full);
           }

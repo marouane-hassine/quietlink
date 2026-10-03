@@ -131,6 +131,7 @@
   "result.qr": "Afficher le QR code",
   "result.qrHide": "Masquer le QR code",
   "result.qrFullscreen": "Plein écran",
+  "result.qrExitFullscreen": "Quitter le plein écran",
   "result.qrLabel": "QR code du lien de partage",
   "result.share": "Partager…",
   "result.copyMessage": "Copier avec un message",

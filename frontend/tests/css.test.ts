@@ -38,4 +38,8 @@ describe('stylesheet', () => {
     expect(css).toMatch(/scroll-padding-block-end:\s*calc\(var\(--ql-bar-height/);
     expect(css).toMatch(/@media \(max-height: 30rem\)\s*\{[^}]*\.action-bar\s*\{[^}]*position:\s*static/);
   });
+  it('enlarges the full-screen QR code and keeps its button readable on the forced white background', () => {
+    expect(css).toMatch(/\.qr-box:fullscreen \.qr\s*\{[^}]*90vmin/);
+    expect(css).toMatch(/\.qr-box:fullscreen \.button\s*\{[^}]*color:\s*#1a1a1a/);
+  });
 });

@@ -591,7 +591,20 @@ summary {
 .qr-box:fullscreen {
   display: grid;
   place-items: center;
+  align-content: center;
+  gap: 1.5rem;
   background: #ffffff;
+}
+
+.qr-box:fullscreen .qr {
+  inline-size: min(90vmin, 40rem);
+}
+
+/* The full-screen background is always white (scannable): fixed dark button colours. */
+.qr-box:fullscreen .button {
+  color: #1a1a1a;
+  background: #ffffff;
+  border-color: #1a1a1a;
 }
 
 .qr-background {
