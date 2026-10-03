@@ -489,7 +489,12 @@ const vectors = {
 const output = `${JSON.stringify(vectors, null, 2)}\n`;
 const checkIndex = process.argv.indexOf('--check');
 if (checkIndex !== -1) {
-  const current = readFileSync(process.argv[checkIndex + 1], 'utf8');
+  const path = process.argv[checkIndex + 1];
+  if (path === undefined) {
+    process.stderr.write('Usage: --check <vector-file>\n');
+    process.exit(2);
+  }
+  const current = readFileSync(path, 'utf8');
   if (current !== output) {
     process.stderr.write('Vector file is out of date; regenerate it.\n');
     process.exit(1);
