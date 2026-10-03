@@ -493,6 +493,7 @@ IPv6 is grouped by `http.ratelimit_ipv6_prefix`.
 | Bucket | Default | Scope |
 |---|---|---|
 | `create` | 30 per 10 min | client |
+| `create_replay` | 120 per 10 min | client, retries of an already-answered creation (same `Idempotency-Key`) |
 | `challenge` | 120 per min | client |
 | `open` | 60 per min | client |
 | `status` | 60 per min | client |
