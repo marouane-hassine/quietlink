@@ -540,7 +540,7 @@ None.
 | EXG-TEST-012 | `tests/Http/HardeningTest.php` |
 | EXG-LIFE-021 | `tests/Maintenance/PurgerTest.php` |
 | EXG-LIFE-022 | `tests/Maintenance/PurgerTest.php` |
-| EXG-STORE-043 | `tests/Maintenance/PurgerTest.php` |
+| EXG-STORE-043 | `tests/Maintenance/PurgerTest.php`, `tests/Storage/UsageCounterTest.php` |
 | EXG-STORE-044 | `tests/Maintenance/PurgerTest.php` |
 | EXG-LIFE-024 | `tests/Command/CommandsTest.php` |
 | EXG-API-007 | `tests/Http/OpenApiContractTest.php` |

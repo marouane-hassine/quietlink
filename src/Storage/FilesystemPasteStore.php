@@ -75,6 +75,8 @@ final class FilesystemPasteStore implements PasteStore
                     throw $e;
                 }
                 AtomicFile::syncDirectory($shard);
+                // Visible on disk now: a usage recomputation scanning meanwhile is deferred.
+                $this->usage->committed();
 
                 return $id;
             }

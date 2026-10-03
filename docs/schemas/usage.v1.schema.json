@@ -32,6 +32,11 @@
       ],
       "minimum": 0,
       "description": "Unix time of the last full recomputation by the purge."
+    },
+    "generation": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Incremented on every change and every completed creation; the hourly recomputation is applied only if it did not change during the scan. Optional: files written before it existed are read as generation 0."
     }
   }
 }

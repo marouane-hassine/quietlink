@@ -73,18 +73,50 @@ final class UsageCounter
     }
 
     /**
-     * Replaces the counters with the totals observed by a scan, under the lock, only when no
-     * other process changed them during the scan: the counter must then equal its value at scan
-     * start minus the purge's own removals. Otherwise nothing is written and the next run retries,
-     * because the scan cannot tell which concurrent changes it saw (§9.7, storage-format OQ-09).
+     * Counters with their generation, which every change and every completed creation bumps.
      *
-     * @return bool whether the recomputation was applied
+     * @return array{bytes: int, items: int, generation: int}
      */
-    public function applyRecomputation(int $expectedBytes, int $expectedItems, int $observedBytes, int $observedItems, int $now): bool
+    public function snapshot(): array
+    {
+        $lock = $this->lock(false);
+        try {
+            $data = $this->decode();
+
+            return ['bytes' => $data['bytes'] ?? 0, 'items' => $data['items'] ?? 0, 'generation' => $data['generation'] ?? 0];
+        } finally {
+            $lock->release();
+        }
+    }
+
+    /**
+     * Records that a creation became visible on disk (after its rename), without changing the
+     * totals reserved earlier: a recomputation scanning meanwhile must not be applied.
+     */
+    public function committed(): void
     {
         $lock = $this->lock(true);
         try {
-            if ($this->load() !== ['bytes' => max(0, $expectedBytes), 'items' => max(0, $expectedItems)]) {
+            $usage = $this->load();
+            $this->save($usage['bytes'], $usage['items']);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    /**
+     * Replaces the counters with the totals observed by a scan started at $generation, under the
+     * lock, only if nothing changed since: no reservation, release or completed creation. Any
+     * change means the scan may have seen an inconsistent state; the next purge retries
+     * (§9.7, storage-format OQ-09).
+     *
+     * @return bool whether the recomputation was applied
+     */
+    public function applyRecomputation(int $generation, int $observedBytes, int $observedItems, int $now): bool
+    {
+        $lock = $this->lock(true);
+        try {
+            if (($this->decode()['generation'] ?? 0) !== $generation) {
                 return false;
             }
             $this->save($observedBytes, $observedItems, $now);
@@ -131,29 +163,37 @@ final class UsageCounter
     /**
      * @return array{bytes: int, items: int, recomputed_at: int|null}|null
      */
+    /**
+     * @return array{bytes: int, items: int, recomputed_at: int|null, generation: int}|null
+     */
     private function decode(): ?array
     {
         $json = AtomicFile::read($this->layout->usageFile());
         if ($json === null) {
             return null;
         }
-        $data = RecordCodec::object($json, ['schema_version', 'bytes', 'items', 'recomputed_at']);
-        if ($data === null || !is_int($data['bytes']) || !is_int($data['items'])
+        // Files written before the generation field was added stay readable (generation 0).
+        $data = RecordCodec::object($json, ['schema_version', 'bytes', 'items', 'recomputed_at', 'generation'])
+            ?? RecordCodec::object($json, ['schema_version', 'bytes', 'items', 'recomputed_at']);
+        $generation = $data['generation'] ?? 0;
+        if ($data === null || !is_int($data['bytes']) || !is_int($data['items']) || !is_int($generation)
             || !($data['recomputed_at'] === null || is_int($data['recomputed_at']))) {
             throw new StorageException('usage.json is corrupted.');
         }
 
-        return ['bytes' => $data['bytes'], 'items' => $data['items'], 'recomputed_at' => $data['recomputed_at']];
+        return ['bytes' => $data['bytes'], 'items' => $data['items'], 'recomputed_at' => $data['recomputed_at'], 'generation' => $generation];
     }
 
     private function save(int $bytes, int $items, ?int $recomputedAt = null): void
     {
-        $recomputedAt ??= $this->decode()['recomputed_at'] ?? null;
+        $previous = $this->decode();
+        $recomputedAt ??= $previous['recomputed_at'] ?? null;
         AtomicFile::write($this->layout->usageFile(), RecordCodec::json([
             'schema_version' => RecordCodec::SCHEMA_VERSION,
             'bytes' => $bytes,
             'items' => $items,
             'recomputed_at' => $recomputedAt,
+            'generation' => ($previous['generation'] ?? 0) + 1,
         ]));
     }
 }

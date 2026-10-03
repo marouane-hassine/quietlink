@@ -301,7 +301,7 @@ A record with `retain_until ≤ now` is ignored by readers and unlinked by the p
 
 Limits (§9.5 l. 1368–1371): `max_total_bytes` = 10,737,418,240 (10 GiB), `max_items` = 100,000, `min_free_bytes` = 1 GiB, `min_free_inodes_percent` = 10.
 
-`usage.json` holds `bytes` (sum of `payload.bin` sizes still on disk) and `items` (number of `<id>/` directories, including `consumed` and `deleted` ones not yet removed). Proposed (non-normative) content: `{"schema_version":1,"bytes":0,"items":0,"recomputed_at":null}`.
+`usage.json` holds `bytes` (sum of `payload.bin` sizes still on disk) and `items` (number of `<id>/` directories, including `consumed` and `deleted` ones not yet removed). Content: `{"schema_version":1,"bytes":0,"items":0,"recomputed_at":null,"generation":0}` (`generation` is optional when reading).
 
 Rules (l. 1291):
 
@@ -316,7 +316,7 @@ Consistency:
 
 - Check and increment happen in one `usage.lock` critical section, so concurrent creations cannot exceed the quotas.
 - Decrements are applied under `usage.lock` by whoever performs the unlink/rmdir, after the filesystem operation succeeded (never before), and never go below zero (clamp + log).
-- Drift sources (crash between filesystem operation and counter update, orphan staging dirs) are corrected by the purge's full recompute, **at most once per hour** (l. 1521): scan `pastes/` without `usage.lock`, compute the observed totals, then under `usage.lock` replace the counters with them **only if** the counter still equals its value at scan start minus the purge's own removals. Any other value means another process created, consumed or deleted during the scan; the scan cannot tell which of those changes it saw, so nothing is written and the next purge run retries (OQ-09, resolved). Concurrent changes are never counted twice.
+- Drift sources (crash between filesystem operation and counter update, orphan staging dirs) are corrected by the purge's full recompute, **at most once per hour** (l. 1521), in its own read-only pass after the removals: read the counters and their `generation`, scan `pastes/` without `usage.lock`, then under `usage.lock` replace the counters with the observed totals **only if** `generation` is unchanged. Every reservation, release and completed creation (after its rename) increments `generation`, so any concurrent change, even one that leaves the totals unchanged, defers the recomputation to the next purge run (OQ-09, resolved).
 
 ## 10. Purge (`app:purge-expired`, §9.7)
 

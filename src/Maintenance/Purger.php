@@ -76,45 +76,24 @@ final class Purger
 
         try {
             $stats = ['removed' => 0, 'released' => 0, 'orphans' => 0, 'idempotency' => 0, 'ratelimit' => 0];
-            $usageAtStart = $this->usage->read();
-            $observed = ['bytes' => 0, 'items' => 0];
-            // Usage released by this run's own removals (other processes' changes are not ours).
-            $own = ['bytes' => 0, 'items' => 0];
-
             foreach ($this->store->ids() as $id) {
-                $dir = $this->layout->pasteDir($id);
-                $sizeBefore = self::payloadSize($dir);
-                $removed = false;
                 // A failure on one paste (busy lock, unwritable directory, full disk) never
                 // stops the run: the paste is retried by the next purge (§9.7).
                 try {
                     if ($this->store->isIncomplete($id)) {
-                        $removed = $this->store->removeIncomplete($id);
-                        $stats['removed'] += $removed ? 1 : 0;
+                        $stats['removed'] += $this->store->removeIncomplete($id) ? 1 : 0;
                     } elseif ($this->store->isPendingDeletion($id)) {
-                        $removed = $this->store->remove($id);
-                        $stats['removed'] += $removed ? 1 : 0;
+                        $stats['removed'] += $this->store->remove($id) ? 1 : 0;
                     } else {
                         $action = $this->store->mutate($id, fn (PasteRecord $r): array => $this->decide($r));
                         if (($action === 'remove' || $action === 'orphan') && $this->store->remove($id)) {
-                            $removed = true;
                             ++$stats[$action === 'orphan' ? 'orphans' : 'removed'];
                         } elseif ($action === 'released') {
                             ++$stats['released'];
                         }
                     }
                 } catch (StorageException) {
-                    // Counted below as observed when the directory is still there.
-                }
-                if ($removed) {
-                    $own['items']++;
-                    $own['bytes'] += $sizeBefore;
-                    continue;
-                }
-                clearstatcache();
-                if (is_dir($dir)) {
-                    $observed['bytes'] += self::payloadSize($dir);
-                    $observed['items']++;
+                    // Left for the next run.
                 }
             }
 
@@ -129,14 +108,7 @@ final class Purger
 
             $recomputedAt = $this->usage->recomputedAt();
             if ($recomputedAt === null || $now - $recomputedAt >= self::RECOMPUTE_INTERVAL) {
-                // Applied only when no concurrent change happened during the scan (§9.7).
-                $this->usage->applyRecomputation(
-                    $usageAtStart['bytes'] - $own['bytes'],
-                    $usageAtStart['items'] - $own['items'],
-                    $observed['bytes'],
-                    $observed['items'],
-                    $now,
-                );
+                $this->recomputeUsage($now);
             }
 
             $this->reportUsage();
@@ -145,6 +117,26 @@ final class Purger
         } finally {
             $lock->release();
         }
+    }
+
+    /**
+     * Hourly correction of usage.json drift (crashes between a filesystem operation and the
+     * counter update, §9.7): a read-only scan, applied only if no reservation, release or
+     * completed creation happened meanwhile; otherwise the next purge retries.
+     */
+    private function recomputeUsage(int $now): void
+    {
+        $start = $this->usage->snapshot();
+        $observed = ['bytes' => 0, 'items' => 0];
+        foreach ($this->store->ids() as $id) {
+            $dir = $this->layout->pasteDir($id);
+            clearstatcache();
+            if (is_dir($dir)) {
+                $observed['bytes'] += self::payloadSize($dir);
+                $observed['items']++;
+            }
+        }
+        $this->usage->applyRecomputation($start['generation'], $observed['bytes'], $observed['items'], $now);
     }
 
     /**
