@@ -89,14 +89,15 @@ final class CreateCommand extends Command
         }
         $text = str_replace(["\r\n", "\r"], "\n", $text);
 
-        // The size limit applies to the serialized envelope, checked before any prompt.
+        // The size limit applies to the serialized envelope, checked before any prompt. The bytes
+        // match JSON.stringify in the browser (frontend serialize()): U+2028/U+2029 stay raw.
         $envelope = json_encode([
             'format' => $format,
             'language' => $language,
             'template' => null,
             'text' => $text,
             'v' => 1,
-        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_LINE_TERMINATORS | JSON_THROW_ON_ERROR);
         if (strlen($envelope) > self::MAX_ENVELOPE_BYTES) {
             sodium_memzero($envelope);
             throw new CliException(self::TOO_LARGE);

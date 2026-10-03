@@ -398,7 +398,7 @@ None.
 | EXG-CRYPTO-035 | `frontend/tests/vectors.test.ts`, `tests/Crypto/SpProtoV1VectorsTest.php`, `tests/vectors/sp-proto-v1.json` |
 | EXG-CRYPTO-036 | `frontend/tests/vectors.test.ts`, `tests/Crypto/SpProtoV1VectorsTest.php`, `tests/vectors/sp-proto-v1.json` |
 | EXG-CRYPTO-037 | `tests/Crypto/VectorFileTest.php` |
-| EXG-CRYPTO-038 | `frontend/tests/markdown.test.ts` |
+| EXG-CRYPTO-038 | `frontend/tests/markdown.test.ts`, `tests/Cli/CliTest.php` |
 | EXG-CRYPTO-039 | `frontend/tests/markdown.test.ts` |
 | EXG-CRYPTO-040 | `frontend/tests/markdown.test.ts` |
 | EXG-CRYPTO-041 | `tests/Http/HardeningTest.php` |

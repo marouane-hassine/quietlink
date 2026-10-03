@@ -303,4 +303,18 @@ final class CliTest extends KernelTestCase
             self::assertStringNotContainsString('target content', $out);
         }
     }
+
+    #[Group('EXG-CRYPTO-038')]
+    #[Group('EXG-CLI-016')]
+    public function testLineTerminatorsStayUnescapedLikeTheBrowserSerialization(): void
+    {
+        // JSON.stringify keeps U+2028/U+2029 raw (3 bytes each): 300 000 of them fit in a 1 MiB
+        // envelope, whereas the \u2028 escape (6 bytes) would exceed it.
+        $text = 'a' . str_repeat("\u{2028}\u{2029}", 150000);
+        [$share] = $this->createPaste($text);
+
+        [$code, $plaintext] = $this->cli(['decrypt', '--url-stdin'], $share);
+        self::assertSame(0, $code);
+        self::assertSame($text, $plaintext);
+    }
 }
