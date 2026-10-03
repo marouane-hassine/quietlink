@@ -42,6 +42,9 @@ return static function (ContainerConfigurator $container): void {
 
     $services->instanceof(QuietLink\Maintenance\ThemeBuilder::class)->tag('quietlink.theme_builder');
     $services->set(RuntimeStatus::class)->args([env('QUIETLINK_CONFIG_DIR')]);
+    $services->set(QuietLink\Web\Catalogs::class)->args(['%kernel.project_dir%/translations']);
+    $services->set(QuietLink\Web\Assets::class)->args(['%kernel.project_dir%/public/build']);
+    $services->set(QuietLink\Theme\TokenThemeBuilder::class)->args([env('QUIETLINK_CONFIG_DIR')]);
     $services->set(Clock::class, SystemClock::class);
     $services->set(InstanceConfig::class)->factory([service(RuntimeStatus::class), 'config']);
     $services->set(StorageLayout::class)->factory([ServiceFactory::class, 'layout']);
