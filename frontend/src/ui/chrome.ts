@@ -3,7 +3,7 @@
 /** Header controls: language and light/dark choice (only preferences are remembered). */
 
 import { availableLocales, locale, setLocale, t } from '../i18n';
-import { el } from './dom';
+import { el, redrawInPlace } from './dom';
 import { toast } from './announcer';
 import type { PublicConfig } from '../config';
 
@@ -28,6 +28,13 @@ export function initTheme(config: PublicConfig): string {
   return choice;
 }
 
+/** Window title in the current language; the server rendered it from Accept-Language. */
+export function translateTitle(config: PublicConfig): void {
+  const separator = document.title.lastIndexOf(' · ');
+  const suffix = separator >= 0 ? document.title.slice(separator) : '';
+  document.title = t(`page.${config.page}.title`) + suffix;
+}
+
 /** Renders the controls; `rerender` redraws the page texts after a language change. */
 export function renderChrome(config: PublicConfig, theme: string, rerender: () => void): void {
   const slot = document.getElementById('ql-controls');
@@ -38,8 +45,10 @@ export function renderChrome(config: PublicConfig, theme: string, rerender: () =
   }
   languageSelect.addEventListener('change', () => {
     setLocale(languageSelect.value, true);
-    rerender();
+    redrawInPlace(rerender);
+    translateTitle(config);
     renderChrome(config, storedTheme() ?? theme, rerender);
+    document.getElementById('ql-language')?.focus();
     toast(t('nav.languageChanged', { language: languageSelect.selectedOptions[0]?.textContent ?? '' }));
   });
 

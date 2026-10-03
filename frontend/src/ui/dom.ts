@@ -31,12 +31,32 @@ export function nextId(prefix: string): string {
   return `${prefix}-${uid}`;
 }
 
+let redrawing = false;
+
+/**
+ * Runs a redraw of the current screen (language change) without moving focus: the change is
+ * announced, focus stays where the user is (§6.6.1).
+ */
+export function redrawInPlace(redraw: () => void): void {
+  redrawing = true;
+  try {
+    redraw();
+  } finally {
+    redrawing = false;
+  }
+}
+
+/** Moves focus unless the current screen is only being redrawn. */
+export function focusUnlessRedrawing(target: HTMLElement | null | undefined): void {
+  if (!redrawing) target?.focus({ preventScroll: false });
+}
+
 /** Replaces the main content and moves focus to the new screen title (§6.6). */
 export function showScreen(main: HTMLElement, ...nodes: (Node | null)[]): void {
   main.replaceChildren(...nodes.filter((n): n is Node => n !== null));
   const heading = main.querySelector('h1, h2');
   if (heading instanceof HTMLElement) {
     heading.tabIndex = -1;
-    heading.focus({ preventScroll: false });
+    focusUnlessRedrawing(heading);
   }
 }

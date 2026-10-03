@@ -22,7 +22,7 @@ import { announce, toast } from '../ui/announcer';
 import { copyText } from '../ui/clipboard';
 import { synchronise, type Sync } from '../ui/countdown';
 import { runCountdown } from '../ui/expiry-view';
-import { el, nextId, showScreen } from '../ui/dom';
+import { el, focusUnlessRedrawing, nextId, showScreen } from '../ui/dom';
 import { formatDate, formatRelative } from '../ui/format';
 import { cryptoAvailable } from '../ui/capabilities';
 
@@ -122,8 +122,8 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
     }
   }
 
-  function showReveal(link: Awaited<ReturnType<typeof parseLink>>, aad: ParsedAad, status: StatusResponse, sync: Sync | null, initialError = ''): void {
-    redraw = () => showReveal(link, aad, status, sync, initialError);
+  function showReveal(link: Awaited<ReturnType<typeof parseLink>>, aad: ParsedAad, status: StatusResponse, sync: Sync | null, errorKey: string | null = null): void {
+    redraw = () => showReveal(link, aad, status, sync, errorKey);
     const needsPassphrase = aad.object.kdf !== null;
     const inputId = nextId('passphrase');
     const input = el('input', { id: inputId, class: 'passphrase is-masked', type: 'text', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false' });
@@ -163,7 +163,7 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
         button.disabled = false;
         statusLine.textContent = '';
         if (e instanceof WrongPassphraseError) {
-          showReveal(link, aad, status, sync, t('error.wrongPassphrase'));
+          showReveal(link, aad, status, sync, 'error.wrongPassphrase');
           return;
         }
         if (e instanceof Argon2UnavailableError || (e instanceof Error && e.message === 'argon2')) return fail('error.argon2');
@@ -189,11 +189,11 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
       needsPassphrase ? el('div', { class: 'field' }, el('label', { for: inputId }, t('read.passphraseRequired')), input, error) : error,
       el('div', { class: 'action-bar' }, button, statusLine),
     );
-    if (initialError !== '') {
-      error.textContent = initialError;
-      announce(initialError, true);
+    if (errorKey !== null) {
+      error.textContent = t(errorKey);
+      announce(error.textContent, true);
     }
-    if (needsPassphrase) input.focus();
+    if (needsPassphrase) focusUnlessRedrawing(input);
   }
 
   async function openAndShow(link: Awaited<ReturnType<typeof parseLink>>, aad: ParsedAad, kPass: Uint8Array | null, consumeSeed: Uint8Array | null, sync: Sync | null, reservationId: string | null = null): Promise<void> {

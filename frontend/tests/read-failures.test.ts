@@ -107,4 +107,19 @@ describe('reading page failures', () => {
 
     expect(main.querySelector('h1')?.textContent).toBe(t('read.revealTitle'));
   });
+
+  it('translates the wrong-passphrase message when the language changes', async () => {
+    // Read-once: the passphrase is checked locally, before any request (§6.3.1 step 0).
+    await makePaste(true, 'dummy-passphrase');
+    mount();
+    await until(() => main.querySelector('input.passphrase') !== null);
+    (main.querySelector('input.passphrase') as HTMLInputElement).value = 'not-the-passphrase';
+    revealButton()!.click();
+    await until(() => main.textContent?.includes(t('error.wrongPassphrase')) === true);
+    setLocale('fr');
+    rerender();
+
+    expect(main.textContent).toContain(t('error.wrongPassphrase'));
+    setLocale('en');
+  });
 });

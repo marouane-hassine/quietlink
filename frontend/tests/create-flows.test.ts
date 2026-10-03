@@ -146,4 +146,43 @@ describe('creation flow', () => {
 
     expect(main.querySelectorAll('.qr-box svg')).toHaveLength(1);
   });
+
+  it('keeps the template form, open options and masking across a language change', async () => {
+    document.body.innerHTML = '<main id="main"></main>';
+    main = document.getElementById('main') as HTMLElement;
+    rerender = mountCreate(main, { ...config, templates: ['credentials'] });
+    const template = [...main.querySelectorAll('select')].find((select) => select.querySelector('option[value="credentials"]')) as HTMLSelectElement;
+    template.value = 'credentials';
+    template.dispatchEvent(new Event('change'));
+    await settle();
+    (main.querySelector('details.options') as HTMLDetailsElement).open = true;
+    main.querySelector('details.options')?.dispatchEvent(new Event('toggle'));
+
+    setLocale('fr');
+    rerender();
+
+    expect((main.querySelector('textarea.editor')?.closest('.field') as HTMLElement).hidden).toBe(true);
+    // Field labels belong to the template text inserted in English: content is not translated.
+    const password = [...main.querySelectorAll('.template-form input')].find((input) => main.querySelector(`label[for="${input.id}"]`)?.textContent === 'Password') as HTMLInputElement;
+    expect(password.type === 'password' || password.classList.contains('is-masked')).toBe(true);
+    expect((main.querySelector('details.options') as HTMLDetailsElement).open).toBe(true);
+    expect(main.querySelector('.secret-suggestion')).not.toBeNull();
+    expect(main.querySelector('.inline-notice .link-button')).not.toBeNull();
+    setLocale('en');
+  });
+
+  it('translates the result screen on a language change', async () => {
+    type('dummy text');
+    (main.querySelector('.action-bar .button-primary') as HTMLButtonElement).click();
+    await settle();
+    expect(main.querySelector('h1')?.textContent).toBe(t('result.title'));
+
+    setLocale('fr');
+    rerender();
+
+    expect(main.querySelector('h1')?.textContent).toBe(t('result.title'));
+    expect(main.querySelector('h1')?.textContent).not.toBe('Encrypted and ready to share');
+    expect((main.querySelector('.link-field') as HTMLInputElement).value).toContain('/p/');
+    setLocale('en');
+  });
 });

@@ -20,7 +20,7 @@ import { canReadClipboard, copyText } from '../ui/clipboard';
 import { confirmInline } from '../ui/confirm';
 import { synchronise, type Sync } from '../ui/countdown';
 import { runCountdown } from '../ui/expiry-view';
-import { el, nextId, showScreen } from '../ui/dom';
+import { el, focusUnlessRedrawing, nextId, showScreen } from '../ui/dom';
 import { formatBytes, formatDate, formatRelative } from '../ui/format';
 import { generate, strength, wordlist } from '../ui/passphrase';
 import { locale } from '../i18n';
@@ -57,6 +57,18 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     passphraseVisible: false,
     generated: false,
   };
+  /** Interface state kept across redraws of the form (language change, §6.6.1). */
+  const ui = {
+    formMode: false,
+    previewOpen: false,
+    optionsOpen: false,
+    sentOpen: false,
+    /** Text typed before the first applied template, restored by the single Undo action. */
+    textBeforeTemplates: null as string | null,
+    suggestSecret: false,
+  };
+  /** Redraws the result or deletion screen in the current language; null on the form. */
+  let redrawResult: (() => void) | null = null;
   let busy = false;
   let inResult = false;
   let pending: PreparedPaste | null = null;
@@ -117,7 +129,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     const summary = el('p', { class: 'summary' });
 
     // Instant Markdown preview, rendered locally with the reading sanitiser (§6.1.1).
-    let previewOpen = false;
+    let previewOpen = ui.previewOpen;
     const previewButton = el('button', { type: 'button', class: 'chip', 'aria-pressed': 'false', 'aria-controls': nextId('preview') }, t('preview.show'));
     const previewPanel = el('section', { class: 'reader markdown preview', id: previewButton.getAttribute('aria-controls') ?? '', hidden: true, 'aria-label': t('preview.title') });
     let previewTimer = 0;
@@ -132,6 +144,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     };
     previewButton.addEventListener('click', () => {
       previewOpen = !previewOpen;
+      ui.previewOpen = previewOpen;
       previewPanel.hidden = !previewOpen;
       previewButton.setAttribute('aria-pressed', String(previewOpen));
       previewButton.textContent = previewOpen ? t('preview.hide') : t('preview.show');
@@ -227,6 +240,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     const formMode = el('button', { type: 'button', class: 'chip', 'aria-pressed': 'false' }, t('editor.mode.form'));
     const modeBar = el('div', { class: 'presets', role: 'group', 'aria-label': t('editor.mode.label'), hidden: state.template === '' }, textMode, formMode);
     const showText = () => {
+      ui.formMode = false;
       editorField.hidden = false;
       formHost.hidden = true;
       formHost.replaceChildren();
@@ -243,6 +257,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
         editor.value = text;
         refresh();
       }));
+      ui.formMode = true;
       editorField.hidden = true;
       formHost.hidden = false;
       textMode.setAttribute('aria-pressed', 'false');
@@ -254,9 +269,41 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       if (showForm()) formHost.querySelector('input')?.focus();
     });
 
-    // Text typed before the first applied template, restored by the single Undo action.
-    let textBeforeTemplates: string | null = null;
     let undoLine: HTMLElement | null = null;
+    // Secret preset suggestion and single Undo of an applied template; redrawn on a language change.
+    const decorateTemplate = () => {
+      main.querySelector('.secret-suggestion')?.remove();
+      if (ui.suggestSecret && config.allowReadOnce && !state.readOnce) {
+        const apply = el('button', { type: 'button', class: 'link-button' }, t('preset.apply'));
+        const suggestion = el('p', { class: 'notice secret-suggestion' }, t('preset.suggestSecret'), ' ', apply);
+        apply.addEventListener('click', () => {
+          ui.suggestSecret = false;
+          applyPreset('1h', true);
+          suggestion.remove();
+        });
+        modeBar.before(suggestion);
+      }
+      undoLine?.remove();
+      undoLine = null;
+      if (ui.textBeforeTemplates === null) return;
+      const undo = el('button', { type: 'button', class: 'link-button' }, t('template.undo'));
+      undo.addEventListener('click', () => {
+        editor.value = ui.textBeforeTemplates ?? '';
+        state.template = '';
+        templateSelect.value = '';
+        ui.textBeforeTemplates = null;
+        ui.suggestSecret = false;
+        main.querySelector('.secret-suggestion')?.remove();
+        modeBar.hidden = true;
+        showText();
+        refresh();
+        undoLine?.remove();
+        undoLine = null;
+        editor.focus();
+      });
+      undoLine = el('p', { class: 'inline-notice' }, t('template.applied'), ' ', undo);
+      templateRow.after(undoLine);
+    };
     templateSelect.addEventListener('change', async () => {
       const id = templateSelect.value;
       if (!id) {
@@ -272,8 +319,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
         if (templateSelect.value === id) templateSelect.value = state.template;
         return;
       }
-      textBeforeTemplates ??= previous;
-      const restored = textBeforeTemplates;
+      ui.textBeforeTemplates ??= previous;
       editor.value = renderTemplate(id);
       state.template = id;
       state.format = 'markdown';
@@ -283,32 +329,8 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       modeBar.hidden = false;
       showForm();
       // Non-blocking suggestion of the Secret preset for templates with sensitive fields (§5.1).
-      main.querySelector('.secret-suggestion')?.remove();
-      if (config.allowReadOnce && !state.readOnce && (TEMPLATES[id] ?? []).some((section) => section.fields.some((field) => SENSITIVE_FIELDS.includes(field)))) {
-        const apply = el('button', { type: 'button', class: 'link-button' }, t('preset.apply'));
-        const suggestion = el('p', { class: 'notice secret-suggestion' }, t('preset.suggestSecret'), ' ', apply);
-        apply.addEventListener('click', () => {
-          applyPreset('1h', true);
-          suggestion.remove();
-        });
-        modeBar.before(suggestion);
-      }
-      const undo = el('button', { type: 'button', class: 'link-button' }, t('template.undo'));
-      undo.addEventListener('click', () => {
-        editor.value = restored;
-        state.template = '';
-        templateSelect.value = '';
-        textBeforeTemplates = null;
-        modeBar.hidden = true;
-        showText();
-        refresh();
-        undoLine?.remove();
-        undoLine = null;
-        editor.focus();
-      });
-      undoLine?.remove();
-      undoLine = el('p', { class: 'inline-notice' }, t('template.applied'), ' ', undo);
-      templateRow.after(undoLine);
+      ui.suggestSecret = (TEMPLATES[id] ?? []).some((section) => section.fields.some((field) => SENSITIVE_FIELDS.includes(field)));
+      decorateTemplate();
       announce(t('template.applied'));
     });
 
@@ -478,8 +500,22 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       errorBox,
       shortcuts,
     );
+    // Restore the interface state of the previous render (language change).
+    options.open = ui.optionsOpen;
+    sent.open = ui.sentOpen;
+    options.addEventListener('toggle', () => (ui.optionsOpen = options.open));
+    sent.addEventListener('toggle', () => (ui.sentOpen = sent.open));
+    if (state.template !== '') {
+      if (ui.formMode) showForm();
+      decorateTemplate();
+    }
+    if (previewOpen) {
+      previewPanel.hidden = false;
+      previewButton.setAttribute('aria-pressed', 'true');
+      previewButton.textContent = t('preview.hide');
+    }
     refresh();
-    if (window.matchMedia?.('(pointer: fine)').matches) editor.focus();
+    if (window.matchMedia?.('(pointer: fine)').matches) focusUnlessRedrawing(editor);
   }
 
   function buildPassphrasePanel(refresh: () => void): HTMLElement {
@@ -567,116 +603,126 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     state.confirmation = '';
     state.template = '';
     let manageCopied = false;
-    setUnloadGuard(true, t('result.leaveWarning'));
 
-    const linkInput = el('input', { id: nextId('share'), class: 'link-field', type: 'text', readonly: true, value: shareLink, spellcheck: 'false' });
-    const copy = el('button', { type: 'button', class: 'button button-primary' }, t('action.copy'));
-    copy.addEventListener('click', () => void copyText(shareLink));
+    // Drawn again in the new language on a language change (links are kept in this closure).
+    const draw = () => {
+      redrawResult = draw;
+      if (!manageCopied) setUnloadGuard(true, t('result.leaveWarning'));
 
-    const expiry = el('p', { class: 'expiry' });
+      const linkInput = el('input', { id: nextId('share'), class: 'link-field', type: 'text', readonly: true, value: shareLink, spellcheck: 'false' });
+      const copy = el('button', { type: 'button', class: 'button button-primary' }, t('action.copy'));
+      copy.addEventListener('click', () => void copyText(shareLink));
 
-    const extras = el('div', { class: 'button-row' });
-    if (config.enableQrCode) {
-      const qrBox = el('div', { class: 'qr-box', hidden: true });
-      const qrButton = el('button', { type: 'button', class: 'button button-secondary', 'aria-expanded': 'false' }, t('result.qr'));
-      let qrLoaded = false;
-      qrButton.addEventListener('click', async () => {
-        const open = qrBox.hidden;
-        qrBox.hidden = !open;
-        qrButton.textContent = open ? t('result.qrHide') : t('result.qr');
-        qrButton.setAttribute('aria-expanded', String(open));
-        if (open && !qrLoaded) {
-          qrLoaded = true;
-          const full = el('button', { type: 'button', class: 'button button-tertiary' }, t('result.qrFullscreen'));
-          full.addEventListener('click', () => void qrBox.requestFullscreen?.());
-          const { qrSvg } = await import('../ui/qrcode');
-          qrBox.append(qrSvg(shareLink, t('result.qrLabel')), full);
-        }
+      const expiry = el('p', { class: 'expiry' });
+
+      const extras = el('div', { class: 'button-row' });
+      if (config.enableQrCode) {
+        const qrBox = el('div', { class: 'qr-box', hidden: true });
+        const qrButton = el('button', { type: 'button', class: 'button button-secondary', 'aria-expanded': 'false' }, t('result.qr'));
+        let qrLoaded = false;
+        qrButton.addEventListener('click', async () => {
+          const open = qrBox.hidden;
+          qrBox.hidden = !open;
+          qrButton.textContent = open ? t('result.qrHide') : t('result.qr');
+          qrButton.setAttribute('aria-expanded', String(open));
+          if (open && !qrLoaded) {
+            qrLoaded = true;
+            const full = el('button', { type: 'button', class: 'button button-tertiary' }, t('result.qrFullscreen'));
+            full.addEventListener('click', () => void qrBox.requestFullscreen?.());
+            const { qrSvg } = await import('../ui/qrcode');
+            qrBox.append(qrSvg(shareLink, t('result.qrLabel')), full);
+          }
+        });
+        extras.append(qrButton, qrBox);
+      }
+      const message = el('button', { type: 'button', class: 'button button-secondary' }, t('result.copyMessage'));
+      message.addEventListener('click', () => {
+        const date = expiresAt === null ? '' : formatDate(Date.parse(expiresAt));
+        const key = expiresAt === null ? 'result.messageNever' : readOnceMode ? 'result.messageReadOnce' : 'result.message';
+        void copyText(t(key, { link: shareLink, date }));
       });
-      extras.append(qrButton, qrBox);
-    }
-    const message = el('button', { type: 'button', class: 'button button-secondary' }, t('result.copyMessage'));
-    message.addEventListener('click', () => {
-      const date = expiresAt === null ? '' : formatDate(Date.parse(expiresAt));
-      const key = expiresAt === null ? 'result.messageNever' : readOnceMode ? 'result.messageReadOnce' : 'result.message';
-      void copyText(t(key, { link: shareLink, date }));
-    });
-    extras.append(message);
-    if (typeof navigator.share === 'function') {
-      const shareButton = el('button', { type: 'button', class: 'button button-secondary' }, t('result.share'));
-      shareButton.addEventListener('click', () => void navigator.share({ url: shareLink }).catch(() => undefined));
-      extras.append(shareButton);
-    }
+      extras.append(message);
+      if (typeof navigator.share === 'function') {
+        const shareButton = el('button', { type: 'button', class: 'button button-secondary' }, t('result.share'));
+        shareButton.addEventListener('click', () => void navigator.share({ url: shareLink }).catch(() => undefined));
+        extras.append(shareButton);
+      }
 
-    // Danger zone: management link behind an explicit action, never next to the share link.
-    const dangerBody = el('div', { class: 'danger-body', hidden: true });
-    const reveal = el('button', { type: 'button', class: 'button button-tertiary', 'aria-expanded': 'false' }, t('manage.reveal'));
-    reveal.addEventListener('click', () => {
-      dangerBody.hidden = !dangerBody.hidden;
-      reveal.setAttribute('aria-expanded', String(!dangerBody.hidden));
-      if (dangerBody.childElementCount === 0) {
-        const manageField = el('input', { class: 'link-field', type: 'text', readonly: true, value: manageLink, 'aria-label': t('manage.title') });
-        const copyManage = el('button', { type: 'button', class: 'button button-secondary' }, t('action.copy'));
-        copyManage.addEventListener('click', async () => {
-          if (await copyText(manageLink, t('manage.copied'))) {
+      // Danger zone: management link behind an explicit action, never next to the share link.
+      const dangerBody = el('div', { class: 'danger-body', hidden: true });
+      const reveal = el('button', { type: 'button', class: 'button button-tertiary', 'aria-expanded': 'false' }, t('manage.reveal'));
+      reveal.addEventListener('click', () => {
+        dangerBody.hidden = !dangerBody.hidden;
+        reveal.setAttribute('aria-expanded', String(!dangerBody.hidden));
+        if (dangerBody.childElementCount === 0) {
+          const manageField = el('input', { class: 'link-field', type: 'text', readonly: true, value: manageLink, 'aria-label': t('manage.title') });
+          const copyManage = el('button', { type: 'button', class: 'button button-secondary' }, t('action.copy'));
+          copyManage.addEventListener('click', async () => {
+            if (await copyText(manageLink, t('manage.copied'))) {
+              manageCopied = true;
+              setUnloadGuard(false, '');
+            }
+          });
+          const remove = el('button', { type: 'button', class: 'button button-danger' }, t('manage.delete'));
+          remove.addEventListener('click', async () => {
+            if (!(await confirmInline(remove, t('manage.confirm'), t('manage.delete'), true))) return;
+            try {
+              await api.remove(id, encode(prepared.deletionToken));
+            } catch (error) {
+              if (!(error instanceof ApiError) || error.kind !== 'unavailable') {
+                toast(t('error.network'));
+                return;
+              }
+            }
             manageCopied = true;
             setUnloadGuard(false, '');
-          }
-        });
-        const remove = el('button', { type: 'button', class: 'button button-danger' }, t('manage.delete'));
-        remove.addEventListener('click', async () => {
-          if (!(await confirmInline(remove, t('manage.confirm'), t('manage.delete'), true))) return;
-          try {
-            await api.remove(id, encode(prepared.deletionToken));
-          } catch (error) {
-            if (!(error instanceof ApiError) || error.kind !== 'unavailable') {
-              toast(t('error.network'));
-              return;
-            }
-          }
-          manageCopied = true;
-          setUnloadGuard(false, '');
-          showScreen(main, el('h1', { class: 'page-title' }, t('manage.done')), newButton());
-          announce(t('manage.done'));
-        });
-        dangerBody.append(el('p', { class: 'warning' }, t('manage.warning')), manageField, el('div', { class: 'button-row' }, copyManage, remove));
-      }
-    });
-
-    const newButton = () => {
-      const button = el('button', { type: 'button', class: 'button button-secondary' }, t('action.new'));
-      button.addEventListener('click', async () => {
-        if (!manageCopied && !(await confirmInline(button, t('result.leaveWarning'), t('action.new')))) return;
-        setUnloadGuard(false, '');
-        busy = false;
-        state.usePassphrase = false;
-        state.readOnce = false;
-        render();
+            redrawResult = () => showScreen(main, el('h1', { class: 'page-title' }, t('manage.done')), newButton());
+            redrawResult();
+            announce(t('manage.done'));
+          });
+          dangerBody.append(el('p', { class: 'warning' }, t('manage.warning')), manageField, el('div', { class: 'button-row' }, copyManage, remove));
+        }
       });
-      return button;
-    };
 
-    showScreen(
-      main,
-      el('h1', { class: 'page-title' }, t('result.title')),
-      el('p', { class: 'success' }, t('result.encrypted')),
-      el('div', { class: 'field' }, el('label', { for: linkInput.id, class: 'field-label' }, t('result.shareLink')), el('div', { class: 'link-row' }, linkInput, copy)),
-      el('p', { class: 'mode' }, readOnceMode ? t('result.mode.readOnce') : t('result.mode.normal')),
-      expiry,
-      el('p', { class: 'warning' }, t('result.careful')),
-      readOnceMode ? el('p', { class: 'warning' }, t('result.readOnceWarning')) : null,
-      usedPassphrase ? el('p', { class: 'notice' }, t('result.passphraseReminder')) : null,
-      extras,
-      el('section', { class: 'danger-zone', 'aria-label': t('manage.title') }, el('h2', {}, t('manage.title')), reveal, dangerBody),
-      el('div', { class: 'action-bar' }, newButton()),
-    );
-    runCountdown(expiry, expiresAt, sync);
+      const newButton = () => {
+        const button = el('button', { type: 'button', class: 'button button-secondary' }, t('action.new'));
+        button.addEventListener('click', async () => {
+          if (!manageCopied && !(await confirmInline(button, t('result.leaveWarning'), t('action.new')))) return;
+          setUnloadGuard(false, '');
+          busy = false;
+          redrawResult = null;
+          state.usePassphrase = false;
+          state.readOnce = false;
+          Object.assign(ui, { formMode: false, previewOpen: false, optionsOpen: false, sentOpen: false, textBeforeTemplates: null, suggestSecret: false });
+          render();
+        });
+        return button;
+      };
+
+      showScreen(
+        main,
+        el('h1', { class: 'page-title' }, t('result.title')),
+        el('p', { class: 'success' }, t('result.encrypted')),
+        el('div', { class: 'field' }, el('label', { for: linkInput.id, class: 'field-label' }, t('result.shareLink')), el('div', { class: 'link-row' }, linkInput, copy)),
+        el('p', { class: 'mode' }, readOnceMode ? t('result.mode.readOnce') : t('result.mode.normal')),
+        expiry,
+        el('p', { class: 'warning' }, t('result.careful')),
+        readOnceMode ? el('p', { class: 'warning' }, t('result.readOnceWarning')) : null,
+        usedPassphrase ? el('p', { class: 'notice' }, t('result.passphraseReminder')) : null,
+        extras,
+        el('section', { class: 'danger-zone', 'aria-label': t('manage.title') }, el('h2', {}, t('manage.title')), reveal, dangerBody),
+        el('div', { class: 'action-bar' }, newButton()),
+      );
+      runCountdown(expiry, expiresAt, sync);
+    };
+    draw();
     announce(t('result.title'));
   }
 
   render();
   return () => {
+    if (inResult) redrawResult?.();
     // Never rebuild the form under an in-flight submission: its result would land in detached nodes.
-    if (!inResult && !busy) render();
+    else if (!busy) render();
   };
 }
