@@ -34,3 +34,5 @@ a removed API version is announced at least one minor version in advance.
   about 33 KB of JavaScript, enforced by a bundle budget in `npm run qa`.
 - Capacity benchmarks (`npm run bench:purge`, `npm run bench:load`), a release checklist and a
   release verification procedure; release notes list the signed image digests.
+- Optional CORS for `/api/v1` (`http.cors_allowed_origins`, exact origins, no credentials) and an
+  OpenAPI contract test.
