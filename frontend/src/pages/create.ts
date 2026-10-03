@@ -178,6 +178,9 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     const templateSelect = el('select', { id: nextId('template') });
     templateSelect.append(el('option', { value: '' }, t('template.none')));
     for (const id of config.templates) templateSelect.append(el('option', { value: id, selected: id === state.template }, t(`template.${id}`)));
+    // Text typed before the first applied template, restored by the single Undo action.
+    let textBeforeTemplates: string | null = null;
+    let undoLine: HTMLElement | null = null;
     templateSelect.addEventListener('change', async () => {
       const id = templateSelect.value;
       if (!id) {
@@ -187,9 +190,12 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       }
       const previous = editor.value;
       if (previous.trim() !== '' && !(await confirmInline(templateSelect, t('template.confirmReplace'), t('template.label')))) {
-        templateSelect.value = state.template;
+        // Only revert when no newer choice replaced this one meanwhile.
+        if (templateSelect.value === id) templateSelect.value = state.template;
         return;
       }
+      textBeforeTemplates ??= previous;
+      const restored = textBeforeTemplates;
       editor.value = renderTemplate(id);
       state.template = id;
       state.format = 'markdown';
@@ -198,14 +204,17 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       refresh();
       const undo = el('button', { type: 'button', class: 'link-button' }, t('template.undo'));
       undo.addEventListener('click', () => {
-        editor.value = previous;
+        editor.value = restored;
         state.template = '';
         templateSelect.value = '';
+        textBeforeTemplates = null;
         refresh();
-        undoLine.remove();
+        undoLine?.remove();
+        undoLine = null;
         editor.focus();
       });
-      const undoLine = el('p', { class: 'inline-notice' }, t('template.applied'), ' ', undo);
+      undoLine?.remove();
+      undoLine = el('p', { class: 'inline-notice' }, t('template.applied'), ' ', undo);
       templateRow.after(undoLine);
       announce(t('template.applied'));
     });
@@ -367,7 +376,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       shortcuts,
     );
     refresh();
-    if (window.matchMedia('(pointer: fine)').matches) editor.focus();
+    if (window.matchMedia?.('(pointer: fine)').matches) editor.focus();
   }
 
   function buildPassphrasePanel(refresh: () => void): HTMLElement {
@@ -468,6 +477,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
         expiry.textContent = t('result.never');
         return;
       }
+      if (!expiry.isConnected && previous !== Number.POSITIVE_INFINITY) return;
       const remaining = remainingAt(sync, performance.now());
       const date = formatDate(Date.parse(expiresAt));
       expiry.textContent = remaining <= 0 ? t('time.expired') : t('result.expires', { relative: (sync.approximate ? `${t('time.approximate')} ` : '') + formatRelative(remaining), date });
@@ -476,7 +486,11 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       previous = remaining;
       if (remaining > 0) timer = window.setTimeout(tick, nextTickMs(remaining));
     };
-    document.addEventListener('visibilitychange', () => {
+    const onVisibility = () => {
+      if (!expiry.isConnected) {
+        document.removeEventListener('visibilitychange', onVisibility);
+        return;
+      }
       if (!sync) return;
       if (document.visibilityState === 'hidden') {
         hiddenWall = Date.now();
@@ -488,7 +502,8 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
         window.clearTimeout(timer);
         tick();
       }
-    });
+    };
+    document.addEventListener('visibilitychange', onVisibility);
 
     const extras = el('div', { class: 'button-row' });
     if (config.enableQrCode) {
