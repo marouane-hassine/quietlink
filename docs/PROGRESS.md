@@ -14,12 +14,12 @@ Resume from this file after a context reset; do not re-read the full specificati
 | L2 Instance config (`src/Config`) | Done | `config/config.php.example`, strict loader |
 | L3 Storage (`src/Storage`) | Done | flock, atomic writes, usage, idempotency, health/boot |
 | L4 Domain services (`src/Paste`, `src/Client`) | Done | multi-process reservation race test |
-| L5 HTTP API (controllers, headers, limits, rate limiting, healthz, logs) | Next | |
-| L6 Console: app:boot, app:purge-expired, app:config:check, app:secret:generate | Todo | |
-| L7 CLI `quietlink` (create/read/metadata/delete) | Todo | reuse `src/Client` |
-| L8 Frontend TS/Vite (crypto + vectors, create/read/manage pages, i18n, themes, a11y, Markdown, QR, templates) | Todo | |
-| L9 Twig pages, CSP, theme CSS generation | Todo | |
-| L10 Docker, docs (README admin/dev, OpenAPI), CI | Todo | |
+| L5 HTTP API (controllers, headers, limits, rate limiting, healthz, logs) | Done | |
+| L6 Console: app:boot, app:purge-expired, app:config:check, app:secret:generate | Done | |
+| L7 CLI `quietlink` (create/metadata/decrypt/delete) | Done | `bin/quietlink` |
+| L8 Frontend TS/Vite (crypto + vectors, pages, i18n, themes, Markdown, QR, templates) | Done | browser-tested on localhost |
+| L9 Twig pages, CSP, theme CSS generation | Done | |
+| L10 Docker, docs (README admin/dev, OpenAPI), CI | In progress | |
 | L11 E2E Playwright, final security review | Todo | |
 
 ## Decisions (see ADRs for detail)
@@ -39,6 +39,10 @@ challenge: `{usage}` → `{challenge, expires_in}`. status/open: `challenge acce
 (+ `reservation_id` for open). consume: `access_pk reservation_id challenge signature`.
 Responses: `aad nonce ciphertext expires_at server_time read_once consume_challenge
 unconfirmed_opens retry_after state`. Delete: header `X-Deletion-Token`.
+
+## Dev loop
+
+`npm run build`; dev config in /tmp/ql-dev (scratchpad devenv.sh); `php -S localhost:8080 -t public tools/dev/router.php`.
 
 ## Human actions (out of scope for the agent)
 
