@@ -430,8 +430,8 @@ Cron example (host installation):
   `upgrade-insecure-requests` over HTTPS), `X-Content-Type-Options: nosniff`,
   `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, `Permissions-Policy`,
   `Cross-Origin-Opener-Policy` and `Cross-Origin-Resource-Policy: same-origin`,
-  `Cache-Control: no-store`, and never sets cookies. Do not weaken or override these headers in
-  the proxy.
+  `Cache-Control: no-store, private`, and never sets cookies. Do not weaken or override these
+  headers in the proxy.
 - `Strict-Transport-Security: max-age=<http.hsts_max_age>; includeSubDomains` is sent only when
   the request is seen as HTTPS. Behind a TLS-terminating proxy this requires the proxy to send
   `X-Forwarded-Proto: https` and its address to be listed in `http.trusted_proxies`. The shipped

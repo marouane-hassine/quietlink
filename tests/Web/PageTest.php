@@ -57,7 +57,7 @@ final class PageTest extends KernelTestCase
         foreach (['/', '/how-it-works', '/manage/' . Base64Url::encode(random_bytes(24))] as $path) {
             $response = $this->request('GET', $path);
             self::assertSame(200, $response->getStatusCode(), $path);
-            self::assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));
+            self::assertSame('no-store, private', $response->headers->get('Cache-Control'));
             self::assertSame('noindex, nofollow, noarchive', $response->headers->get('X-Robots-Tag'));
         }
     }

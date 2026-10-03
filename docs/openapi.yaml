@@ -62,8 +62,8 @@ info:
 
     ## Common response headers
 
-    Every response (success or error) carries `Cache-Control: no-store` and the security
-    headers `Content-Security-Policy` (strict policy, `default-src 'none'`, no
+    Every response (success or error) carries `Cache-Control: no-store, private` and the
+    security headers `Content-Security-Policy` (strict policy, `default-src 'none'`, no
     `unsafe-inline`/`unsafe-eval`), `X-Content-Type-Options: nosniff`,
     `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, `Permissions-Policy`,
     `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Resource-Policy: same-origin`,
@@ -439,10 +439,10 @@ components:
 
   headers:
     CacheControl:
-      description: Always `no-store`.
+      description: Always `no-store, private`.
       schema:
         type: string
-        const: no-store
+        const: no-store, private
     RetryAfter:
       description: Delay in seconds before retrying (at least 1).
       schema:

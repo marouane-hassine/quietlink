@@ -74,7 +74,8 @@ final class SecurityHeadersSubscriber implements EventSubscriberInterface
         $headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), clipboard-read=(self), clipboard-write=(self)');
         $headers->set('Cross-Origin-Opener-Policy', 'same-origin');
         $headers->set('Cross-Origin-Resource-Policy', 'same-origin');
-        $headers->set('Cache-Control', 'no-store');
+        // Explicit "private": Symfony would append it to a bare "no-store" anyway.
+        $headers->set('Cache-Control', 'no-store, private');
         $headers->remove('X-Powered-By');
         if ($request->isSecure() && $hsts > 0) {
             $headers->set('Strict-Transport-Security', 'max-age=' . $hsts . '; includeSubDomains');

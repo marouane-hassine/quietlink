@@ -107,7 +107,7 @@ final class ApiTest extends KernelTestCase
             self::assertStringContainsString('trusted-types dompurify quietlink-worker', $csp);
             self::assertSame('nosniff', $response->headers->get('X-Content-Type-Options'));
             self::assertSame('no-referrer', $response->headers->get('Referrer-Policy'));
-            self::assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));
+            self::assertSame('no-store, private', $response->headers->get('Cache-Control'));
             self::assertStringContainsString('camera=()', (string) $response->headers->get('Permissions-Policy'));
             self::assertSame('same-origin', $response->headers->get('Cross-Origin-Opener-Policy'));
             self::assertSame('same-origin', $response->headers->get('Cross-Origin-Resource-Policy'));

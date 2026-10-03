@@ -587,7 +587,7 @@ The same generic `404` MUST be returned for: a non-existent identifier, an expir
 - `409` only after a valid access proof (reservation held by another reservation identifier), with remaining delay and no payload (§10, L1576, L1632).
 - `400` (malformed body, AAD or `Idempotency-Key`), `413`, `415`, `422`, `429`, `503` with `Retry-After` per §10, L1614–1620, L1633.
 - Errors use `application/problem+json` (RFC 9457) with generic `type` and `title`, no internal detail and no content identifier (§10, L1627).
-- All API responses carry `Cache-Control: no-store` (§10, L1635).
+- All API responses carry `Cache-Control: no-store` (§10, L1635), sent as `no-store, private`.
 - No secret, payload, full URL, fragment, `X-Deletion-Token` or `Idempotency-Key` in logs, caches, metrics, error messages or page titles (CLAUDE.md; §8.5, L1151; §10, L1596).
 
 ### 13.3 Client-side failures
