@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // @vitest-environment jsdom
-// Requirements: EXG-MD (templates §6.1.1: confirmation, undo, no silent replacement), EXG-SEC-004.
+// Requirements (templates §6.1.1, editor §5.1): EXG-SEC-003, EXG-SEC-004, EXG-SEC-007, EXG-SEC-008,
+// EXG-SEC-012, EXG-I18N-016, EXG-A11Y-004, EXG-A11Y-018, EXG-UX-019, EXG-UX-027, EXG-UX-028,
+// EXG-MD-001, EXG-MD-002, EXG-MD-003, EXG-MD-004, EXG-MD-005, EXG-MD-006, EXG-MD-007, EXG-MD-008,
+// EXG-MD-010, EXG-TEST-074.
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { mountCreate } from '../src/pages/create';
