@@ -19,8 +19,8 @@ Resume from this file after a context reset; do not re-read the full specificati
 | L7 CLI `quietlink` (create/metadata/decrypt/delete) | Done | `bin/quietlink` |
 | L8 Frontend TS/Vite (crypto + vectors, pages, i18n, themes, Markdown, QR, templates) | Done | browser-tested on localhost |
 | L9 Twig pages, CSP, theme CSS generation | Done | |
-| L10 Docker, docs (README admin/dev, OpenAPI), CI | In progress | |
-| L11 E2E Playwright, final security review | Todo | |
+| L10 Docker, docs (README admin/dev, OpenAPI), CI | Done | compose stack tested locally |
+| L11 E2E Playwright, final security review | Done | 25/25 journeys (5 browsers); internal review fixed |
 
 ## Decisions (see ADRs for detail)
 
@@ -43,6 +43,13 @@ unconfirmed_opens retry_after state`. Delete: header `X-Deletion-Token`.
 ## Dev loop
 
 `npm run build`; dev config in /tmp/ql-dev (scratchpad devenv.sh); `php -S localhost:8080 -t public tools/dev/router.php`.
+
+## Open points for the product owner
+
+- CDC contradiction: §10 (l.1622) says a valid DELETE removes a consumed paste and a later consume
+  gets 404; §9.4.1 (l.1290) keeps a consumed paste 10 min after a manual delete. Code follows §9.4.1.
+- `metrics.enabled`, `ui.allow_print`, `ui.allow_export` are validated but have no effect yet;
+  `app:theme:preview` and the French word list (Lexique) are not built.
 
 ## Human actions (out of scope for the agent)
 
