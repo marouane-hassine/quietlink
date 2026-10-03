@@ -17,6 +17,8 @@ use QuietLink\Storage\PasteStore;
 final class SpyPasteStore implements PasteStore
 {
     public int $accesses = 0;
+    /** Simulates losing a removal race (another process already removed the paste). */
+    public bool $loseRemovals = false;
 
     public function __construct(private readonly PasteStore $inner)
     {
@@ -54,6 +56,6 @@ final class SpyPasteStore implements PasteStore
     {
         ++$this->accesses;
 
-        return $this->inner->remove($id, $guard);
+        return !$this->loseRemovals && $this->inner->remove($id, $guard);
     }
 }

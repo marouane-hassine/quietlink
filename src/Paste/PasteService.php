@@ -360,8 +360,11 @@ final class PasteService
             throw new PasteUnavailableException();
         }
 
-        // A valid token deletes in any state, consumed included (spec §10, ADR-0008).
-        $this->store->remove($id, static fn (PasteRecord $r): bool => hash_equals($r->meta->deletionTokenHash, $tokenHash));
+        // A valid token deletes in any state, consumed included (spec §10, ADR-0008). A removal
+        // lost to a concurrent deletion or purge answers like any unavailable paste.
+        if (!$this->store->remove($id, static fn (PasteRecord $r): bool => hash_equals($r->meta->deletionTokenHash, $tokenHash))) {
+            throw new PasteUnavailableException();
+        }
     }
 
     /**

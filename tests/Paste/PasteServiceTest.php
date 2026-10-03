@@ -374,6 +374,20 @@ final class PasteServiceTest extends TestCase
         $this->service->open($id, $this->proofBody($prepared, $id, 'open'));
     }
 
+    /**
+     * Two deletions racing (or a deletion racing the purge): the loser finds the paste, then its
+     * removal fails because the winner already unlinked the lock; it gets the generic 404.
+     */
+    #[Group('EXG-API-038')]
+    public function testDeletionThatLosesARaceIsUnavailable(): void
+    {
+        [$prepared, $id] = $this->createPaste();
+        $this->store->loseRemovals = true;
+
+        $this->expectException(PasteUnavailableException::class);
+        $this->service->delete($id, Base64Url::encode($prepared->deletionToken));
+    }
+
     #[Group('EXG-API-040')]
     #[Group('EXG-TEST-035')]
     public function testDeletionCancelsAnActiveReservation(): void
