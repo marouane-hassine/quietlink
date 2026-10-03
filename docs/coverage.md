@@ -217,7 +217,7 @@ None.
 | EXG-READ-012 | `frontend/tests/read-page.test.ts` |
 | EXG-MD-019 | `frontend/tests/content-view.test.ts` |
 | EXG-I18N-002 | `frontend/tests/ui.test.ts` |
-| EXG-SEC-024 | `frontend/tests/read-page.test.ts` |
+| EXG-SEC-024 | `frontend/tests/envelope.test.ts`, `frontend/tests/read-page.test.ts` |
 | EXG-LIFE-006 | `tests/Config/ConfigLoaderTest.php` |
 | EXG-LIFE-007 | `tests/Http/ApiTest.php` |
 | EXG-LIFE-008 | `tests/Paste/PasteServiceTest.php` |
@@ -398,8 +398,8 @@ None.
 | EXG-CRYPTO-035 | `frontend/tests/vectors.test.ts`, `tests/Crypto/SpProtoV1VectorsTest.php`, `tests/vectors/sp-proto-v1.json` |
 | EXG-CRYPTO-036 | `frontend/tests/vectors.test.ts`, `tests/Crypto/SpProtoV1VectorsTest.php`, `tests/vectors/sp-proto-v1.json` |
 | EXG-CRYPTO-037 | `tests/Crypto/VectorFileTest.php` |
-| EXG-CRYPTO-038 | `frontend/tests/markdown.test.ts`, `tests/Cli/CliTest.php`, `tests/Cli/EnvelopeTest.php` |
-| EXG-CRYPTO-039 | `frontend/tests/markdown.test.ts`, `tests/Cli/EnvelopeTest.php` |
+| EXG-CRYPTO-038 | `frontend/tests/envelope.test.ts`, `frontend/tests/markdown.test.ts`, `tests/Cli/CliTest.php`, `tests/Cli/EnvelopeTest.php` |
+| EXG-CRYPTO-039 | `frontend/tests/envelope.test.ts`, `frontend/tests/markdown.test.ts`, `tests/Cli/EnvelopeTest.php` |
 | EXG-CRYPTO-040 | `frontend/tests/markdown.test.ts` |
 | EXG-CRYPTO-041 | `tests/Http/HardeningTest.php` |
 | EXG-CRYPTO-042 | `frontend/tests/create-page.test.ts`, `tests/Cli/CliTest.php` |
