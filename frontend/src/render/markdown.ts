@@ -60,11 +60,21 @@ let renderer: Renderer | null = null;
 export function renderMarkdown(source: string): DocumentFragment {
   renderer ??= createRenderer();
   const html = renderer.render(source);
-  return DOMPurify.sanitize(html, {
+  const fragment = DOMPurify.sanitize(html, {
     ALLOWED_TAGS,
     ALLOWED_ATTR,
     ALLOWED_URI_REGEXP: /^https?:/i,
     FORBID_ATTR: ['style'],
     RETURN_DOM_FRAGMENT: true,
   });
+  // Applied after sanitisation so that the allowlist cannot drop them (§6.9).
+  for (const link of fragment.querySelectorAll('a')) {
+    if (!isAllowedUrl(link.getAttribute('href') ?? '')) {
+      link.removeAttribute('href');
+      continue;
+    }
+    link.setAttribute('rel', 'noopener noreferrer nofollow');
+    link.setAttribute('target', '_blank');
+  }
+  return fragment;
 }
