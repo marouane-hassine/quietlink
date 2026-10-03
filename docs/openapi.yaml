@@ -108,11 +108,13 @@ paths:
       description: |
         Stores an already encrypted payload. The identifier is assigned by the server.
 
-        Processing order: (1) syntactic validation of the body, the AAD and the
-        `Idempotency-Key` header, independent of the configuration (`400`); (2) idempotent
-        replay: same key and same body (SHA-256 of the raw body) returns the recorded result
-        with `200`, a different body returns `422`; (3) configuration checks (allowed
-        expiration, read-once, passphrase; `400`), creation rate limit (`429`), storage
+        Processing order: (1) syntactic validation of the body, the AAD (at most 4 096 bytes)
+        and the `Idempotency-Key` header, independent of the configuration (`400`);
+        (2) idempotent replay: same key and same body (SHA-256 of the raw body) returns the
+        recorded result with `200`, a different body returns `422`, even if the current limits
+        would refuse the body; (3) configuration checks (`paste.max_metadata_bytes`,
+        `paste.max_ciphertext_bytes`, allowed expiration, read-once, passphrase; `400`),
+        creation rate limit (`429`), storage
         thresholds (`503`), then creation (`201`). Replays are not counted against the
         creation limit but against their own, wider per-address `create_replay` bucket
         (`http.rate_limits.create_replay`, default 120 requests per 600 s).

@@ -319,7 +319,7 @@ final class ConfigLoader
         }
         $envelope = $r->int('paste.max_envelope_bytes');
         $metadata = $r->int('paste.max_metadata_bytes');
-        if ($envelope < 1024 || $metadata < 512 || $metadata > 4096) {
+        if ($envelope < 1024 || $metadata < PasteSettings::MIN_METADATA_BYTES || $metadata > PasteSettings::MAX_METADATA_BYTES) {
             $errors[] = '"paste.max_envelope_bytes" must be at least 1024 and "paste.max_metadata_bytes" between 512 and 4096.';
         }
         $ciphertext = $envelope + 16;

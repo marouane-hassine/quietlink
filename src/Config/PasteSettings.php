@@ -11,6 +11,12 @@ namespace QuietLink\Config;
  */
 final readonly class PasteSettings
 {
+    /** Largest value "paste.max_metadata_bytes" may take (§8.2.3): the absolute AAD ceiling. */
+    public const MAX_METADATA_BYTES = 4096;
+
+    /** Smallest value "paste.max_metadata_bytes" may take. */
+    public const MIN_METADATA_BYTES = 512;
+
     /**
      * @param list<string> $allowedExpirations
      */

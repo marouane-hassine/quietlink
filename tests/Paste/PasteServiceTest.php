@@ -147,6 +147,39 @@ final class PasteServiceTest extends TestCase
         $this->service->create($other->json(), $prepared->idempotencyKey);
     }
 
+    #[Group('EXG-API-016')]
+    #[Group('EXG-API-021')]
+    #[Group('EXG-API-022')]
+    #[Group('EXG-API-023')]
+    public function testReplaySurvivesALoweredSizeLimitButNewCreationsDoNot(): void
+    {
+        $envelope = '{"format":"plain","language":null,"template":null,"text":"' . str_repeat('a', 2000) . '","v":1}';
+        $prepared = ClientCrypto::prepare($envelope, '1d', false);
+        $created = $this->service->create($prepared->json(), $prepared->idempotencyKey);
+        self::assertTrue($created['created']);
+
+        // The administrator lowers the envelope limit below the size of the earlier creation.
+        $this->build(['paste' => ['max_envelope_bytes' => 1024]]);
+        $replay = $this->service->create($prepared->json(), $prepared->idempotencyKey);
+        self::assertFalse($replay['created']);
+        self::assertSame($created['id']->encoded(), $replay['id']->encoded());
+        self::assertSame($created['expires_at'], $replay['expires_at']);
+
+        $other = ClientCrypto::prepare($envelope, '1d', false);
+        $this->expectException(InvalidRequestException::class);
+        $this->service->create($other->json(), $other->idempotencyKey);
+    }
+
+    #[Group('EXG-API-021')]
+    public function testOversizedAadIsRejectedWhateverTheConfiguration(): void
+    {
+        $prepared = ClientCrypto::prepare(self::ENVELOPE, '1d', false);
+        $body = ['aad' => Base64Url::encode(str_repeat('a', 4097))] + $prepared->body;
+
+        $this->expectException(InvalidRequestException::class);
+        $this->service->create(json_encode($body, JSON_THROW_ON_ERROR), $prepared->idempotencyKey);
+    }
+
     #[Group('EXG-API-014')]
     #[Group('EXG-TEST-055')]
     public function testMissingIdempotencyKeyIsRejected(): void

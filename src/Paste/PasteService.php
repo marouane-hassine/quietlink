@@ -10,6 +10,7 @@ use Closure;
 use QuietLink\Clock\Clock;
 use QuietLink\Config\Duration;
 use QuietLink\Config\InstanceConfig;
+use QuietLink\Config\PasteSettings;
 use QuietLink\Crypto\Aad;
 use QuietLink\Crypto\AccessProof;
 use QuietLink\Crypto\Challenge;
@@ -71,11 +72,14 @@ final class PasteService
      */
     public function create(string $body, ?string $idempotencyKey, ?Closure $beforeCreate = null): array
     {
-        // Step 1: syntax, independent of the configuration.
+        // Step 1: syntax, independent of the configuration, so that a replay is answered even
+        // after the limits were lowered (§10, steps 1-2). Only absolute ceilings apply here: the
+        // largest AAD any configuration accepts; the ciphertext is already bounded by the body
+        // size checked before parsing.
         $fields = RequestFields::parse($body, ['aad', 'nonce', 'ciphertext', 'deletion_hash']);
-        $aadBytes = $fields->binary('aad', null, $this->config->paste->maxMetadataBytes);
+        $aadBytes = $fields->binary('aad', null, PasteSettings::MAX_METADATA_BYTES);
         $nonce = $fields->binary('nonce', Protocol::NONCE_BYTES);
-        $ciphertext = $fields->binary('ciphertext', null, $this->config->paste->maxCiphertextBytes);
+        $ciphertext = $fields->binary('ciphertext');
         $deletionHash = $fields->binary('deletion_hash', 32);
         if (strlen($ciphertext) < Protocol::TAG_BYTES) {
             throw new InvalidRequestException('Ciphertext is too short.');
@@ -105,6 +109,9 @@ final class PasteService
 
         // Step 3: configuration-dependent checks, rate limiting, quotas, creation.
         $paste = $this->config->paste;
+        if (strlen($aadBytes) > $paste->maxMetadataBytes || strlen($ciphertext) > $paste->maxCiphertextBytes) {
+            throw new InvalidRequestException('Payload larger than this instance allows.');
+        }
         if (!in_array($aad->expiration, $paste->acceptedExpirationCodes(), true)
             || ($aad->readOnce && !$paste->allowReadOnce)
             || ($aad->kdf !== null && !$paste->allowPassphrase)) {

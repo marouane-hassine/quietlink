@@ -549,7 +549,7 @@ None.
 | EXG-API-013 | `tests/Paste/PasteServiceTest.php` |
 | EXG-API-014 | `tests/Paste/PasteServiceTest.php` |
 | EXG-API-015 | `tests/Paste/PasteServiceTest.php` |
-| EXG-API-016 | `tests/Http/HardeningTest.php` |
+| EXG-API-016 | `tests/Http/HardeningTest.php`, `tests/Paste/PasteServiceTest.php` |
 | EXG-API-017 | `tests/Paste/PasteServiceTest.php` |
 | EXG-API-018 | `tests/e2e/resilience.spec.ts` |
 | EXG-API-019 | `tests/Paste/PasteServiceTest.php` |
