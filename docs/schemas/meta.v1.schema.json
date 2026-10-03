@@ -12,7 +12,8 @@
     "created_at",
     "expires_at",
     "read_once",
-    "deletion_token_hash"
+    "deletion_token_hash",
+    "idempotency_key_hash"
   ],
   "properties": {
     "schema_version": {
@@ -53,6 +54,11 @@
       "minLength": 1,
       "maxLength": 256,
       "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "idempotency_key_hash": {
+      "description": "SHA-256 of the raw Idempotency-Key bytes, base64url without padding (spec §10, creation step 3; used by the purge to find orphan pastes). Never the raw key.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$"
     }
   },
   "examples": [
@@ -63,7 +69,8 @@
       "created_at": 1700000000,
       "expires_at": 1700086400,
       "read_once": true,
-      "deletion_token_hash": "ZHVtbXktZGVsZXRpb24tdG9rZW4taGFzaC0tLS0tLS0"
+      "deletion_token_hash": "ZHVtbXktZGVsZXRpb24tdG9rZW4taGFzaC0tLS0tLS0",
+      "idempotency_key_hash": "aWRlbXBvdGVuY3kta2V5LWhhc2gtZHVtbXktdmFsdWU"
     }
   ]
 }

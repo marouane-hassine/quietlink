@@ -56,7 +56,7 @@ final class FilesystemPasteStoreTest extends TestCase
 
     private function meta(PasteId $id, bool $readOnce = false, ?int $expiresAt = null): PasteMeta
     {
-        return new PasteMeta($id, '{"dummy":"aad"}', $this->clock->now(), $expiresAt ?? $this->clock->now() + 3600, $readOnce, str_repeat("\x05", 32));
+        return new PasteMeta($id, '{"dummy":"aad"}', $this->clock->now(), $expiresAt ?? $this->clock->now() + 3600, $readOnce, str_repeat("\x05", 32), str_repeat("\x06", 32));
     }
 
     private function createPaste(bool $readOnce = false, string $payload = 'nonce+ciphertext'): PasteId
@@ -112,7 +112,7 @@ final class FilesystemPasteStoreTest extends TestCase
 
         self::assertIsArray($meta);
         self::assertIsArray($state);
-        self::assertSame(['schema_version', 'id', 'aad', 'created_at', 'expires_at', 'read_once', 'deletion_token_hash'], array_keys($meta));
+        self::assertSame(['schema_version', 'id', 'aad', 'created_at', 'expires_at', 'read_once', 'deletion_token_hash', 'idempotency_key_hash'], array_keys($meta));
         self::assertSame(['schema_version', 'state', 'terminal_at', 'unconfirmed_opens', 'reservation', 'consumed_signature_hash'], array_keys($state));
     }
 

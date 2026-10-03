@@ -28,6 +28,7 @@ final class RecordCodec
             'expires_at' => $meta->expiresAt,
             'read_once' => $meta->readOnce,
             'deletion_token_hash' => Base64Url::encode($meta->deletionTokenHash),
+            'idempotency_key_hash' => Base64Url::encode($meta->idempotencyKeyHash),
         ]);
     }
 
@@ -49,9 +50,10 @@ final class RecordCodec
 
     public static function decodeMeta(string $json): ?PasteMeta
     {
-        $data = self::object($json, ['schema_version', 'id', 'aad', 'created_at', 'expires_at', 'read_once', 'deletion_token_hash']);
+        $data = self::object($json, ['schema_version', 'id', 'aad', 'created_at', 'expires_at', 'read_once', 'deletion_token_hash', 'idempotency_key_hash']);
         if ($data === null
             || !is_string($data['id']) || !is_string($data['aad']) || !is_string($data['deletion_token_hash'])
+            || !is_string($data['idempotency_key_hash'])
             || !is_int($data['created_at']) || !self::nullableInt($data['expires_at']) || !is_bool($data['read_once'])) {
             return null;
         }
@@ -63,6 +65,7 @@ final class RecordCodec
                 $data['expires_at'],
                 $data['read_once'],
                 Base64Url::decode($data['deletion_token_hash'], 32),
+                Base64Url::decode($data['idempotency_key_hash'], 32),
             );
         } catch (InvalidEncodingException) {
             return null;

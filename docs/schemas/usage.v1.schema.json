@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quietlink.example.test/schemas/usage.v1.schema.json",
+  "title": "usage.json (v1)",
+  "description": "Persistent quota counters, rewritten atomically under state/usage.lock (docs/storage-format.md \u00a79).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "bytes",
+    "items",
+    "recomputed_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "bytes": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Sum of payload.bin sizes still on disk."
+    },
+    "items": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of paste directories, including consumed and deleted ones not yet removed."
+    },
+    "recomputed_at": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "description": "Unix time of the last full recomputation by the purge."
+    }
+  }
+}

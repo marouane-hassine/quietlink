@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quietlink.example.test/schemas/boot.v1.schema.json",
+  "title": "boot.json (v1)",
+  "description": "Boot marker written by app:boot (spec \u00a79.5). Requests answer 503 when it is missing or differs from the loaded configuration.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "booted_at",
+    "config_fingerprint",
+    "secret_check"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "booted_at": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "config_fingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256 of the effective configuration (without secret)."
+    },
+    "secret_check": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "HMAC-SHA-256 of \"sp-proto/v1/server/secret-check\" under a key derived from the instance secret; not reversible."
+    }
+  }
+}

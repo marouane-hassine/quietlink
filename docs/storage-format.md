@@ -74,8 +74,8 @@ Source: §9.4.1, l. 1244–1265; §9.5, l. 1365–1372.
 | `state.json` | rewritten atomically under `state.lock` | create, open, consume, release, delete, purge | [`state.v1`](schemas/state.v1.schema.json) |
 | `state.lock` | created once with the staging dir; content empty | create | — |
 | idempotency record | write-once (published with `link()`) | create | [`idempotency.v1`](schemas/idempotency.v1.schema.json) |
-| `usage.json` | rewritten atomically under `usage.lock` | create, delete paths, purge | no schema yet (OQ-10) |
-| `health.json`, `boot.json` | rewritten atomically | purge, `app:boot` | no schema yet (OQ-10) |
+| `usage.json` | rewritten atomically under `usage.lock` | create, delete paths, purge | [`usage.v1`](schemas/usage.v1.schema.json) |
+| `health.json`, `boot.json` | rewritten atomically | purge, `app:boot` | [`health.v1`](schemas/health.v1.schema.json), [`boot.v1`](schemas/boot.v1.schema.json) |
 
 All JSON files carry an integer `schema_version` (ADR-0002). Proposed (non-normative) encodings: binary values in base64url without padding, timestamps as integer Unix seconds (same convention as the challenge `issued_at`, §6.3.1 l. 442), UTF-8 JSON without BOM.
 
@@ -94,6 +94,7 @@ Raw bytes `nonce ‖ ciphertext` (l. 1249). Its size is what is charged to the b
 | `expires_at` | int or `null` (never) | l. 1228 |
 | `read_once` | bool | l. 1229 |
 | `deletion_token_hash` | string (hash, never the raw token) | l. 1233 |
+| `idempotency_key_hash` | string, SHA-256 of the raw `Idempotency-Key` (never the raw key) | §10, creation step 3 and orphan purge (step 6) |
 
 The AAD is stored byte-exact; the server compares the request's `access_pk` with the one inside the stored AAD (§6.3.1 l. 436). The nonce lives in `payload.bin`, not in `meta.json`.
 

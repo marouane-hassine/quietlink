@@ -18,6 +18,7 @@ final readonly class PasteMeta
         public ?int $expiresAt,
         public bool $readOnce,
         public string $deletionTokenHash,
+        public string $idempotencyKeyHash,
     ) {
     }
 
