@@ -87,7 +87,7 @@ final class Booter
         foreach ([$this->configDir . '/config.php', $this->configDir . '/config.local.php'] as $file) {
             $mode = is_file($file) ? @fileperms($file) : false;
             if ($mode !== false && ($mode & 0004) !== 0) {
-                $this->warnings[] = sprintf('%s is readable by every account: restrict it to the PHP account (chmod 640 or 600).', basename($file));
+                $this->warnings[] = sprintf('%s is readable by every account: restrict it to the account or group running PHP (for example chgrp to that group and chmod 640).', basename($file));
             }
         }
         if ($config->http->trustedProxies === [] && str_starts_with($config->app->publicUrl, 'https://')) {

@@ -72,12 +72,17 @@ Deployment model:
 First start:
 
 ```sh
-mkdir -p secrets
-docker compose run --rm --no-deps app php bin/console app:secret:generate > secrets/app_secret
-chmod 600 secrets/app_secret
+# Create the configuration first: Compose would otherwise create a directory at its place.
 cp config/config.php.example config/config.php
 # edit config/config.php: set app.public_url to https://quietlink.example.test
-docker compose up -d --build
+mkdir -p secrets
+docker compose build
+docker compose run --rm --no-deps app php bin/console app:secret:generate > secrets/app_secret
+# The containers run as uid/gid 10001 and Compose secrets are plain bind mounts (owner and mode
+# kept): give group 10001 read access, and nobody else (on Linux hosts; Docker Desktop maps them).
+sudo chgrp 10001 secrets/app_secret config/config.php
+chmod 640 secrets/app_secret config/config.php
+docker compose up -d
 docker compose exec app php bin/console app:config:check
 ```
 
@@ -170,6 +175,7 @@ Durations use the format `<integer><m|h|d>` (e.g. `30m`, `24h`, `7d`). Expiratio
 |---|---|---|
 | `app.name` | `'QuietLink'` | String; instance name displayed in pages. |
 | `app.public_url` | `null` (must be set) | Required. `https://` origin without path, query, fragment or credentials. `http://` is accepted only for `localhost`, `127.0.0.1`, `[::1]`. |
+| `app.source_url` | `'https://github.com/marouane-hassine/quietlink'` | `https://` URL of the deployed source code, linked in the footer (AGPL-3.0 section 13). Point it to your fork if you modify the code. |
 | `app.enabled_locales` | `['en', 'fr']` | List. Must contain `en` (mandatory fallback); only available locales (`en`, `fr`); no duplicates. |
 
 #### `theme`
@@ -222,6 +228,7 @@ Durations use the format `<integer><m|h|d>` (e.g. `30m`, `24h`, `7d`). Expiratio
 | `http.hsts_max_age` | `31536000` | Integer (seconds). `0` disables the HSTS header. |
 | `http.rate_limits` | see §10 | Map of known buckets to `['limit' => int ≥ 1, 'interval' => int 1–86400]`, exactly these two keys: `http.rate_limits.<bucket>.limit` (requests allowed) and `http.rate_limits.<bucket>.interval` (window in seconds). |
 | `http.rate_limits.create` | `30 / 600 s` | Per client address. |
+| `http.rate_limits.create_replay` | `120 / 600 s` | Per client address: retries of an already-answered creation (same `Idempotency-Key`), counted separately so a client can recover its link. |
 | `http.rate_limits.challenge` | `120 / 60 s` | Per client address. |
 | `http.rate_limits.open` | `60 / 60 s` | Per client address. |
 | `http.rate_limits.status` | `60 / 60 s` | Per client address. |
@@ -238,9 +245,9 @@ Durations use the format `<integer><m|h|d>` (e.g. `30m`, `24h`, `7d`). Expiratio
 | `ui.dark_mode` | `'auto'` | `auto` (system preference), `light` or `dark`. |
 | `ui.templates` | `['credentials', 'api-token', 'wifi', 'ssh-key', 'database', 'env-vars', 'temporary-access', 'incident']` | List; subset of these Markdown templates. |
 | `ui.enable_qr_code` | `true` | Boolean. QR code of the share link (generated locally). |
-| `ui.allow_print` | `false` | Boolean. Validated but **not used by the current code** (no effect). |
-| `ui.allow_export` | `false` | Boolean. Validated but **not used by the current code** (no effect). |
-| `ui.enable_manifest` | `false` | Boolean. Adds `<link rel="manifest" href="/manifest.json">` and `manifest-src 'self'` to the CSP. The current release does not ship a `/manifest.json`: leave it `false`. |
+| `ui.allow_print` | `false` | Boolean. Adds a *Print* button to the reading screen, preceded by a warning (Could, §6.8). |
+| `ui.allow_export` | `false` | Boolean. Adds an *Export* button to the reading screen: the text is saved as a local file generated in the browser, nothing is sent (Could, §6.8). |
+| `ui.enable_manifest` | `false` | Boolean. Adds `<link rel="manifest" href="/manifest.json">` and `manifest-src 'self'` to the CSP. `/manifest.json` is a minimal manifest (no Service Worker, no secret data). |
 
 #### `log`
 

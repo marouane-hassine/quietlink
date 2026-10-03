@@ -19,6 +19,8 @@ cp config/config.php.example config/config.php       # set app.public_url
 mkdir -p secrets
 docker compose build
 docker compose run --rm --no-deps app php bin/console app:secret:generate > secrets/app_secret
+sudo chgrp 10001 secrets/app_secret config/config.php   # containers run as uid/gid 10001
+chmod 640 secrets/app_secret config/config.php
 docker compose up -d
 ```
 
@@ -33,8 +35,10 @@ printf '%s' "$LINK" | quietlink metadata --url-stdin
 printf '%s' "$LINK" | quietlink decrypt --url-stdin
 ```
 
-Available as a PHAR (requires PHP 8.3 with intl, sodium, openssl) or the `quietlink/cli`
-Docker image (`docker run -it` for interactive passphrase prompts).
+Available as a PHAR (requires PHP 8.3 with intl, sodium, openssl, mbstring) or the
+`ghcr.io/marouane-hassine/quietlink-cli` Docker image published with each release
+(`docker run -it` for interactive passphrase prompts; build it locally with
+`docker build -f docker/cli/Dockerfile -t quietlink/cli .`).
 
 ## Documentation
 

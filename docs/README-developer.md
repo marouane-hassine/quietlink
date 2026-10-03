@@ -323,7 +323,8 @@ bin/quietlink decrypt --url-stdin -o out.txt < share-link.txt
 # Delete with the management link
 bin/quietlink delete --url-stdin --yes < manage-link.txt
 
-# Docker
+# Docker (local build; releases publish ghcr.io/marouane-hassine/quietlink-cli)
+docker build -f docker/cli/Dockerfile -t quietlink/cli .
 docker run --rm -i quietlink/cli metadata --url-stdin < share-link.txt
 ```
 
