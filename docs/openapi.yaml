@@ -69,6 +69,19 @@ info:
     `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Resource-Policy: same-origin`,
     and, over HTTPS when enabled, `Strict-Transport-Security`. No cookie is ever set.
 
+    ## CORS
+
+    Disabled by default. When the instance lists origins in `http.cors_allowed_origins`, a
+    request under `/api/v1` whose `Origin` header equals one of them exactly (scheme, host and
+    port; no wildcard) receives `Access-Control-Allow-Origin: <that origin>` and
+    `Access-Control-Expose-Headers: Retry-After`; every `/api/v1` response then carries
+    `Vary: Origin`. `Access-Control-Allow-Credentials` is never sent. A preflight
+    (`OPTIONS` with `Origin` and `Access-Control-Request-Method`) from such an origin, for a
+    method the path supports, is answered `204` with `Access-Control-Allow-Methods` (the
+    methods of the path), `Access-Control-Allow-Headers: Content-Type, Idempotency-Key, X-Deletion-Token`
+    and `Access-Control-Max-Age: 600`. Any other `OPTIONS` request is a `405`, and other
+    origins and paths never receive CORS headers.
+
     ## Global failure modes
 
     Any endpoint may also answer:

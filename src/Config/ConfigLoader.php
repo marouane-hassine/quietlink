@@ -370,8 +370,8 @@ final class ConfigLoader
             $rateLimits[$bucket] = new RateLimitSettings($limit, $interval);
         }
         foreach ($r->stringList('http.cors_allowed_origins') as $origin) {
-            if (!self::isValidPublicUrl($origin)) {
-                $errors[] = '"http.cors_allowed_origins" entries must be https origins.';
+            if (!self::isValidCorsOrigin($origin)) {
+                $errors[] = '"http.cors_allowed_origins" entries must be exact lowercase origins "https://host[:port]" without path, trailing slash or wildcard (http only for localhost).';
             }
         }
         foreach ($r->stringList('http.trusted_proxies') as $proxy) {
@@ -469,6 +469,36 @@ final class ConfigLoader
 
         return $parts['scheme'] === 'https'
             || ($parts['scheme'] === 'http' && in_array($parts['host'], ['localhost', '127.0.0.1', '[::1]'], true));
+    }
+
+    /**
+     * An origin exactly as a browser serializes it in the Origin header (RFC 6454): lowercase
+     * scheme and host, no default port, no path, no trailing slash, no wildcard. Plain http is
+     * accepted only for loopback hosts, like app.public_url.
+     */
+    private static function isValidCorsOrigin(string $origin): bool
+    {
+        $label = '[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?';
+        $pattern = '#^(https?)://(' . $label . '(?:\.' . $label . ')*|\[[0-9a-f:.]+\])(?::([1-9][0-9]{0,4}))?$#D';
+        if (preg_match($pattern, $origin, $match) !== 1) {
+            return false;
+        }
+        [, $scheme, $host] = $match;
+        $port = isset($match[3]) ? (int) $match[3] : null;
+        if ($port !== null && ($port > 65535 || $port === ($scheme === 'https' ? 443 : 80))) {
+            return false;
+        }
+        if (str_starts_with($host, '[')) {
+            $packed = @inet_pton(substr($host, 1, -1));
+            // Only the canonical (compressed) IPv6 form can match a browser Origin.
+            if ($packed === false || strlen($packed) !== 16 || inet_ntop($packed) !== substr($host, 1, -1)) {
+                return false;
+            }
+        } elseif (preg_match('/^[0-9.]+$/D', $host) === 1 && filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false) {
+            return false;
+        }
+
+        return $scheme === 'https' || in_array($host, ['localhost', '127.0.0.1', '[::1]'], true);
     }
 
     /**

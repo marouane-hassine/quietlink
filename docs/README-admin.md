@@ -225,7 +225,7 @@ Durations use the format `<integer><m|h|d>` (e.g. `30m`, `24h`, `7d`). Expiratio
 | `http.max_request_bytes` | `1441792` | Integer; must be ≥ `ceil((max_envelope_bytes + 16) × 4/3) + ceil(max_metadata_bytes × 4/3) + 16384` (1,419,969 with the defaults). Keep the web server body limit aligned. |
 | `http.ratelimit_ipv6_prefix` | `64` | Integer 48–64. IPv6 clients are rate limited per prefix. |
 | `http.trusted_proxies` | `[]` | List of IPv4 or IPv6 addresses or CIDR ranges (prefix 0–32 for IPv4, 0–128 for IPv6) allowed to set `X-Forwarded-*` / `Forwarded`. See §9. |
-| `http.cors_allowed_origins` | `[]` | List of `https://` origins. Empty = CORS disabled. |
+| `http.cors_allowed_origins` | `[]` | List of exact origins allowed to call `/api/v1` from a browser on another site, written as the browser sends them: lowercase `https://host[:port]`, no path, no trailing slash, no wildcard, no default port (`http://` only for `localhost`, `127.0.0.1`, `[::1]`). Empty = CORS disabled. See §9. |
 | `http.hsts_max_age` | `31536000` | Integer ≥ 0 (seconds). `0` disables the HSTS header. |
 | `http.rate_limits` | see §10 | Map of known buckets to `['limit' => int ≥ 1, 'interval' => int 1–86400]`, exactly these two keys: `http.rate_limits.<bucket>.limit` (requests allowed) and `http.rate_limits.<bucket>.interval` (window in seconds). |
 | `http.rate_limits.create` | `30 / 600 s` | Per client address. |
@@ -447,6 +447,13 @@ Cron example (host installation):
   `X-Forwarded-For`, `X-Forwarded-Proto`, `X-Forwarded-Host`, `X-Forwarded-Port` and
   `Forwarded` honoured. With an empty list behind a proxy, **all clients share one rate limiting
   key** (`app:boot` warns about it). Never list ranges that untrusted clients can connect from.
+- **CORS** is disabled by default and only concerns `/api/v1` (never pages, assets or
+  `/healthz`). For an origin listed in `http.cors_allowed_origins` (exact match), API
+  responses carry `Access-Control-Allow-Origin: <origin>`, `Vary: Origin` and
+  `Access-Control-Expose-Headers: Retry-After`, and preflight requests are answered `204`
+  with the path's methods, `Access-Control-Allow-Headers: Content-Type, Idempotency-Key,
+  X-Deletion-Token` and `Access-Control-Max-Age: 600`. Credentials are never allowed. List
+  only origins you trust to run API clients; do not add CORS headers in the proxy.
 - The proxy must strip incoming `X-Forwarded-*` headers from clients and set its own, must not
   log full URLs, request bodies, `X-Deletion-Token` or `Idempotency-Key` headers, and must not
   cache API responses. Share links carry their key in the fragment, which is never sent, but

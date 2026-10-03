@@ -183,6 +183,22 @@ final class OpenApiContractTest extends KernelTestCase
     }
 
     #[Group('EXG-API-007')]
+    #[Group('EXG-CONF-019')]
+    public function testCorsSectionMatchesTheSentHeaders(): void
+    {
+        $this->bootInstance(['http' => ['cors_allowed_origins' => ['https://client.example.test']]]);
+        $content = implode("\n", self::lines());
+        $preflight = $this->request('OPTIONS', '/api/v1/pastes', null, ['Origin' => 'https://client.example.test', 'Access-Control-Request-Method' => 'POST']);
+        $response = $this->request('POST', '/api/v1/pastes', '{}', ['Origin' => 'https://client.example.test']);
+
+        self::assertSame(204, $preflight->getStatusCode());
+        foreach (['Access-Control-Allow-Headers', 'Access-Control-Max-Age'] as $name) {
+            self::assertStringContainsString('`' . $name . ': ' . $preflight->headers->get($name) . '`', $content, $name);
+        }
+        self::assertStringContainsString('`Access-Control-Expose-Headers: ' . $response->headers->get('Access-Control-Expose-Headers') . '`', $content);
+    }
+
+    #[Group('EXG-API-007')]
     public function testEveryLocalReferenceResolves(): void
     {
         $defined = [];

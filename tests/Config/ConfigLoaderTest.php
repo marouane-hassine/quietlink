@@ -194,6 +194,9 @@ final class ConfigLoaderTest extends TestCase
         yield 'empty instance name' => [['app' => ['public_url' => 'https://paste.example.test', 'name' => '']], 'app.name'];
         yield 'blank instance name' => [['app' => ['public_url' => 'https://paste.example.test', 'name' => '   ']], 'app.name'];
         yield 'duplicate template' => [$base + ['ui' => ['templates' => ['wifi', 'wifi']]], 'ui.templates'];
+        foreach (['https://a.example.test/', 'https://a.example.test/path', 'https://*.example.test', '*', 'null', 'http://a.example.test', 'https://A.example.test', 'https://a.example.test:443', 'http://localhost:80', 'https://a.example.test?x', 'https://user@a.example.test', 'a.example.test', 'https://a..example.test', 'https://[::1'] as $origin) {
+            yield 'cors origin ' . $origin => [$base + ['http' => ['cors_allowed_origins' => [$origin]]], 'cors_allowed_origins'];
+        }
         yield 'envelope limit overflow' => [$base + ['paste' => ['max_envelope_bytes' => PHP_INT_MAX]], 'max_envelope_bytes'];
         yield 'envelope limit above ceiling' => [$base + ['paste' => ['max_envelope_bytes' => 16777217], 'http' => ['max_request_bytes' => PHP_INT_MAX]], 'max_envelope_bytes'];
     }
@@ -245,6 +248,15 @@ final class ConfigLoaderTest extends TestCase
         $this->writeConfig(self::MINIMAL + ['http' => ['trusted_proxies' => $proxies]]);
 
         self::assertSame($proxies, $this->load()->http->trustedProxies);
+    }
+
+    #[Group('EXG-CONF-019')]
+    public function testCorsOriginsAcceptExactOrigins(): void
+    {
+        $origins = ['https://a.example.test', 'https://b.example.test:8443', 'http://localhost:5173', 'http://127.0.0.1:8080', 'http://[::1]:3000', 'https://[2001:db8::1]'];
+        $this->writeConfig(self::MINIMAL + ['http' => ['cors_allowed_origins' => $origins]]);
+
+        self::assertSame($origins, $this->load()->http->corsAllowedOrigins);
     }
 
     public function testHttpLocalhostIsAllowedForDevelopment(): void

@@ -504,7 +504,7 @@ None.
 | EXG-CONF-016 | `tests/Maintenance/BooterTest.php` |
 | EXG-CONF-017 | `tests/Http/ApiTest.php` |
 | EXG-CONF-018 | `tests/Config/ConfigLoaderTest.php` |
-| EXG-CONF-019 | `tests/Config/ConfigLoaderTest.php`, `tests/Http/HardeningTest.php` |
+| EXG-CONF-019 | `tests/Config/ConfigLoaderTest.php`, `tests/Http/CorsTest.php`, `tests/Http/HardeningTest.php`, `tests/Http/OpenApiContractTest.php` |
 | EXG-CONF-020 | `tests/Config/ConfigLoaderTest.php` |
 | EXG-LIFE-020 | `tests/Maintenance/PurgerTest.php` |
 | EXG-SEC-098 | `tests/Web/PageTest.php` |
