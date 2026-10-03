@@ -41,10 +41,8 @@ final class RuntimeGuardSubscriber implements EventSubscriberInterface
 
             return;
         }
-        $proxies = $this->status->config()->http->trustedProxies;
-        if ($proxies !== []) {
-            Request::setTrustedProxies($proxies, Request::HEADER_X_FORWARDED_FOR | Request::HEADER_X_FORWARDED_PROTO
-                | Request::HEADER_X_FORWARDED_HOST | Request::HEADER_X_FORWARDED_PORT | Request::HEADER_FORWARDED);
-        }
+        // Always applied (an empty list resets any previous value of this static setting).
+        Request::setTrustedProxies($this->status->config()->http->trustedProxies, Request::HEADER_X_FORWARDED_FOR
+            | Request::HEADER_X_FORWARDED_PROTO | Request::HEADER_X_FORWARDED_HOST | Request::HEADER_X_FORWARDED_PORT | Request::HEADER_FORWARDED);
     }
 }
