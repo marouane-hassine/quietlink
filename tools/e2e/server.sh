@@ -20,6 +20,12 @@ return [
         'min_free_bytes' => 1,
     ],
     'paste' => ['read_once_reservation_ttl' => 30],
+    // The full campaign (5 browser projects, one client address) creates and deletes far more
+    // than the production 10-minute budgets allow; per-minute buckets keep their defaults.
+    'http' => ['rate_limits' => [
+        'create' => ['limit' => 1000, 'interval' => 600],
+        'delete' => ['limit' => 1000, 'interval' => 600],
+    ]],
     'log' => ['level' => 'warning'],
 ];
 PHP
