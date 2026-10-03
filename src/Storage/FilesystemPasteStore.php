@@ -211,12 +211,28 @@ final class FilesystemPasteStore implements PasteStore
                     } catch (Throwable) {
                         continue;
                     }
-                    if ($this->layout->pasteDir($id) === $dir) {
+                    if (self::sameDirectory($this->layout->pasteDir($id), $dir)) {
                         yield $id;
                     }
                 }
             }
         }
+    }
+
+    /**
+     * True when both paths name the same directory. On a case-insensitive filesystem a paste may
+     * live under a shard whose case differs from its identifier; the inode comparison keeps it listed.
+     */
+    private static function sameDirectory(string $expected, string $actual): bool
+    {
+        if ($expected === $actual) {
+            return true;
+        }
+        clearstatcache();
+        $a = @stat($expected);
+        $b = @stat($actual);
+
+        return $a !== false && $b !== false && $a['dev'] === $b['dev'] && $a['ino'] === $b['ino'];
     }
 
     /**

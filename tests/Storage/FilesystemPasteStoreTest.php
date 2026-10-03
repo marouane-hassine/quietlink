@@ -244,4 +244,21 @@ final class FilesystemPasteStoreTest extends TestCase
 
         self::assertSame($expected, $ids);
     }
+
+    /**
+     * On a case-insensitive filesystem (macOS, Docker Desktop bind mounts), shards "ab" and "AB"
+     * are one directory: every paste stored there must still be listed, hence purged.
+     */
+    public function testListsIdentifiersWhoseShardsDifferOnlyByCase(): void
+    {
+        $lower = PasteId::fromEncoded('abcd' . str_repeat('x', 28));
+        $upper = PasteId::fromEncoded('ABCD' . str_repeat('y', 28));
+        foreach ([$lower, $upper] as $id) {
+            $this->store->create(fn (PasteId $id): PasteMeta => $this->meta($id), static fn (): PasteId => $id, 'payload');
+        }
+        $ids = array_map(static fn (PasteId $id): string => $id->encoded(), iterator_to_array($this->store->ids(), false));
+        sort($ids);
+
+        self::assertSame([$upper->encoded(), $lower->encoded()], $ids);
+    }
 }
