@@ -10,7 +10,6 @@ import DOMPurify from 'dompurify';
 import { byteLength, type Envelope } from '../crypto/envelope';
 import { t } from '../i18n';
 import { parseTemplateText } from '../templates';
-import { toast } from '../ui/announcer';
 import { copyText } from '../ui/clipboard';
 import { el, nextId } from '../ui/dom';
 import { HIGHLIGHT_LIMIT_BYTES, highlightToHtml } from './highlight';
@@ -52,9 +51,7 @@ export function buildContentView(envelope: Envelope, options: { wifiQr?: boolean
     for (const pre of container.querySelectorAll('pre')) {
       const blockText = pre.textContent ?? '';
       const copyBlock = el('button', { type: 'button', class: 'button button-tertiary copy-block' }, t('read.copyBlock'));
-      copyBlock.addEventListener('click', async () => {
-        if (await copyText(blockText)) toast(t('read.clipboardAdvice'));
-      });
+      copyBlock.addEventListener('click', () => void copyText(blockText, t('read.copied')));
       pre.before(copyBlock);
     }
     for (const [button, value] of buttons) button.setAttribute('aria-pressed', String(value === mode));

@@ -18,7 +18,7 @@ import type { buildContentView } from '../render/content-view';
 type BuildContentView = typeof buildContentView;
 import { t } from '../i18n';
 import { exportButton, printButton } from '../ui/local-output';
-import { announce, toast } from '../ui/announcer';
+import { announce } from '../ui/announcer';
 import { copyText } from '../ui/clipboard';
 import { synchronise, type Sync } from '../ui/countdown';
 import { runCountdown } from '../ui/expiry-view';
@@ -257,6 +257,7 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
       view.hidden = hidden;
       container.classList.toggle('is-hidden', hidden);
       container.setAttribute('aria-hidden', String(hidden));
+      container.toggleAttribute('inert', hidden);
       hiddenNotice.hidden = !hidden;
       hideButton.textContent = hidden ? t('read.show') : t('read.hide');
       hideButton.setAttribute('aria-pressed', String(hidden));
@@ -264,9 +265,7 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
     };
     hideButton.addEventListener('click', () => setHidden(!container.classList.contains('is-hidden')));
     const copyAll = el('button', { type: 'button', class: 'button button-primary' }, t('action.copy'));
-    copyAll.addEventListener('click', async () => {
-      if (await copyText(envelope.text)) toast(t('read.clipboardAdvice'));
-    });
+    copyAll.addEventListener('click', () => void copyText(envelope.text, t('read.copied')));
 
     let idle = 0;
     const activity = () => {

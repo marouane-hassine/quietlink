@@ -180,7 +180,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       const parts = [t('summary.expires', { duration: t(`expiration.${state.expiration}`) })];
       if (state.readOnce) parts.push(t('summary.readOnce'));
       if (state.usePassphrase) parts.push(t('summary.passphrase'));
-      summary.replaceChildren(el('span', {}, `${t('summary.label')} : ${parts.join(' · ')}`), ' ', changeButton);
+      summary.replaceChildren(el('span', {}, t('summary.line', { settings: parts.join(' · ') })), ' ', changeButton);
       setUnloadGuard(state.text !== '', t('editor.empty'));
     };
 
@@ -366,7 +366,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       expirationSelect.value = state.expiration;
       readOnce.checked = state.readOnce;
       refresh();
-      announce(`${t('summary.label')} : ${t(`expiration.${state.expiration}`)}`);
+      announce(t('summary.line', { settings: t(`expiration.${state.expiration}`) }));
     };
     if (config.allowReadOnce) {
       const secret = el('button', { type: 'button', class: 'chip' }, t('preset.secret'));
@@ -476,8 +476,12 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
         event.preventDefault();
         void doSubmit(false);
       } else if (event.key === 'Escape') {
-        if (options.open) options.open = false;
-        else if (sent.open) sent.open = false;
+        // Focus goes back to the summary first, or it would be lost with the closed content.
+        const panel = options.open ? options : sent.open ? sent : null;
+        if (panel) {
+          panel.querySelector('summary')?.focus();
+          panel.open = false;
+        }
       }
     };
     main.addEventListener('keydown', onKey);
@@ -573,7 +577,9 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       toast(t('passphrase.generated'));
     });
     const copyButton = el('button', { type: 'button', class: 'button button-tertiary' }, t('passphrase.copy'));
-    copyButton.addEventListener('click', () => void copyText(input.value, t('passphrase.copied')));
+    copyButton.addEventListener('click', () => {
+      if (input.value !== '') void copyText(input.value, t('passphrase.copied'));
+    });
 
     const confirmField = el('div', { class: 'field' }, el('label', { for: confirmInput.id }, t('passphrase.confirm')), confirmInput, mismatch);
     const panel = el(

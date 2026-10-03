@@ -222,6 +222,8 @@ describe('auto-hide', () => {
     vi.advanceTimersByTime(2_000);
     expect(hidden()).toBe(true);
     expect(container.getAttribute('aria-hidden')).toBe('true');
+    // Hidden content can be neither focused nor used (links, block copy).
+    expect(container.hasAttribute('inert')).toBe(true);
     expect(main.textContent).toContain(t('read.hidden'));
 
     // The user can show it again and keep it visible.
@@ -399,5 +401,19 @@ describe('language change on the content screen', () => {
     expect(content()?.container.classList.contains('is-hidden')).toBe(true);
     expect(requests).toHaveLength(sent);
     setLocale('en');
+  });
+});
+
+describe('copy feedback', () => {
+  it('confirms the copy and gives the clipboard advice in one message', async () => {
+    const paste = await makePaste();
+    serve(paste);
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText: async () => undefined } });
+    mount();
+    await onContent();
+    (main.querySelector('.action-bar .button-primary') as HTMLButtonElement).click();
+    await until(() => document.getElementById('ql-toast')?.textContent !== undefined && document.getElementById('ql-toast')?.textContent !== '');
+
+    expect(document.getElementById('ql-toast')?.textContent).toBe(t('read.copied'));
   });
 });

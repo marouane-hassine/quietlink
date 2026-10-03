@@ -2,7 +2,7 @@
 // @vitest-environment jsdom
 // Requirements: EXG-UX-046, EXG-UX-088, EXG-UX-105.
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { confirmInline } from '../src/ui/confirm';
 import { setLocale } from '../src/i18n';
 
@@ -28,6 +28,19 @@ describe('inline confirmation', () => {
   it('resolves false on Escape', async () => {
     const answer = confirmInline(trigger(), 'Replace?', 'Replace');
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await expect(answer).resolves.toBe(false);
+  });
+
+  it('lets Escape through once a redraw removed the panel', async () => {
+    const button = trigger();
+    const answer = confirmInline(button, 'Replace?', 'Replace');
+    document.body.replaceChildren(); // the screen was redrawn (language change)
+    const later = vi.fn();
+    document.addEventListener('keydown', later);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    document.removeEventListener('keydown', later);
+
+    expect(later).toHaveBeenCalledOnce();
     await expect(answer).resolves.toBe(false);
   });
 });

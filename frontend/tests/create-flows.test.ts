@@ -185,4 +185,33 @@ describe('creation flow', () => {
     expect((main.querySelector('.link-field') as HTMLInputElement).value).toContain('/p/');
     setLocale('en');
   });
+
+  it('returns focus to the panel summary when Escape closes the options', () => {
+    const options = main.querySelector('details.options') as HTMLDetailsElement;
+    options.open = true;
+    (options.querySelector('select') as HTMLSelectElement).focus();
+    editor().dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+    expect(options.open).toBe(false);
+    expect(document.activeElement).toBe(options.querySelector('summary'));
+  });
+
+  it('builds the settings line from one catalogue entry, with the punctuation of the language', () => {
+    expect(main.querySelector('.summary span')?.textContent).toBe(t('summary.line', { settings: t('summary.expires', { duration: t('expiration.1d') }) }));
+    expect(main.querySelector('.summary span')?.textContent).toMatch(/^Settings: /);
+  });
+
+  it('copies nothing and confirms nothing while the passphrase is empty', async () => {
+    const writeText = vi.fn(async () => undefined);
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+    (main.querySelector('details.options') as HTMLDetailsElement).open = true;
+    const use = [...main.querySelectorAll('.options input[type=checkbox]')].at(-1) as HTMLInputElement;
+    use.checked = true;
+    use.dispatchEvent(new Event('change'));
+    button(t('passphrase.copy')).click();
+    await settle();
+
+    expect(writeText).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
 });

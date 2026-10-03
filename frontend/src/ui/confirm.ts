@@ -20,13 +20,19 @@ export function confirmInline(trigger: HTMLElement, message: string, confirmLabe
     text.id = nextId('confirm');
     const panel = el('div', { class: 'confirm-panel', role: 'alertdialog', 'aria-modal': 'false', 'aria-describedby': text.id }, text, el('div', { class: 'button-row' }, confirm, cancel));
     const close = (result: boolean) => {
+      const shown = panel.isConnected;
       panel.remove();
       document.removeEventListener('keydown', onKey, true);
       open = null;
-      trigger.focus();
+      if (shown && trigger.isConnected) trigger.focus();
       resolve(result);
     };
     const onKey = (event: KeyboardEvent) => {
+      if (!panel.isConnected) {
+        // A redraw removed the panel: release the listener and let the key through.
+        close(false);
+        return;
+      }
       if (event.key === 'Escape') {
         event.stopPropagation();
         close(false);

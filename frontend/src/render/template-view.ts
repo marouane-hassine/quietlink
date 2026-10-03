@@ -9,7 +9,6 @@
 import { t } from '../i18n';
 import { isSensitiveLabel, wifiPayload, type ParsedTemplate } from '../templates';
 import { qrSvg } from '../ui/qrcode';
-import { toast } from '../ui/announcer';
 import { copyText } from '../ui/clipboard';
 import { el } from '../ui/dom';
 
@@ -54,9 +53,7 @@ export function renderTemplateView(template: ParsedTemplate, options: { wifiQr?:
       }
       if (field.value !== '') {
         const copy = el('button', { type: 'button', class: 'button button-secondary' }, t('tpl.field.copy', { label: field.label }));
-        copy.addEventListener('click', async () => {
-          if (await copyText(field.value, t('tpl.field.copied', { label: field.label }))) toast(t('read.clipboardAdvice'));
-        });
+        copy.addEventListener('click', () => void copyText(field.value, t('tpl.field.copied', { label: field.label })));
         actions.append(copy);
       }
       list.append(el('dt', {}, field.label), el('dd', {}, value, actions));
