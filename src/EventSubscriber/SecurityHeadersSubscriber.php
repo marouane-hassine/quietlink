@@ -45,6 +45,8 @@ final class SecurityHeadersSubscriber implements EventSubscriberInterface
             $directives[] = "manifest-src 'self'";
         }
         array_push($directives, "form-action 'none'", "base-uri 'none'", "frame-ancestors 'none'", "object-src 'none'");
+        // Trusted Types (SHOULD): DOMPurify for rendered Markdown, one policy for the worker URL.
+        array_push($directives, "require-trusted-types-for 'script'", 'trusted-types dompurify quietlink-worker');
         if ($secure) {
             $directives[] = 'upgrade-insecure-requests';
         }
