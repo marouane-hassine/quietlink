@@ -25,4 +25,6 @@ PHP
 export APP_ENV=dev QUIETLINK_CONFIG_DIR="$dir/config" QUIETLINK_GENERATED_DIR="$dir/generated"
 export QUIETLINK_APP_SECRET="ZTJlLW9ubHktZHVtbXktc2VjcmV0LW5vdC1mb3ItcHJvZHVjdGlvbg=="
 php "$root/bin/console" app:boot >/dev/null
+tools_dir="$root/tools/dev"
+"$tools_dir/purge-loop.sh" &
 exec php -S localhost:8090 -t "$root/public" "$root/tools/dev/router.php"
