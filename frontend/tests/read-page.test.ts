@@ -236,6 +236,8 @@ describe('auto-hide', () => {
 
 describe('expiry display', () => {
   const expiryText = () => main.querySelector('.expiry')?.textContent ?? '';
+  // The relative-time line alone, without the inaccurate-clock notice.
+  const expiryLine = () => main.querySelector('.expiry span')?.textContent ?? expiryText();
 
   it('computes the remaining time from server_time, whatever the local clock says', async () => {
     const paste = await makePaste();
@@ -258,7 +260,7 @@ describe('expiry display', () => {
     views.built = [];
     mount();
     await onContent();
-    expect(expiryText()).toBe(t('time.expired'));
+    expect(expiryLine()).toBe(t('time.expired'));
   });
 
   it('marks the remaining time as approximate after a slow round trip', async () => {
@@ -274,10 +276,7 @@ describe('expiry display', () => {
     expect(expiryText()).toContain(t('time.approximate'));
   });
 
-  // DEFECT: read.ts startCountdown() (lines 284-298) never listens to visibilitychange and does
-  // not apply the elapsed wall-clock gap, unlike the creation result screen; a countdown
-  // frozen by device sleep (performance.now() stopped) is not resynchronised (§5.1 step 4).
-  it.fails('resynchronises the countdown when the page becomes visible again', async () => {
+  it('resynchronises the countdown when the page becomes visible again', async () => {
     const paste = await makePaste();
     let wall = Date.parse('2026-10-03T12:00:00Z');
     vi.spyOn(performance, 'now').mockReturnValue(5_000);
@@ -286,6 +285,8 @@ describe('expiry display', () => {
     mount();
     await onContent();
     expect(expiryText()).toContain(formatRelative(24 * 3600 - 0));
+    // The device clock is years behind the server: the reader is told so (§5.1).
+    expect(expiryText()).toContain(t('time.clockWarning'));
     const setVisibility = (state: DocumentVisibilityState) => {
       Object.defineProperty(document, 'visibilityState', { value: state, configurable: true });
       document.dispatchEvent(new Event('visibilitychange'));

@@ -11,9 +11,14 @@ export interface Sync {
   remaining: number;
   at: number;
   approximate: boolean;
+  /** The local wall clock differs from the server estimate by more than CLOCK_SKEW_MS. */
+  skewed: boolean;
 }
 
-export function synchronise(expiresAtIso: string, serverTimeIso: string, t0: number, t1: number): Sync {
+/** Beyond this gap the device clock is reported as inaccurate (local dates may be off). */
+export const CLOCK_SKEW_MS = 120_000;
+
+export function synchronise(expiresAtIso: string, serverTimeIso: string, t0: number, t1: number, wallNow: number = Date.now()): Sync {
   const expires = Date.parse(expiresAtIso);
   const server = Date.parse(serverTimeIso);
   const roundTrip = t1 - t0;
@@ -21,6 +26,7 @@ export function synchronise(expiresAtIso: string, serverTimeIso: string, t0: num
     remaining: (expires - (server + roundTrip / 2)) / 1000,
     at: t1,
     approximate: roundTrip > 5000,
+    skewed: Math.abs(wallNow - (server + roundTrip / 2)) > CLOCK_SKEW_MS,
   };
 }
 

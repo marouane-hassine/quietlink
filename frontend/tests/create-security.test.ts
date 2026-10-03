@@ -367,6 +367,7 @@ describe('expiry on the result screen', () => {
     submit().click();
     await onResult();
     const expiry = () => main.querySelector('.expiry')?.textContent ?? '';
+    const expiryLine = () => main.querySelector('.expiry span')?.textContent ?? expiry();
     expect(expiry()).toContain(formatRelative(3600));
     const setVisibility = (state: DocumentVisibilityState) => {
       Object.defineProperty(document, 'visibilityState', { value: state, configurable: true });
@@ -380,7 +381,7 @@ describe('expiry on the result screen', () => {
       setVisibility('hidden');
       wall += 20 * 60 * 1000;
       setVisibility('visible');
-      expect(expiry()).toBe(t('time.expired'));
+      expect(expiryLine()).toBe(t('time.expired'));
     } finally {
       Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
     }

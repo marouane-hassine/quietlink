@@ -18,7 +18,8 @@ import { buildTemplateForm } from '../ui/template-form';
 import { announce, toast } from '../ui/announcer';
 import { canReadClipboard, copyText } from '../ui/clipboard';
 import { confirmInline } from '../ui/confirm';
-import { crossedThreshold, nextTickMs, remainingAt, synchronise, type Sync } from '../ui/countdown';
+import { synchronise, type Sync } from '../ui/countdown';
+import { runCountdown } from '../ui/expiry-view';
 import { el, nextId, showScreen } from '../ui/dom';
 import { formatBytes, formatDate, formatRelative } from '../ui/format';
 import { generate, strength, wordlist } from '../ui/passphrase';
@@ -551,42 +552,6 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     copy.addEventListener('click', () => void copyText(shareLink));
 
     const expiry = el('p', { class: 'expiry' });
-    let previous = Number.POSITIVE_INFINITY;
-    let timer = 0;
-    let hiddenWall = 0;
-    let hiddenMono = 0;
-    const tick = () => {
-      if (!sync || expiresAt === null) {
-        expiry.textContent = t('result.never');
-        return;
-      }
-      if (!expiry.isConnected && previous !== Number.POSITIVE_INFINITY) return;
-      const remaining = remainingAt(sync, performance.now());
-      const date = formatDate(Date.parse(expiresAt));
-      expiry.textContent = remaining <= 0 ? t('time.expired') : t('result.expires', { relative: (sync.approximate ? `${t('time.approximate')} ` : '') + formatRelative(remaining), date });
-      const crossed = crossedThreshold(previous, remaining);
-      if (crossed !== null) announce(expiry.textContent);
-      previous = remaining;
-      if (remaining > 0) timer = window.setTimeout(tick, nextTickMs(remaining));
-    };
-    const onVisibility = () => {
-      if (!expiry.isConnected) {
-        document.removeEventListener('visibilitychange', onVisibility);
-        return;
-      }
-      if (!sync) return;
-      if (document.visibilityState === 'hidden') {
-        hiddenWall = Date.now();
-        hiddenMono = performance.now();
-      } else if (hiddenWall > 0) {
-        // performance.now() may stop during sleep: apply the elapsed wall-clock gap.
-        const gap = Date.now() - hiddenWall - (performance.now() - hiddenMono);
-        if (gap > 1000) sync.at -= gap;
-        window.clearTimeout(timer);
-        tick();
-      }
-    };
-    document.addEventListener('visibilitychange', onVisibility);
 
     const extras = el('div', { class: 'button-row' });
     if (config.enableQrCode) {
@@ -659,7 +624,6 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       button.addEventListener('click', async () => {
         if (!manageCopied && !(await confirmInline(button, t('result.leaveWarning'), t('action.new')))) return;
         setUnloadGuard(false, '');
-        window.clearTimeout(timer);
         busy = false;
         state.usePassphrase = false;
         state.readOnce = false;
@@ -682,7 +646,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       el('section', { class: 'danger-zone', 'aria-label': t('manage.title') }, el('h2', {}, t('manage.title')), reveal, dangerBody),
       el('div', { class: 'action-bar' }, newButton()),
     );
-    tick();
+    runCountdown(expiry, expiresAt, sync);
     announce(t('result.title'));
   }
 

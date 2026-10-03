@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // @vitest-environment jsdom
-// Requirements: EXG-UX-082, EXG-UX-084, EXG-A11Y-007, EXG-I18N-002, EXG-I18N-006, EXG-I18N-007, EXG-CRYPTO-004, EXG-CRYPTO-003, EXG-I18N-008, EXG-I18N-012, EXG-TEST-026, EXG-TEST-063, EXG-TEST-064.
+// Requirements: EXG-UX-081, EXG-UX-082, EXG-UX-084, EXG-A11Y-007, EXG-I18N-002, EXG-I18N-006, EXG-I18N-007, EXG-CRYPTO-004, EXG-CRYPTO-003, EXG-I18N-008, EXG-I18N-012, EXG-TEST-026, EXG-TEST-063, EXG-TEST-064.
 
 import { describe, expect, it } from 'vitest';
 import { crossedThreshold, nextTickMs, remainingAt, synchronise } from '../src/ui/countdown';
@@ -18,6 +18,12 @@ describe('countdown', () => {
     expect(sync.approximate).toBe(false);
     expect(remainingAt(sync, 3000 + 99_000)).toBe(500);
     expect(remainingAt(sync, 10_000_000)).toBe(0);
+  });
+  it('flags a local clock far from the server time (EXG-UX-081)', () => {
+    const received = Date.parse('2026-10-03T12:00:01Z');
+    expect(synchronise('2026-10-03T12:10:00Z', '2026-10-03T12:00:00Z', 0, 2000, received).skewed).toBe(false);
+    expect(synchronise('2026-10-03T12:10:00Z', '2026-10-03T12:00:00Z', 0, 2000, received + 3 * 60_000).skewed).toBe(true);
+    expect(synchronise('2026-10-03T12:10:00Z', '2026-10-03T12:00:00Z', 0, 2000, received - 3 * 60_000).skewed).toBe(true);
   });
   it('flags slow round trips as approximate', () => {
     expect(synchronise('2026-10-03T12:10:00Z', '2026-10-03T12:00:00Z', 0, 5001).approximate).toBe(true);

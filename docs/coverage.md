@@ -169,11 +169,11 @@ None.
 | EXG-SEC-020 | `frontend/tests/template-view.test.ts` |
 | EXG-UX-080 | `tests/e2e/ux.spec.ts` |
 | EXG-API-002 | `tests/Http/ApiTest.php` |
-| EXG-UX-081 | `frontend/tests/create-security.test.ts`, `frontend/tests/read-page.test.ts` |
-| EXG-UX-082 | `frontend/tests/ui.test.ts` |
-| EXG-UX-083 | `frontend/tests/create-security.test.ts`, `frontend/tests/read-page.test.ts` |
+| EXG-UX-081 | `frontend/tests/create-security.test.ts`, `frontend/tests/expiry-view.test.ts`, `frontend/tests/read-page.test.ts`, `frontend/tests/ui.test.ts` |
+| EXG-UX-082 | `frontend/tests/expiry-view.test.ts`, `frontend/tests/ui.test.ts` |
+| EXG-UX-083 | `frontend/tests/create-security.test.ts`, `frontend/tests/expiry-view.test.ts`, `frontend/tests/read-page.test.ts` |
 | EXG-UX-084 | `frontend/tests/ui.test.ts` |
-| EXG-A11Y-007 | `frontend/tests/ui.test.ts` |
+| EXG-A11Y-007 | `frontend/tests/expiry-view.test.ts`, `frontend/tests/ui.test.ts` |
 | EXG-LIFE-003 | `tests/Paste/PasteServiceTest.php` |
 | EXG-SEC-022 | `tests/Http/ApiTest.php` |
 | EXG-READ-004 | `tests/e2e/read-once.spec.ts` |

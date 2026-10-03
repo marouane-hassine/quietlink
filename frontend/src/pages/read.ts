@@ -17,7 +17,8 @@ import { t } from '../i18n';
 import { exportButton, printButton } from '../ui/local-output';
 import { announce, toast } from '../ui/announcer';
 import { copyText } from '../ui/clipboard';
-import { crossedThreshold, nextTickMs, remainingAt, synchronise, type Sync } from '../ui/countdown';
+import { synchronise, type Sync } from '../ui/countdown';
+import { runCountdown } from '../ui/expiry-view';
 import { el, nextId, showScreen } from '../ui/dom';
 import { formatDate, formatRelative } from '../ui/format';
 import { cryptoAvailable } from '../ui/capabilities';
@@ -168,7 +169,7 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
 
     const opens = status.unconfirmed_opens ?? 0;
     const expiry = el('p', { class: 'expiry' });
-    startCountdown(expiry, status.expires_at, sync);
+    runCountdown(expiry, status.expires_at, sync);
     showScreen(
       main,
       el('h1', { class: 'page-title' }, t('read.revealTitle')),
@@ -265,7 +266,7 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
     });
 
     const expiry = el('p', { class: 'expiry' });
-    startCountdown(expiry, data.expires_at, sync);
+    runCountdown(expiry, data.expires_at, sync);
     showScreen(
       main,
       el('h1', { class: 'page-title' }, t('page.read.title')),
@@ -279,22 +280,6 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
       el('p', { class: 'hint' }, t('read.autoHide'), ' ', keep, el('label', { for: keep.id }, t('read.keepVisible'))),
       el('div', { class: 'action-bar' }, copyAll, hideButton, ...(config.allowExport ? [exportButton(() => envelope.text)] : []), ...(config.allowPrint ? [printButton()] : []), newLink()),
     );
-  }
-
-  function startCountdown(node: HTMLElement, expiresAt: string | null, sync: Sync | null): void {
-    if (expiresAt === null || sync === null) {
-      node.textContent = t('result.never');
-      return;
-    }
-    let previous = Number.POSITIVE_INFINITY;
-    const tick = () => {
-      const remaining = remainingAt(sync, performance.now());
-      node.textContent = remaining <= 0 ? t('time.expired') : t('result.expires', { relative: (sync.approximate ? `${t('time.approximate')} ` : '') + formatRelative(remaining), date: formatDate(Date.parse(expiresAt)) });
-      if (crossedThreshold(previous, remaining) !== null) announce(node.textContent);
-      previous = remaining;
-      if (remaining > 0 && node.isConnected) window.setTimeout(tick, nextTickMs(remaining));
-    };
-    tick();
   }
 
   void start();
