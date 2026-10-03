@@ -7,7 +7,7 @@
 - Dépôt : https://github.com/marouane-hassine/quietlink (public)
 - Licence : **AGPL-3.0** (fichier `LICENSE` et en-têtes SPDX à créer à l’initialisation du dépôt).
 - Spécification de référence : `docs/cahier-des-charges.md` (v0.18). Toute décision de conception s’appuie sur ce document ; en cas de doute ou de contradiction, le signaler plutôt que trancher seul.
-- État : **Phase 0 (cadrage)** — squelette Symfony micro-kernel initialisé (aucun code métier). Suivi : `docs/PROGRESS.md` ; décisions : `docs/decisions/ADR-*.md`.
+- État : **développement V1** — fonctionnalités Must implémentées, revue de sécurité externe à venir. Suivi : `docs/PROGRESS.md` ; décisions : `docs/decisions/ADR-*.md`.
 
 ## Commandes
 
@@ -23,7 +23,9 @@ bin/console --env=test    # console Symfony
 
 - Point d’entrée HTTP : `public/index.php` ; noyau : `src/Kernel.php` ; configuration PHP dans `config/` (pas de YAML ni de `.env`).
 - Composants Symfony installés : framework-bundle (requis par MicroKernelTrait), http-foundation, routing, validator, console, rate-limiter, twig-bundle. Ne pas en ajouter sans justification.
-- Le frontend (TypeScript + Vite + Vitest) n’est pas encore initialisé.
+- Frontend : `npm ci`, `npm run qa` (tsc + Vitest + build Vite vers `public/build/`), `npm run e2e` (Playwright ; `npx playwright install` au préalable).
+- Vecteurs : `composer vectors:check` (générateur `tools/vectors/`). CLI : `bin/quietlink`. Docker : `docker compose up -d --build` (voir `docs/README-admin.md`).
+- Contrôles CI supplémentaires : `tools/ci/forbidden-patterns.sh`.
 
 ## Stack imposée
 

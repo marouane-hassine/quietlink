@@ -1,0 +1,916 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# OpenAPI 3.1 contract of the QuietLink API v1 (spec §10, sp-proto/v1 §3 and §10-§12).
+# The implemented code (src/Controller, src/Paste/PasteService.php) is the source of truth.
+# All example values below are dummy values: they are syntactically valid but not real keys,
+# tokens, signatures or identifiers.
+openapi: 3.1.0
+jsonSchemaDialect: https://spec.openapis.org/oas/3.1/dialect/base
+
+info:
+  title: QuietLink API
+  version: 1.0.0
+  license:
+    name: AGPL-3.0-or-later
+    identifier: AGPL-3.0-or-later
+  description: |
+    JSON API of a self-hosted QuietLink instance. The server only ever receives and stores
+    client-side encrypted payloads: never the plaintext, the URL fragment key, the passphrase
+    or the raw deletion token.
+
+    ## Encodings
+
+    Every binary value is **canonical base64url without padding** (RFC 4648 §5): characters
+    outside `A-Z a-z 0-9 - _`, any `=` padding and any string whose unused trailing bits are
+    not zero are rejected. Values with a fixed size must decode to exactly that size
+    (sp-proto/v1 §3.2). The patterns below encode both the alphabet and canonicality.
+
+    Timestamps on the wire are UTC strings `YYYY-MM-DDTHH:MM:SSZ` (ADR-0007, OQ-20).
+
+    ## Request bodies
+
+    Endpoints that take a body accept only `Content-Type: application/json`, optionally with
+    `; charset=utf-8` (anything else: `415`). The body size is checked against
+    `http.max_request_bytes` (default 1 441 792) from `Content-Length` and while reading,
+    before any JSON decoding (`413`). Bodies must be a JSON object with exactly the documented
+    members (maximum nesting depth 4); unknown or missing members are rejected. There is no
+    upload, file field or `multipart/form-data` endpoint.
+
+    ## Uniform 404 and proof ordering
+
+    A public `404` problem response is returned, indistinguishably, for an unknown,
+    expired, consumed or otherwise unavailable paste **and** for any invalid access proof,
+    deletion token or malformed identifier on proof-protected endpoints. Proofs are verified
+    **before any storage access**:
+
+    - `status` / `open`: challenge HMAC, freshness (60 s), path id and usage binding,
+      `id[0..8)` bound to `access_pk`, then the Ed25519 signature; only then is storage read
+      and `access_pk` compared to the stored AAD. A malformed proof body is also a `404`.
+    - `consume`: `id[0..8)` bound to `access_pk` before any storage access.
+    - `DELETE`: header decoding (32 bytes) and `id[8..16)` bound to `SHA-256(token)` before
+      any storage access, then a constant-time comparison with the stored hash.
+
+    `409` (read-once reservation in progress) is only returned after a valid access proof.
+    The `challenge` endpoint is stateless and never touches storage.
+
+    ## Errors
+
+    Errors use `application/problem+json` (RFC 9457) with the generic members `type`
+    (always `about:blank`), `title` and `status`; `409` additionally carries `retry_after`.
+    No internal detail and no paste identifier is ever included. `429`, `409` and `503`
+    problem responses carry a `Retry-After` header (seconds).
+
+    ## Common response headers
+
+    Every response (success or error) carries `Cache-Control: no-store` and the security
+    headers `Content-Security-Policy` (strict policy, `default-src 'none'`, no
+    `unsafe-inline`/`unsafe-eval`), `X-Content-Type-Options: nosniff`,
+    `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, `Permissions-Policy`,
+    `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Resource-Policy: same-origin`,
+    and, over HTTPS when enabled, `Strict-Transport-Security`. No cookie is ever set.
+
+    ## Global failure modes
+
+    Any endpoint may also answer:
+
+    - `503` with `Retry-After: 30` when the instance configuration is invalid or differs from
+      the boot marker (for `/healthz` the body is then `{"status": "unavailable"}`);
+    - `503` with `Retry-After: 5` when storage is temporarily unavailable (e.g. lock timeout);
+    - `500` for any unexpected error;
+    - `405` for an unsupported method on a known path, `404` for an unknown path.
+
+    ## Rate limiting
+
+    Limits apply per client address (IPv6 aggregated to a configurable prefix) and, for
+    `open`/`status`, also per paste after a valid proof (ADR-0007 defaults, configurable under
+    `http.rate_limits`). Exceeding a limit yields `429` with `Retry-After`.
+
+servers:
+  - url: https://paste.example.test
+    description: Dummy instance
+
+# No authentication scheme: access is proven per request (Ed25519 proofs, deletion token).
+security: []
+
+tags:
+  - name: pastes
+    description: Encrypted paste lifecycle.
+  - name: health
+    description: Minimal technical health.
+
+paths:
+  /api/v1/pastes:
+    post:
+      tags: [pastes]
+      operationId: createPaste
+      summary: Create an encrypted paste
+      description: |
+        Stores an already encrypted payload. The identifier is assigned by the server.
+
+        Processing order: (1) syntactic validation of the body, the AAD and the
+        `Idempotency-Key` header, independent of the configuration (`400`); (2) idempotent
+        replay: same key and same body (SHA-256 of the raw body) returns the recorded result
+        with `200`, a different body returns `422`; (3) configuration checks (allowed
+        expiration, read-once, passphrase; `400`), creation rate limit (`429`), storage
+        thresholds (`503`), then creation (`201`). Replays are not counted against the
+        creation limit but against the wider per-address `challenge` bucket.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRequest'
+      responses:
+        '201':
+          description: Paste created.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateResponse'
+        '200':
+          description: Idempotent replay of an earlier creation with the same key and body.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateResponse'
+        '400':
+          description: |
+            Invalid body, AAD, public key, missing or invalid `Idempotency-Key`, or an option
+            not allowed by this instance.
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/IdempotencyKeyReused'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v1/pastes/{id}/challenge:
+    post:
+      tags: [pastes]
+      operationId: issueChallenge
+      summary: Issue a stateless access challenge
+      description: |
+        Returns an 82-byte challenge for usage `open` or `status`, computed without any
+        storage access: the response has the same shape whether the paste exists or not.
+        A syntactically invalid identifier yields `400` (not `404`).
+      parameters:
+        - $ref: '#/components/parameters/PasteId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChallengeRequest'
+      responses:
+        '200':
+          description: Challenge issued.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChallengeResponse'
+        '400':
+          description: Invalid identifier, body or usage.
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v1/pastes/{id}/status:
+    post:
+      tags: [pastes]
+      operationId: getPasteStatus
+      summary: Read the metadata of a paste with an access proof
+      description: |
+        Returns the AAD, `expires_at`, `server_time` and, for read-once content, the state
+        (`available` or `reserved`), the remaining reservation delay and `unconfirmed_opens`.
+        Never returns the ciphertext and never creates a reservation. An expired reservation
+        is released (or the content destroyed at the threshold) before answering.
+      parameters:
+        - $ref: '#/components/parameters/PasteId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusRequest'
+      responses:
+        '200':
+          description: Metadata of the paste.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+        '404':
+          $ref: '#/components/responses/NotAvailable'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v1/pastes/{id}/open:
+    post:
+      tags: [pastes]
+      operationId: openPaste
+      summary: Fetch the encrypted payload with an access proof
+      description: |
+        Returns the ciphertext, nonce, AAD, `expires_at` and `server_time`.
+
+        For read-once content `reservation_id` is required (`400` if absent or malformed,
+        after a valid proof). If the content is `available`, a reservation is created and a
+        consume challenge returned. If it is `reserved` with the same reservation identifier,
+        the same payload and the same consume challenge are returned again (the reservation is
+        not extended). With another reservation identifier the answer is `409` with the
+        remaining delay and no payload. `reservation_id` is ignored for standard content.
+      parameters:
+        - $ref: '#/components/parameters/PasteId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenRequest'
+      responses:
+        '200':
+          description: Encrypted payload.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenResponse'
+        '400':
+          description: Read-once content opened without a valid `reservation_id` (after a valid proof).
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotAvailable'
+        '409':
+          $ref: '#/components/responses/ReservationConflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v1/pastes/{id}/consume:
+    post:
+      tags: [pastes]
+      operationId: consumePaste
+      summary: Confirm a read-once reading
+      description: |
+        Verifies `id[0..8)` against `access_pk` without storage access, then the access key
+        and reservation against stored state, then, under exclusive lock, the reservation,
+        its expiry, the consume challenge (constant-time equality) and the Ed25519 signature
+        with the stored `consume_pk`. Resending exactly the consuming proof (same reservation,
+        challenge and signature) returns `200` again while the consumed state is retained
+        (10 minutes). Any other invalid, expired or reused proof yields `404`.
+
+        Note: a body that is not a JSON object with exactly the four members, or whose members
+        are not canonical base64url of the exact length, yields `400` (unlike `status`/`open`,
+        where malformed proofs yield `404`). A malformed path identifier yields `404`.
+      parameters:
+        - $ref: '#/components/parameters/PasteId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsumeRequest'
+      responses:
+        '200':
+          description: Reading confirmed (including an exact replay).
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsumeResponse'
+        '400':
+          description: Malformed body.
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotAvailable'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v1/pastes/{id}:
+    delete:
+      tags: [pastes]
+      operationId: deletePaste
+      summary: Delete a paste with its deletion token
+      description: |
+        The token is sent only in the `X-Deletion-Token` header (never logged). A missing,
+        malformed or unbound token, an unknown or expired paste, or a token whose hash does
+        not match yields `404`. No request body is read.
+
+        A valid token deletes `available` and `reserved` content (cancelling any running
+        reservation). For `consumed` content the code answers `204` but keeps the payload-less
+        record until its retention ends, so that exact `consume` replays still succeed.
+      parameters:
+        - $ref: '#/components/parameters/PasteId'
+        - $ref: '#/components/parameters/DeletionToken'
+      responses:
+        '204':
+          description: Deleted.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+        '404':
+          $ref: '#/components/responses/NotAvailable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /healthz:
+    get:
+      tags: [health]
+      operationId: health
+      summary: Minimal technical health
+      description: |
+        Exposes no version, configuration, secret or infrastructure detail. `ok` means the
+        instance can accept creations; `degraded` means the storage health record is missing,
+        stale (older than 10 minutes) or reports free inodes below the threshold.
+      responses:
+        '200':
+          description: Healthy.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: ok
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          description: |
+            Degraded (`degraded`, plain JSON, no `Retry-After`) or instance not ready because of
+            an invalid configuration (`unavailable`, plain JSON).
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: degraded
+
+components:
+  parameters:
+    PasteId:
+      name: id
+      in: path
+      required: true
+      description: Public identifier, 24 bytes as 32 base64url characters.
+      schema:
+        $ref: '#/components/schemas/PasteId'
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: |
+        Random 128-bit key, canonical base64url (22 characters). Required on creation
+        (missing or invalid: `400`). Never logged.
+      schema:
+        $ref: '#/components/schemas/B64u16'
+      example: ExampleIdempotencyKeyA
+    DeletionToken:
+      name: X-Deletion-Token
+      in: header
+      required: true
+      description: |
+        Raw 32-byte deletion token, canonical base64url (43 characters). Missing or invalid:
+        `404`. Never logged.
+      schema:
+        $ref: '#/components/schemas/B64u32'
+      example: ExampleDeletionTokenExampleDeletionTokenExA
+
+  headers:
+    CacheControl:
+      description: Always `no-store`.
+      schema:
+        type: string
+        const: no-store
+    RetryAfter:
+      description: Delay in seconds before retrying (at least 1).
+      schema:
+        type: integer
+        minimum: 1
+
+  schemas:
+    PasteId:
+      type: string
+      description: 24 bytes, base64url (32 characters).
+      pattern: '^[A-Za-z0-9_-]{32}$'
+      minLength: 32
+      maxLength: 32
+      examples: [ExampleIdExampleIdExampleIdExamp]
+    B64u12:
+      type: string
+      description: 12 bytes, canonical base64url (16 characters).
+      pattern: '^[A-Za-z0-9_-]{16}$'
+      minLength: 16
+      maxLength: 16
+    B64u16:
+      type: string
+      description: 16 bytes, canonical base64url (22 characters).
+      pattern: '^[A-Za-z0-9_-]{21}[AQgw]$'
+      minLength: 22
+      maxLength: 22
+    B64u32:
+      type: string
+      description: 32 bytes, canonical base64url (43 characters).
+      pattern: '^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$'
+      minLength: 43
+      maxLength: 43
+    B64u64:
+      type: string
+      description: 64 bytes, canonical base64url (86 characters), Ed25519 signature.
+      pattern: '^[A-Za-z0-9_-]{85}[AQgw]$'
+      minLength: 86
+      maxLength: 86
+    Challenge:
+      type: string
+      description: Opaque 82-byte challenge, canonical base64url (110 characters).
+      pattern: '^[A-Za-z0-9_-]{109}[AQgw]$'
+      minLength: 110
+      maxLength: 110
+    B64uAny:
+      type: string
+      description: Canonical base64url of any length.
+      pattern: '^(?:[A-Za-z0-9_-]{4})*(?:[A-Za-z0-9_-][AQgw]|[A-Za-z0-9_-]{2}[AEIMQUYcgkosw048])?$'
+    Aad:
+      allOf:
+        - $ref: '#/components/schemas/B64uAny'
+      description: |
+        Canonical (RFC 8785) AAD bytes, base64url. At most `paste.max_metadata_bytes` decoded
+        bytes (default 4 096, i.e. 5 462 characters). It must parse as a valid sp-proto/v1 AAD
+        with acceptable Ed25519 public keys (`access_pk`, optional `consume_pk`).
+      minLength: 1
+      maxLength: 5462
+    Ciphertext:
+      allOf:
+        - $ref: '#/components/schemas/B64uAny'
+      description: |
+        AES-256-GCM ciphertext including the 16-byte tag, base64url. At least 16 decoded bytes,
+        at most `paste.max_ciphertext_bytes` (default 1 048 592, i.e. 1 398 123 characters).
+      minLength: 22
+    Timestamp:
+      type: string
+      description: UTC timestamp `YYYY-MM-DDTHH:MM:SSZ`.
+      pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$'
+      examples: ['2030-01-01T00:00:00Z']
+    ExpiresAt:
+      description: Expiry time, or `null` for a "never" paste.
+      oneOf:
+        - $ref: '#/components/schemas/Timestamp'
+        - type: 'null'
+
+    CreateRequest:
+      type: object
+      additionalProperties: false
+      required: [aad, nonce, ciphertext, deletion_hash]
+      properties:
+        aad:
+          $ref: '#/components/schemas/Aad'
+        nonce:
+          allOf:
+            - $ref: '#/components/schemas/B64u12'
+          description: AES-GCM nonce (12 bytes).
+        ciphertext:
+          $ref: '#/components/schemas/Ciphertext'
+        deletion_hash:
+          allOf:
+            - $ref: '#/components/schemas/B64u32'
+          description: SHA-256 of the client-generated deletion token (32 bytes).
+      examples:
+        - aad: ZXhhbXBsZS1hYWQ
+          nonce: ExampleNonceExam
+          ciphertext: ExampleCiphertextExampleCiphertextA
+          deletion_hash: ExampleDeletionHashExampleDeletionHashExamA
+    CreateResponse:
+      type: object
+      additionalProperties: false
+      required: [id, expires_at, server_time, public_url, share_path, manage_path]
+      properties:
+        id:
+          $ref: '#/components/schemas/PasteId'
+        expires_at:
+          $ref: '#/components/schemas/ExpiresAt'
+        server_time:
+          $ref: '#/components/schemas/Timestamp'
+        public_url:
+          type: string
+          format: uri
+          description: Configured public base URL of the instance (`app.public_url`).
+        share_path:
+          type: string
+          description: '`/p/{id}`; the client appends `#<key>` locally.'
+          pattern: '^/p/[A-Za-z0-9_-]{32}$'
+        manage_path:
+          type: string
+          description: '`/manage/{id}`; the client appends the deletion token locally.'
+          pattern: '^/manage/[A-Za-z0-9_-]{32}$'
+      examples:
+        - id: ExampleIdExampleIdExampleIdExamp
+          expires_at: '2030-01-02T00:00:00Z'
+          server_time: '2030-01-01T00:00:00Z'
+          public_url: https://paste.example.test
+          share_path: /p/ExampleIdExampleIdExampleIdExamp
+          manage_path: /manage/ExampleIdExampleIdExampleIdExamp
+
+    ChallengeRequest:
+      type: object
+      additionalProperties: false
+      required: [usage]
+      properties:
+        usage:
+          type: string
+          enum: [open, status]
+    ChallengeResponse:
+      type: object
+      additionalProperties: false
+      required: [challenge, expires_in]
+      properties:
+        challenge:
+          $ref: '#/components/schemas/Challenge'
+        expires_in:
+          type: integer
+          const: 60
+          description: Validity of the challenge in seconds.
+
+    StatusRequest:
+      type: object
+      additionalProperties: false
+      required: [challenge, access_pk, signature]
+      properties:
+        challenge:
+          allOf:
+            - $ref: '#/components/schemas/Challenge'
+          description: Challenge of usage `status`.
+        access_pk:
+          allOf:
+            - $ref: '#/components/schemas/B64u32'
+          description: Ed25519 access public key.
+        signature:
+          allOf:
+            - $ref: '#/components/schemas/B64u64'
+          description: Ed25519 signature of `"sp-proto/v1/proof" || 0x00 || challenge` by the access key.
+    StatusResponse:
+      oneOf:
+        - type: object
+          title: Standard paste
+          additionalProperties: false
+          required: [aad, expires_at, server_time, read_once]
+          properties:
+            aad:
+              $ref: '#/components/schemas/Aad'
+            expires_at:
+              $ref: '#/components/schemas/ExpiresAt'
+            server_time:
+              $ref: '#/components/schemas/Timestamp'
+            read_once:
+              const: false
+        - type: object
+          title: Read-once paste
+          additionalProperties: false
+          required: [aad, expires_at, server_time, read_once, state, retry_after, unconfirmed_opens]
+          properties:
+            aad:
+              $ref: '#/components/schemas/Aad'
+            expires_at:
+              $ref: '#/components/schemas/ExpiresAt'
+            server_time:
+              $ref: '#/components/schemas/Timestamp'
+            read_once:
+              const: true
+            state:
+              type: string
+              enum: [available, reserved]
+            retry_after:
+              description: Remaining reservation delay in seconds when `reserved`, otherwise `null`.
+              type: [integer, 'null']
+              minimum: 0
+            unconfirmed_opens:
+              type: integer
+              minimum: 0
+
+    OpenRequest:
+      type: object
+      additionalProperties: false
+      required: [challenge, access_pk, signature]
+      properties:
+        challenge:
+          allOf:
+            - $ref: '#/components/schemas/Challenge'
+          description: Challenge of usage `open`.
+        access_pk:
+          $ref: '#/components/schemas/B64u32'
+        signature:
+          $ref: '#/components/schemas/B64u64'
+        reservation_id:
+          description: |
+            Client-generated 128-bit reservation identifier; required for read-once content.
+            `null` is treated as absent.
+          oneOf:
+            - $ref: '#/components/schemas/B64u16'
+            - type: 'null'
+    OpenResponse:
+      oneOf:
+        - type: object
+          title: Standard paste
+          additionalProperties: false
+          required: [aad, nonce, ciphertext, expires_at, server_time, read_once]
+          properties:
+            aad:
+              $ref: '#/components/schemas/Aad'
+            nonce:
+              $ref: '#/components/schemas/B64u12'
+            ciphertext:
+              $ref: '#/components/schemas/Ciphertext'
+            expires_at:
+              $ref: '#/components/schemas/ExpiresAt'
+            server_time:
+              $ref: '#/components/schemas/Timestamp'
+            read_once:
+              const: false
+        - type: object
+          title: Read-once paste
+          additionalProperties: false
+          required: [aad, nonce, ciphertext, expires_at, server_time, read_once, consume_challenge, unconfirmed_opens, retry_after]
+          properties:
+            aad:
+              $ref: '#/components/schemas/Aad'
+            nonce:
+              $ref: '#/components/schemas/B64u12'
+            ciphertext:
+              $ref: '#/components/schemas/Ciphertext'
+            expires_at:
+              $ref: '#/components/schemas/ExpiresAt'
+            server_time:
+              $ref: '#/components/schemas/Timestamp'
+            read_once:
+              const: true
+            consume_challenge:
+              allOf:
+                - $ref: '#/components/schemas/Challenge'
+              description: Challenge of usage `consume`, bound to the reservation (not a secret).
+            unconfirmed_opens:
+              type: integer
+              minimum: 0
+            retry_after:
+              type: integer
+              minimum: 0
+              description: Remaining reservation delay in seconds.
+
+    ConsumeRequest:
+      type: object
+      additionalProperties: false
+      required: [access_pk, reservation_id, challenge, signature]
+      properties:
+        access_pk:
+          $ref: '#/components/schemas/B64u32'
+        reservation_id:
+          $ref: '#/components/schemas/B64u16'
+        challenge:
+          allOf:
+            - $ref: '#/components/schemas/Challenge'
+          description: The `consume_challenge` returned by `open`.
+        signature:
+          allOf:
+            - $ref: '#/components/schemas/B64u64'
+          description: Ed25519 signature of `"sp-proto/v1/proof" || 0x00 || challenge` by the consume key.
+    ConsumeResponse:
+      type: object
+      additionalProperties: false
+      required: [consumed]
+      properties:
+        consumed:
+          const: true
+
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded, unavailable]
+
+    Problem:
+      type: object
+      description: RFC 9457 problem details, generic members only.
+      additionalProperties: false
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          const: about:blank
+        title:
+          type: string
+          enum:
+            - Bad request
+            - Not available
+            - Method not allowed
+            - Temporarily reserved
+            - Payload too large
+            - Unsupported media type
+            - Idempotency key reused
+            - Too many requests
+            - Internal error
+            - Service unavailable
+        status:
+          type: integer
+        retry_after:
+          type: integer
+          minimum: 1
+          description: Only on `409`; same value as the `Retry-After` header.
+
+  responses:
+    BadRequest:
+      description: Bad request.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/CacheControl'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: about:blank
+            title: Bad request
+            status: 400
+    NotAvailable:
+      description: |
+        Generic unavailability: unknown, expired, consumed or unavailable paste, or invalid
+        proof / token / identifier. Indistinguishable in every case.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/CacheControl'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: about:blank
+            title: Not available
+            status: 404
+    ReservationConflict:
+      description: Read-once content reserved under another reservation identifier (valid proof only).
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/CacheControl'
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problem'
+            required: [retry_after]
+          example:
+            type: about:blank
+            title: Temporarily reserved
+            status: 409
+            retry_after: 42
+    PayloadTooLarge:
+      description: Body larger than `http.max_request_bytes` (checked before parsing).
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/CacheControl'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: about:blank
+            title: Payload too large
+            status: 413
+    UnsupportedMediaType:
+      description: Content type other than `application/json` (optionally `; charset=utf-8`).
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/CacheControl'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: about:blank
+            title: Unsupported media type
+            status: 415
+    IdempotencyKeyReused:
+      description: The `Idempotency-Key` was already used with a different body.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/CacheControl'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: about:blank
+            title: Idempotency key reused
+            status: 422
+    TooManyRequests:
+      description: Rate limit exceeded.
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/CacheControl'
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: about:blank
+            title: Too many requests
+            status: 429
+    InternalError:
+      description: Unexpected error (only the exception class is logged).
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/CacheControl'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: about:blank
+            title: Internal error
+            status: 500
+    ServiceUnavailable:
+      description: |
+        Storage quota or free-space/inode threshold reached (`Retry-After: 300`, creation only),
+        storage temporarily unavailable (`Retry-After: 5`), or invalid instance configuration
+        (`Retry-After: 30`).
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/CacheControl'
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: about:blank
+            title: Service unavailable
+            status: 503
