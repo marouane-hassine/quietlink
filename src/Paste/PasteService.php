@@ -283,11 +283,16 @@ final class PasteService
     public function consume(string $encodedId, string $body): void
     {
         $id = $this->parseId($encodedId, PasteUnavailableException::class);
-        $fields = RequestFields::parse($body, ['access_pk', 'reservation_id', 'challenge', 'signature']);
-        $accessPk = $fields->binary('access_pk', Protocol::PUBLIC_KEY_BYTES);
-        $reservationHash = hash('sha256', $fields->binary('reservation_id', Protocol::RESERVATION_ID_BYTES), true);
-        $challenge = $fields->binary('challenge', Challenge::LENGTH);
-        $signature = $fields->binary('signature', Protocol::SIGNATURE_BYTES);
+        try {
+            $fields = RequestFields::parse($body, ['access_pk', 'reservation_id', 'challenge', 'signature']);
+            $accessPk = $fields->binary('access_pk', Protocol::PUBLIC_KEY_BYTES);
+            $reservationHash = hash('sha256', $fields->binary('reservation_id', Protocol::RESERVATION_ID_BYTES), true);
+            $challenge = $fields->binary('challenge', Challenge::LENGTH);
+            $signature = $fields->binary('signature', Protocol::SIGNATURE_BYTES);
+        } catch (InvalidRequestException) {
+            // Same uniform answer as any invalid proof (§10).
+            throw new PasteUnavailableException();
+        }
         if (!Identifier::matchesAccessKey($id->bytes(), $accessPk)) {
             throw new PasteUnavailableException();
         }
