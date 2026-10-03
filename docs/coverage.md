@@ -306,8 +306,8 @@ None.
 | EXG-CLI-001 | `tests/Cli/CliTest.php` |
 | EXG-CLI-002 | `tests/Cli/CliTest.php` |
 | EXG-CLI-003 | `tests/Cli/CliTest.php` |
-| EXG-CLI-004 | `tests/Cli/CliTest.php` |
-| EXG-CLI-005 | `tests/Cli/CliTest.php` |
+| EXG-CLI-004 | `tests/Cli/CliTest.php`, `tests/Cli/OutputFileTest.php` |
+| EXG-CLI-005 | `tests/Cli/CliTest.php`, `tests/Cli/OutputFileTest.php` |
 | EXG-CLI-006 | `tests/Command/CommandsTest.php` |
 | EXG-CLI-007 | `tests/Cli/CliTest.php` |
 | EXG-CLI-008 | `tests/Cli/CliTest.php` |
@@ -347,7 +347,7 @@ None.
 | EXG-SEC-055 | `tests/Http/ApiTest.php` |
 | EXG-SEC-056 | `tests/Http/ApiTest.php`, `tests/Web/PageTest.php` |
 | EXG-SEC-057 | `tests/Http/ApiTest.php` |
-| EXG-SEC-058 | `tests/Http/ApiTest.php` |
+| EXG-SEC-058 | `tests/Deploy/DeploymentConfigTest.php`, `tests/Http/ApiTest.php` |
 | EXG-SEC-060 | `tests/Http/ApiTest.php` |
 | EXG-SEC-061 | `tests/Web/PageTest.php` |
 | EXG-CRYPTO-011 | `frontend/tests/vectors.test.ts` |
@@ -475,7 +475,7 @@ None.
 | EXG-STORE-019 | `tests/Storage/FilesystemPasteStoreTest.php` |
 | EXG-STORE-020 | `tests/Storage/FilesystemPasteStoreTest.php` |
 | EXG-STORE-021 | `tests/Storage/FilesystemPasteStoreTest.php` |
-| EXG-STORE-022 | `tests/Storage/FilesystemPasteStoreTest.php` |
+| EXG-STORE-022 | `tests/Maintenance/PurgerTest.php`, `tests/Storage/FilesystemPasteStoreTest.php` |
 | EXG-STORE-023 | `tests/Storage/FileLockTest.php` |
 | EXG-STORE-024 | `tests/Storage/StoreEdgeCasesTest.php` |
 | EXG-STORE-025 | `tests/Paste/PasteConcurrencyTest.php` |
