@@ -8,3 +8,13 @@ parameters:
         - src
         - tests
     tmpDir: var/cache/phpstan
+    ignoreErrors:
+        # Phase 0 red tests target the Phase 1 crypto API, which does not exist yet.
+        # Remove this block once QuietLink\Crypto and QuietLink\Encoding are implemented:
+        # unmatched patterns are reported, so stale entries cannot linger.
+        -
+            identifiers:
+                - class.notFound
+                - method.nonObject
+                - argument.type
+            path: tests/Crypto/SpProtoV1VectorsTest.php
