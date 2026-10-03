@@ -177,11 +177,16 @@ final class PasteService
     /**
      * @return array{aad: string, expires_at: int|null, read_once: bool, state: string|null, retry_after: int|null, unconfirmed_opens: int|null}
      *
+     * @param (Closure(PasteId): void)|null $onValidProof per-paste rate limiting, after a valid proof only
+     *
      * @throws PasteUnavailableException
      */
-    public function status(string $encodedId, string $body): array
+    public function status(string $encodedId, string $body, ?Closure $onValidProof = null): array
     {
         [$id, $accessPk] = $this->verifyAccessProof($encodedId, $body, Challenge::USAGE_STATUS, []);
+        if ($onValidProof !== null) {
+            $onValidProof($id);
+        }
         $record = $this->loadVerified($id, $accessPk);
         if ($record->meta->readOnce) {
             $record = $this->store->mutate($id, fn (PasteRecord $r): array => [$this->releaseIfExpired($r), $this->current($r)]);
@@ -204,11 +209,16 @@ final class PasteService
     /**
      * @return array{aad: string, nonce: string, ciphertext: string, expires_at: int|null, read_once: bool, consume_challenge: string|null, unconfirmed_opens: int|null, retry_after: int|null}
      *
+     * @param (Closure(PasteId): void)|null $onValidProof per-paste rate limiting, after a valid proof only
+     *
      * @throws PasteUnavailableException|ReservationConflictException|InvalidRequestException
      */
-    public function open(string $encodedId, string $body): array
+    public function open(string $encodedId, string $body, ?Closure $onValidProof = null): array
     {
         [$id, $accessPk, $fields] = $this->verifyAccessProof($encodedId, $body, Challenge::USAGE_OPEN, ['reservation_id']);
+        if ($onValidProof !== null) {
+            $onValidProof($id);
+        }
         $record = $this->loadVerified($id, $accessPk);
 
         if (!$record->meta->readOnce) {
