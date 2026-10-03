@@ -29,9 +29,25 @@ final class TtyPrompt implements Prompt
         $tty = $this->open();
         fwrite($tty, $question);
         $this->stty('-echo');
+        // PHP skips `finally` when a signal kills the process: restore echo on Ctrl-C as well.
+        $restore = function (int $signal): never {
+            $this->stty('echo');
+            exit(128 + $signal);
+        };
+        $signals = function_exists('pcntl_signal') ? [SIGINT, SIGTERM, SIGHUP] : [];
+        $previousAsync = $signals !== [] ? pcntl_async_signals(true) : false;
+        foreach ($signals as $signal) {
+            pcntl_signal($signal, $restore);
+        }
         try {
             $line = fgets($tty);
         } finally {
+            foreach ($signals as $signal) {
+                pcntl_signal($signal, SIG_DFL);
+            }
+            if ($signals !== []) {
+                pcntl_async_signals($previousAsync);
+            }
             $this->stty('echo');
             fwrite($tty, "\n");
             fclose($tty);
