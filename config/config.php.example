@@ -20,6 +20,7 @@ return [
         'enabled_locales' => ['en', 'fr'],
     ],
     'theme' => [
+        // Only the built-in "default" theme exists; customize it with custom_tokens_file.
         'name' => 'default',
         // Relative path of a JSON token file inside config/themes/ (see docs/README-admin.md).
         'custom_tokens_file' => null,

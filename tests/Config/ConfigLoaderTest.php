@@ -189,6 +189,11 @@ final class ConfigLoaderTest extends TestCase
         foreach (['127.0.0.1/99', '999.1.1.1', '.', ':', '::1/129', '10.0.0.0/', '10.0.0.0/-1', '10.0.0.0/08', 'fe80::1%eth0', ' 10.0.0.1'] as $proxy) {
             yield 'trusted proxy ' . $proxy => [$base + ['http' => ['trusted_proxies' => [$proxy]]], 'trusted_proxies'];
         }
+        yield 'negative hsts max age' => [$base + ['http' => ['hsts_max_age' => -1]], 'hsts_max_age'];
+        yield 'unknown theme' => [$base + ['theme' => ['name' => 'ocean']], 'theme.name'];
+        yield 'empty instance name' => [['app' => ['public_url' => 'https://paste.example.test', 'name' => '']], 'app.name'];
+        yield 'blank instance name' => [['app' => ['public_url' => 'https://paste.example.test', 'name' => '   ']], 'app.name'];
+        yield 'duplicate template' => [$base + ['ui' => ['templates' => ['wifi', 'wifi']]], 'ui.templates'];
         yield 'envelope limit overflow' => [$base + ['paste' => ['max_envelope_bytes' => PHP_INT_MAX]], 'max_envelope_bytes'];
         yield 'envelope limit above ceiling' => [$base + ['paste' => ['max_envelope_bytes' => 16777217], 'http' => ['max_request_bytes' => PHP_INT_MAX]], 'max_envelope_bytes'];
     }

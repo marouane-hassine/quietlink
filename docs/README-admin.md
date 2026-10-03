@@ -174,7 +174,7 @@ Durations use the format `<integer><m|h|d>` (e.g. `30m`, `24h`, `7d`). Expiratio
 
 | Key | Default | Rule |
 |---|---|---|
-| `app.name` | `'QuietLink'` | String; instance name displayed in pages. |
+| `app.name` | `'QuietLink'` | Non-empty string; instance name displayed in pages. |
 | `app.public_url` | `null` (must be set) | Required. `https://` origin without path, query, fragment or credentials. `http://` is accepted only for `localhost`, `127.0.0.1`, `[::1]`. |
 | `app.source_url` | `'https://github.com/marouane-hassine/quietlink'` | `https://` URL of the deployed source code, linked in the footer (AGPL-3.0 section 13). Point it to your fork if you modify the code. |
 | `app.enabled_locales` | `['en', 'fr']` | List. Must contain `en` (mandatory fallback); only available locales (`en`, `fr`); no duplicates. |
@@ -183,7 +183,7 @@ Durations use the format `<integer><m|h|d>` (e.g. `30m`, `24h`, `7d`). Expiratio
 
 | Key | Default | Rule |
 |---|---|---|
-| `theme.name` | `'default'` | String. |
+| `theme.name` | `'default'` | Active theme. Only the built-in `default` theme is available; adapt it with `theme.custom_tokens_file`. |
 | `theme.custom_tokens_file` | `null` | `null` or a relative `.json` path inside `config/themes/` (`[A-Za-z0-9_-]` segments, no `..`); the file must exist. See §12. |
 
 #### `storage`
@@ -226,7 +226,7 @@ Durations use the format `<integer><m|h|d>` (e.g. `30m`, `24h`, `7d`). Expiratio
 | `http.ratelimit_ipv6_prefix` | `64` | Integer 48–64. IPv6 clients are rate limited per prefix. |
 | `http.trusted_proxies` | `[]` | List of IPv4 or IPv6 addresses or CIDR ranges (prefix 0–32 for IPv4, 0–128 for IPv6) allowed to set `X-Forwarded-*` / `Forwarded`. See §9. |
 | `http.cors_allowed_origins` | `[]` | List of `https://` origins. Empty = CORS disabled. |
-| `http.hsts_max_age` | `31536000` | Integer (seconds). `0` disables the HSTS header. |
+| `http.hsts_max_age` | `31536000` | Integer ≥ 0 (seconds). `0` disables the HSTS header. |
 | `http.rate_limits` | see §10 | Map of known buckets to `['limit' => int ≥ 1, 'interval' => int 1–86400]`, exactly these two keys: `http.rate_limits.<bucket>.limit` (requests allowed) and `http.rate_limits.<bucket>.interval` (window in seconds). |
 | `http.rate_limits.create` | `30 / 600 s` | Per client address. |
 | `http.rate_limits.create_replay` | `120 / 600 s` | Per client address: retries of an already-answered creation (same `Idempotency-Key`), counted separately so a client can recover its link. |
@@ -244,7 +244,7 @@ Durations use the format `<integer><m|h|d>` (e.g. `30m`, `24h`, `7d`). Expiratio
 | Key | Default | Rule |
 |---|---|---|
 | `ui.dark_mode` | `'auto'` | `auto` (system preference), `light` or `dark`. |
-| `ui.templates` | `['credentials', 'api-token', 'wifi', 'ssh-key', 'database', 'env-vars', 'temporary-access', 'incident']` | List; subset of these Markdown templates. |
+| `ui.templates` | `['credentials', 'api-token', 'wifi', 'ssh-key', 'database', 'env-vars', 'temporary-access', 'incident']` | List; subset of these Markdown templates, without duplicates. |
 | `ui.enable_qr_code` | `true` | Boolean. QR code of the share link (generated locally). |
 | `ui.allow_print` | `false` | Boolean. Adds a *Print* button to the reading screen, preceded by a warning (Could, §6.8). |
 | `ui.allow_export` | `false` | Boolean. Adds an *Export* button to the reading screen: the text is saved as a local file generated in the browser, nothing is sent (Could, §6.8). |

@@ -18,6 +18,8 @@ final class ConfigLoader
 {
     public const AVAILABLE_LOCALES = ['en', 'fr'];
     public const FALLBACK_LOCALE = 'en';
+    /** Built-in themes; operators customize the active one with theme.custom_tokens_file. */
+    public const AVAILABLE_THEMES = ['default'];
     public const TEMPLATES = ['credentials', 'api-token', 'wifi', 'ssh-key', 'database', 'env-vars', 'temporary-access', 'incident'];
     public const RATE_LIMIT_BUCKETS = ['create', 'create_replay', 'challenge', 'open', 'status', 'consume', 'delete', 'health', 'open_per_paste', 'status_per_paste'];
     private const LOG_LEVELS = ['debug', 'info', 'notice', 'warning', 'error', 'critical', 'alert', 'emergency'];
@@ -253,6 +255,9 @@ final class ConfigLoader
     {
         $r = new TreeReader($tree);
 
+        if (trim($r->string('app.name')) === '') {
+            $errors[] = '"app.name" must not be empty.';
+        }
         $publicUrl = $r->nullableString('app.public_url');
         if ($publicUrl === null || !self::isValidPublicUrl($publicUrl)) {
             $errors[] = '"app.public_url" must be an https origin without path, query or fragment (http only for localhost).';
@@ -265,6 +270,9 @@ final class ConfigLoader
             $errors[] = sprintf('"app.enabled_locales" must include "en" and only contain: %s.', implode(', ', self::AVAILABLE_LOCALES));
         }
 
+        if (!in_array($r->string('theme.name'), self::AVAILABLE_THEMES, true)) {
+            $errors[] = sprintf('"theme.name" must be one of: %s.', implode(', ', self::AVAILABLE_THEMES));
+        }
         $tokensFile = $r->nullableString('theme.custom_tokens_file');
         if ($tokensFile !== null && !self::isSafeThemeFile($tokensFile, $configDir)) {
             $errors[] = '"theme.custom_tokens_file" must be a relative .json file inside config/themes/.';
@@ -372,13 +380,17 @@ final class ConfigLoader
             }
         }
 
+        if ($r->int('http.hsts_max_age') < 0) {
+            $errors[] = '"http.hsts_max_age" must be 0 (disabled) or a positive number of seconds.';
+        }
+
         $darkMode = $r->string('ui.dark_mode');
         if (!in_array($darkMode, ['auto', 'light', 'dark'], true)) {
             $errors[] = '"ui.dark_mode" must be auto, light or dark.';
         }
         $templates = $r->stringList('ui.templates');
-        if (array_diff($templates, self::TEMPLATES) !== []) {
-            $errors[] = sprintf('"ui.templates" may only contain: %s.', implode(', ', self::TEMPLATES));
+        if (array_diff($templates, self::TEMPLATES) !== [] || count(array_unique($templates)) !== count($templates)) {
+            $errors[] = sprintf('"ui.templates" may only contain, without duplicates: %s.', implode(', ', self::TEMPLATES));
         }
 
         $logLevel = $r->string('log.level');
