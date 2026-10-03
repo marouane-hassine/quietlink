@@ -57,22 +57,47 @@ final class IdempotencyStore
                 return true;
             }
             clearstatcache(true, $path);
-            if (is_file($path)) {
-                $existing = AtomicFile::read($path);
-                $decoded = $existing === null ? null : self::decode($existing);
-                if ($decoded !== null && $decoded->retainUntil <= $this->clock->now()) {
-                    // An expired record not yet purged must not block a new creation.
-                    @unlink($path);
-                    if (@link($tmp, $path)) {
-                        return true;
-                    }
-                }
-
-                return false;
+            if (!is_file($path)) {
+                throw new StorageException('Unable to publish the idempotency record.');
             }
-            throw new StorageException('Unable to publish the idempotency record.');
+
+            return $this->replaceExpired($path, $tmp);
         } finally {
             @unlink($tmp);
+        }
+    }
+
+    /**
+     * Replaces a record that expired but was not purged yet. Serialised by one lock file so
+     * that two publishers can never both unlink and link (the expired state is re-read under
+     * the lock); publishers that find no record still race through link() alone.
+     */
+    private function replaceExpired(string $path, string $tmp): bool
+    {
+        $lockPath = $this->layout->idempotencyDir . '/.replace.lock';
+        if (!is_file($lockPath)) {
+            try {
+                AtomicFile::createExclusive($lockPath, '', false);
+            } catch (StorageException) {
+                // Created concurrently by another publisher.
+            }
+        }
+        $lock = FileLock::acquire($lockPath, true) ?? throw new StorageException('Idempotency lock unavailable.');
+        try {
+            clearstatcache(true, $path);
+            $existing = AtomicFile::read($path);
+            $decoded = $existing === null ? null : self::decode($existing);
+            if ($existing !== null && ($decoded === null || $decoded->retainUntil > $this->clock->now())) {
+                // A live (or unreadable, fail closed) record holds the key: this publisher lost.
+                return false;
+            }
+            if ($existing !== null) {
+                @unlink($path);
+            }
+
+            return @link($tmp, $path);
+        } finally {
+            $lock->release();
         }
     }
 
