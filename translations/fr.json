@@ -241,5 +241,13 @@
   "editor.sensitive.show": "Afficher les champs sensibles",
   "tpl.notes": "Notes de la section {section}",
   "net.offline": "Vous êtes hors ligne. Rien n’est perdu : les actions fonctionneront à nouveau au retour de la connexion.",
-  "net.online": "Connexion rétablie."
+  "net.online": "Connexion rétablie.",
+  "preview.show": "Aperçu",
+  "preview.hide": "Masquer l’aperçu",
+  "preview.title": "Aperçu (rendu localement, rien n’est envoyé)",
+  "read.view.rendered": "Rendu",
+  "read.view.source": "Source",
+  "read.richDisabled": "Ce contenu est volumineux : il est affiché en texte brut pour garder la page réactive.",
+  "read.richEnable": "Afficher la version mise en forme",
+  "read.wrap": "Renvoyer les longues lignes à la ligne"
 }

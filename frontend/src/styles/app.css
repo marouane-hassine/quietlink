@@ -586,6 +586,11 @@ summary {
   overscroll-behavior: contain;
 }
 
+.reader.no-wrap pre {
+  white-space: pre;
+  overflow-x: auto;
+}
+
 .reader.is-hidden {
   filter: blur(12px);
   user-select: none;

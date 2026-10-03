@@ -12,7 +12,8 @@ import { matchesAccessKey, matchesDeletionToken, prepare, type PreparedPaste } f
 import { decode } from '../crypto/base64url';
 import type { PublicConfig } from '../config';
 import { t } from '../i18n';
-import { LANGUAGE_IDS } from '../render/highlight';
+import { HIGHLIGHT_LIMIT_BYTES, LANGUAGE_IDS } from '../render/highlight';
+import { renderMarkdown } from '../render/markdown';
 import { parseTemplateText, renderTemplate } from '../templates';
 import { buildTemplateForm } from '../ui/template-form';
 import { announce, toast } from '../ui/announcer';
@@ -108,8 +109,32 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     const submit = el('button', { type: 'button', class: 'button button-primary', 'aria-describedby': reason.id }, t('action.create'));
     const summary = el('p', { class: 'summary' });
 
+    // Instant Markdown preview, rendered locally with the reading sanitiser (§6.1.1).
+    let previewOpen = false;
+    const previewButton = el('button', { type: 'button', class: 'chip', 'aria-pressed': 'false', 'aria-controls': nextId('preview') }, t('preview.show'));
+    const previewPanel = el('section', { class: 'reader markdown preview', id: previewButton.getAttribute('aria-controls') ?? '', hidden: true, 'aria-label': t('preview.title') });
+    let previewTimer = 0;
+    const renderPreview = () => {
+      if (!previewOpen) return;
+      const text = editor.value;
+      previewPanel.replaceChildren(el('p', { class: 'hint' }, t('preview.title')));
+      if (new TextEncoder().encode(text).length > HIGHLIGHT_LIMIT_BYTES) previewPanel.append(el('p', { class: 'notice' }, t('read.richDisabled')));
+      else previewPanel.append(renderMarkdown(text));
+    };
+    previewButton.addEventListener('click', () => {
+      previewOpen = !previewOpen;
+      previewPanel.hidden = !previewOpen;
+      previewButton.setAttribute('aria-pressed', String(previewOpen));
+      previewButton.textContent = previewOpen ? t('preview.hide') : t('preview.show');
+      renderPreview();
+    });
+
     const refresh = () => {
       state.text = editor.value;
+      previewButton.hidden = state.format !== 'markdown';
+      if (previewButton.hidden && previewOpen) previewButton.click();
+      window.clearTimeout(previewTimer);
+      previewTimer = window.setTimeout(renderPreview, 150);
       emptyHint.textContent = state.text === '' ? t('editor.empty') : '';
       const used = envelopeSize();
       const ratio = used / config.maxEnvelopeBytes;
@@ -413,6 +438,8 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       modeBar,
       editorField,
       formHost,
+      el('div', { class: 'button-row' }, previewButton),
+      previewPanel,
       options,
       sent,
       el('div', { class: 'action-bar' }, sizeLine, gauge, summary, submit, reason, status),

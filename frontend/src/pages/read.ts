@@ -9,22 +9,18 @@ import { decode, EncodingError } from '../crypto/base64url';
 import { equal, randomBytes, wipe } from '../crypto/bytes';
 import { encode } from '../crypto/base64url';
 import { argon2Supported, deriveInWorker } from '../crypto/argon2-client';
-import { parseEnvelope, byteLength, type Envelope } from '../crypto/envelope';
+import { parseEnvelope, type Envelope } from '../crypto/envelope';
 import { DecryptionError } from '../crypto/primitives';
 import { accessPublicKey, accessSeed, checkConsumeKey, decrypt, matchesAccessKey, prove, WrongPassphraseError } from '../crypto/protocol';
 import type { PublicConfig } from '../config';
 import { t } from '../i18n';
-import { HIGHLIGHT_LIMIT_BYTES, highlightToHtml } from '../render/highlight';
-import { renderMarkdown } from '../render/markdown';
-import { renderTemplateView } from '../render/template-view';
-import { parseTemplateText } from '../templates';
+import { buildContentView } from '../render/content-view';
 import { announce, toast } from '../ui/announcer';
 import { copyText } from '../ui/clipboard';
 import { crossedThreshold, nextTickMs, remainingAt, synchronise, type Sync } from '../ui/countdown';
 import { el, nextId, showScreen } from '../ui/dom';
 import { formatDate, formatRelative } from '../ui/format';
 import { cryptoAvailable } from './create';
-import DOMPurify from 'dompurify';
 
 const RESERVATION_MAX_SECONDS = 300;
 const AUTO_HIDE_MS = 120_000;
@@ -227,42 +223,7 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
   }
 
   function showContent(envelope: Envelope, data: OpenResponse, consumedNotice: HTMLElement | null, sync: Sync | null, priorOpens: number): void {
-    const container = el('div', { class: 'reader', tabindex: '0', 'aria-label': t('page.read.title') });
-    const large = byteLength(envelope.text) > HIGHLIGHT_LIMIT_BYTES;
-    const template = envelope.template !== null && envelope.format === 'markdown' && !large ? parseTemplateText(envelope.text) : null;
-    let viewSwitch: HTMLElement | null = null;
-    if (template) {
-      // Field view by default: per-field copy and masked sensitive values (§0.3).
-      const fieldsButton = el('button', { type: 'button', class: 'chip', 'aria-pressed': 'true' }, t('tpl.view.fields'));
-      const markdownButton = el('button', { type: 'button', class: 'chip', 'aria-pressed': 'false' }, t('tpl.view.markdown'));
-      const show = (fields: boolean) => {
-        container.replaceChildren(fields ? renderTemplateView(template) : renderMarkdown(envelope.text));
-        container.classList.toggle('markdown', !fields);
-        fieldsButton.setAttribute('aria-pressed', String(fields));
-        markdownButton.setAttribute('aria-pressed', String(!fields));
-      };
-      fieldsButton.addEventListener('click', () => show(true));
-      markdownButton.addEventListener('click', () => show(false));
-      viewSwitch = el('div', { class: 'presets', role: 'group', 'aria-label': t('tpl.view.label') }, fieldsButton, markdownButton);
-      container.append(renderTemplateView(template));
-    } else if (envelope.format === 'markdown' && !large) {
-      container.append(renderMarkdown(envelope.text));
-      container.classList.add('markdown');
-    } else if (envelope.format === 'code' && !large && envelope.language && highlightToHtml('', envelope.language) !== null) {
-      const code = el('code', { class: `hljs language-${envelope.language}` });
-      code.append(DOMPurify.sanitize(highlightToHtml(envelope.text, envelope.language) ?? '', { ALLOWED_TAGS: ['span'], ALLOWED_ATTR: ['class'], RETURN_DOM_FRAGMENT: true }));
-      container.append(el('pre', {}, code));
-    } else {
-      container.append(el('pre', { class: 'plain' }, envelope.text));
-    }
-    for (const pre of container.querySelectorAll('pre')) {
-      const blockText = pre.textContent ?? '';
-      const copyBlock = el('button', { type: 'button', class: 'button button-tertiary copy-block' }, t('read.copyBlock'));
-      copyBlock.addEventListener('click', async () => {
-        if (await copyText(blockText)) toast(t('read.clipboardAdvice'));
-      });
-      pre.before(copyBlock);
-    }
+    const { container, controls } = buildContentView(envelope);
 
     const hiddenNotice = el('p', { class: 'hint', hidden: true }, t('read.hidden'));
     const hideButton = el('button', { type: 'button', class: 'button button-secondary', 'aria-pressed': 'false' }, t('read.hide'));
@@ -308,7 +269,7 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
       priorOpens > 0 ? el('p', { class: 'warning', role: 'alert' }, t('read.priorOpens', { count: priorOpens })) : null,
       el('p', { class: 'hint' }, t('read.decryptedLocally')),
       expiry,
-      viewSwitch,
+      controls,
       container,
       hiddenNotice,
       el('p', { class: 'hint' }, t('read.autoHide'), ' ', keep, el('label', { for: keep.id }, t('read.keepVisible'))),

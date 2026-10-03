@@ -241,5 +241,13 @@
   "editor.sensitive.show": "Show sensitive fields",
   "tpl.notes": "Notes for {section}",
   "net.offline": "You are offline. Nothing is lost: actions will work again when the connection is back.",
-  "net.online": "Connection restored."
+  "net.online": "Connection restored.",
+  "preview.show": "Preview",
+  "preview.hide": "Hide preview",
+  "preview.title": "Preview (rendered locally, nothing is sent)",
+  "read.view.rendered": "Rendered",
+  "read.view.source": "Source",
+  "read.richDisabled": "This content is large: it is shown as plain text to keep the page responsive.",
+  "read.richEnable": "Show the formatted version",
+  "read.wrap": "Wrap long lines"
 }
