@@ -5,7 +5,7 @@ import { readConfig } from './config';
 import { selectLocale, setLocale } from './i18n';
 import { initTheme, renderChrome, translateTitle } from './ui/chrome';
 import { watchConnectivity } from './ui/connectivity';
-import { followVirtualKeyboard } from './ui/viewport';
+import { followActionBar, followVirtualKeyboard } from './ui/viewport';
 
 async function boot(): Promise<void> {
   const main = document.getElementById('main');
@@ -26,6 +26,7 @@ async function boot(): Promise<void> {
   renderChrome(config, theme, rerender);
   watchConnectivity();
   followVirtualKeyboard();
+  followActionBar(main);
 }
 
 void boot();

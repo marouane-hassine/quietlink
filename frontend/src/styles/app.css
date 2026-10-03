@@ -98,7 +98,8 @@
 html {
   font-size: 100%;
   -webkit-text-size-adjust: 100%;
-  scroll-padding-block-end: 8rem;
+  /* Height of the sticky action bar, measured by followActionBar(). */
+  scroll-padding-block-end: calc(var(--ql-bar-height, 7rem) + 1rem);
 }
 
 body {
@@ -399,6 +400,14 @@ summary {
   background: var(--ql-color-background);
   border-block-start: 1px solid var(--ql-color-border);
   margin-block-start: 1rem;
+}
+
+/* On short viewports (landscape phones, 400 % zoom) a sticky bar would cover most of the
+   screen: it scrolls with the content instead. */
+@media (max-height: 30rem) {
+  .action-bar {
+    position: static;
+  }
 }
 
 .action-bar .button-primary {
