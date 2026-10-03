@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+name: CI
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  php:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: intl, sodium, openssl, mbstring
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist
+      - run: composer validate --strict
+      - run: composer audit
+      - run: composer qa
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm audit --audit-level=high
+      - run: npm run qa
+      - name: Shared vectors are reproducible
+        run: node tools/vectors/generate-sp-proto-v1.mjs --check tests/vectors/sp-proto-v1.json
+      - name: Reproducible frontend build
+        run: |
+          find public/build -type f -exec sha256sum {} + | sort > /tmp/first.txt
+          npx vite build
+          find public/build -type f -exec sha256sum {} + | sort > /tmp/second.txt
+          diff /tmp/first.txt /tmp/second.txt
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: tools/ci/forbidden-patterns.sh
+      - name: No database service in compose
+        run: "! grep -Eiq 'image: *(postgres|mysql|mariadb|redis|valkey|mongo)' compose.yaml"
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f docker/php/Dockerfile -t quietlink/app:ci .
+      - run: docker build -f docker/nginx/Dockerfile -t quietlink/web:ci .
+      - run: docker build -f docker/cli/Dockerfile -t quietlink/cli:ci .
+      - name: Images run as non-root
+        run: |
+          test "$(docker image inspect -f '{{.Config.User}}' quietlink/app:ci)" = "10001:10001"
+          test -n "$(docker image inspect -f '{{.Config.User}}' quietlink/cli:ci)"

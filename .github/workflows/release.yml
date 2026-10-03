@@ -1,0 +1,85 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Signed release: images and PHAR signed keyless with cosign (Sigstore/Rekor), SBOM and
+# SLSA provenance attestations, published hashes of the frontend files (§7.5).
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+  attestations: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      REGISTRY: ghcr.io/${{ github.repository_owner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: intl, sodium, openssl, mbstring
+          tools: box
+      - uses: sigstore/cosign-installer@v3
+      - uses: anchore/sbom-action/download-syft@v0
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Frontend build and published hashes
+        run: |
+          npm ci && npx vite build
+          (cd public/build && find . -type f -exec sha256sum {} + | sort) > frontend-sha256sums.txt
+
+      - name: PHAR of the CLI
+        run: |
+          composer install --no-dev --classmap-authoritative
+          box compile --config=box.json
+          sha256sum quietlink.phar > quietlink.phar.sha256
+
+      - name: Build and push images
+        id: images
+        run: |
+          for image in app web cli; do
+            dockerfile=docker/$([ "$image" = web ] && echo nginx || ([ "$image" = app ] && echo php || echo cli))/Dockerfile
+            docker build -f "$dockerfile" -t "$REGISTRY/quietlink-$image:${GITHUB_REF_NAME}" .
+            docker push "$REGISTRY/quietlink-$image:${GITHUB_REF_NAME}"
+            digest=$(docker inspect --format='{{index .RepoDigests 0}}' "$REGISTRY/quietlink-$image:${GITHUB_REF_NAME}")
+            echo "$image=$digest" >> "$GITHUB_OUTPUT"
+            syft "$digest" -o spdx-json > "sbom-$image.spdx.json"
+            cosign sign --yes "$digest"
+            cosign attest --yes --predicate "sbom-$image.spdx.json" --type spdxjson "$digest"
+          done
+          syft dir:. -o spdx-json > sbom-source.spdx.json
+
+      - name: Sign files
+        run: |
+          for file in quietlink.phar frontend-sha256sums.txt; do
+            cosign sign-blob --yes --bundle "$file.sigstore.json" "$file"
+          done
+
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            quietlink.phar
+            frontend-sha256sums.txt
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            quietlink.phar
+            quietlink.phar.sha256
+            quietlink.phar.sigstore.json
+            frontend-sha256sums.txt
+            frontend-sha256sums.txt.sigstore.json
+            sbom-*.spdx.json
