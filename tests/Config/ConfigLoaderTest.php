@@ -132,6 +132,19 @@ final class ConfigLoaderTest extends TestCase
     }
 
     #[Group('EXG-CONF-021')]
+    public function testFailingConfigurationFileIsAValidationError(): void
+    {
+        file_put_contents($this->dir . '/config.php', "<?php\n\nthrow new \\RuntimeException('dummy-file-content');\n");
+        try {
+            $this->load();
+            self::fail('Configuration should be rejected.');
+        } catch (InvalidConfigException $e) {
+            self::assertStringContainsString('config.php could not be loaded (RuntimeException)', $e->getMessage());
+            self::assertStringNotContainsString('dummy-file-content', $e->getMessage());
+        }
+    }
+
+    #[Group('EXG-CONF-021')]
     #[Group('EXG-DEPLOY-023')]
     public function testUnknownKeyIsRejected(): void
     {

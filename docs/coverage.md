@@ -494,7 +494,7 @@ None.
 | EXG-CONF-006 | `tests/Config/ExampleConfigTest.php` |
 | EXG-CONF-007 | `tests/Maintenance/BooterTest.php` |
 | EXG-CONF-008 | `tests/Maintenance/BooterTest.php` |
-| EXG-CONF-009 | `tests/Http/ApiTest.php`, `tests/Storage/IdempotencyAndStateFilesTest.php` |
+| EXG-CONF-009 | `tests/Http/ApiTest.php`, `tests/Http/HardeningTest.php`, `tests/Storage/IdempotencyAndStateFilesTest.php` |
 | EXG-CONF-010 | `tests/Http/HardeningTest.php` |
 | EXG-CONF-011 | `tests/Config/ExampleConfigTest.php` |
 | EXG-CONF-012 | `tests/Config/ConfigLoaderTest.php` |
@@ -508,7 +508,7 @@ None.
 | EXG-CONF-020 | `tests/Config/ConfigLoaderTest.php` |
 | EXG-LIFE-020 | `tests/Maintenance/PurgerTest.php` |
 | EXG-SEC-098 | `tests/Web/PageTest.php` |
-| EXG-CONF-021 | `tests/Config/ConfigLoaderTest.php` |
+| EXG-CONF-021 | `tests/Config/ConfigLoaderTest.php`, `tests/Http/HardeningTest.php` |
 | EXG-SEC-101 | `tests/Maintenance/BooterTest.php` |
 | EXG-STORE-041 | `tests/Maintenance/BooterTest.php` |
 | EXG-STORE-042 | `tests/Maintenance/BooterTest.php`, `tests/Storage/FilesystemPasteStoreTest.php` |
@@ -586,7 +586,7 @@ None.
 | EXG-API-047 | `tests/Http/ApiTest.php` |
 | EXG-API-048 | `tests/Http/ApiTest.php`, `tests/Http/OpenApiContractTest.php` |
 | EXG-API-049 | `tests/Http/HardeningTest.php` |
-| EXG-API-050 | `tests/Http/ApiTest.php` |
+| EXG-API-050 | `tests/Http/ApiTest.php`, `tests/Http/HardeningTest.php` |
 | EXG-SEC-105 | `tests/Http/ApiTest.php` |
 | EXG-SEC-106 | `tests/Crypto/SpProtoV1VectorsTest.php`, `tests/Paste/PasteServiceTest.php` |
 | EXG-SEC-107 | `tests/Http/ApiTest.php` |

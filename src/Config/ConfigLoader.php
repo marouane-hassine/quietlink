@@ -7,6 +7,7 @@ declare(strict_types=1);
 namespace QuietLink\Config;
 
 use QuietLink\Crypto\Argon2id;
+use Throwable;
 
 /**
  * Loads defaults, config.php and config.local.php, then validates the result (§9.5).
@@ -133,7 +134,13 @@ final class ConfigLoader
             if (!is_file($file)) {
                 continue;
             }
-            $values = (static fn (string $path): mixed => require $path)($file);
+            try {
+                $values = (static fn (string $path): mixed => require $path)($file);
+            } catch (Throwable $e) {
+                // Class name only: the message could quote file content.
+                $errors[] = sprintf('%s could not be loaded (%s).', basename($file), $e::class);
+                continue;
+            }
             if (!is_array($values)) {
                 $errors[] = sprintf('%s must return an array.', basename($file));
                 continue;

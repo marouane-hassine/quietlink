@@ -11,6 +11,7 @@ use QuietLink\Config\InstanceConfig;
 use QuietLink\Config\InvalidConfigException;
 use QuietLink\Storage\StateFiles;
 use QuietLink\Storage\StorageLayout;
+use Throwable;
 
 /**
  * Loads the instance configuration at runtime (never compiled into the container, §9.5)
@@ -20,17 +21,33 @@ final class RuntimeStatus
 {
     private ?InstanceConfig $config = null;
     private ?bool $ready = null;
+    private ?InvalidConfigException $failure = null;
 
     public function __construct(private readonly string $configDir)
     {
     }
 
     /**
+     * Any failure while loading is reported as InvalidConfigException, so that every caller
+     * falls back to the generic 503 with security headers (§9.5).
+     *
      * @throws InvalidConfigException
      */
     public function config(): InstanceConfig
     {
-        return $this->config ??= ConfigLoader::load($this->configDir, Environment::processVariables());
+        if ($this->config !== null) {
+            return $this->config;
+        }
+        if ($this->failure !== null) {
+            throw $this->failure;
+        }
+        try {
+            return $this->config = ConfigLoader::load($this->configDir, Environment::processVariables());
+        } catch (InvalidConfigException $e) {
+            throw $this->failure = $e;
+        } catch (Throwable $e) {
+            throw $this->failure = new InvalidConfigException([sprintf('Configuration could not be loaded (%s).', $e::class)]);
+        }
     }
 
     /**

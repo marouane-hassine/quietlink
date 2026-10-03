@@ -8,6 +8,7 @@ namespace QuietLink\Tests\Http;
 
 use FilesystemIterator;
 use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use QuietLink\Client\ClientCrypto;
 use QuietLink\Encoding\Base64Url;
@@ -167,6 +168,41 @@ final class HardeningTest extends KernelTestCase
 
         self::assertSame(503, $this->request('GET', '/healthz')->getStatusCode());
         self::assertSame(503, $this->request('POST', '/api/v1/pastes', '{}', ['Idempotency-Key' => 'x'])->getStatusCode());
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function brokenConfigurations(): iterable
+    {
+        yield 'throwing file' => ["<?php\n\nthrow new \\RuntimeException('boom');\n"];
+        yield 'syntax error' => ["<?php\n\nreturn [\n"];
+        yield 'non-string list item' => ["<?php\n\nreturn ['app' => ['public_url' => 'https://paste.example.test'], 'http' => ['trusted_proxies' => [1]]];\n"];
+    }
+
+    #[DataProvider('brokenConfigurations')]
+    #[Group('EXG-CONF-009')]
+    #[Group('EXG-CONF-021')]
+    #[Group('EXG-API-050')]
+    public function testBrokenConfigurationYieldsGeneric503WithSecurityHeaders(string $content): void
+    {
+        $this->boot();
+        $file = $this->tmp->path . '/config/config.php';
+        file_put_contents($file, $content);
+        if (function_exists('opcache_invalidate')) {
+            opcache_invalidate($file, true);
+        }
+
+        $health = $this->request('GET', '/healthz');
+        self::assertSame(503, $health->getStatusCode());
+        self::assertSame(['status' => 'unavailable'], self::json($health));
+        foreach (['/', '/api/v1/pastes'] as $uri) {
+            $response = $uri === '/' ? $this->request('GET', $uri) : $this->request('POST', $uri, '{}', ['Idempotency-Key' => 'x']);
+            self::assertSame(503, $response->getStatusCode(), $uri);
+            self::assertStringContainsString("default-src 'none'", (string) $response->headers->get('Content-Security-Policy'), $uri);
+            self::assertSame('nosniff', $response->headers->get('X-Content-Type-Options'), $uri);
+            self::assertStringNotContainsString('boom', (string) $response->getContent());
+        }
     }
 
     #[Group('EXG-SEC-044')]
