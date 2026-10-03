@@ -252,6 +252,7 @@
   "read.view.rendered": "Rendered",
   "read.view.source": "Source",
   "read.richDisabled": "This content is large: it is shown as plain text to keep the page responsive.",
+  "read.highlightSkipped": "Highlighting is off for this code (very long lines or large size), so the page stays responsive.",
   "read.richEnable": "Show the formatted version",
   "read.wrap": "Wrap long lines",
   "read.export": "Save as text file",

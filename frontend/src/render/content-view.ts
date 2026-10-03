@@ -12,7 +12,7 @@ import { t } from '../i18n';
 import { parseTemplateText } from '../templates';
 import { copyText } from '../ui/clipboard';
 import { el, nextId } from '../ui/dom';
-import { HIGHLIGHT_LIMIT_BYTES, highlightToHtml } from './highlight';
+import { HIGHLIGHT_LIMIT_BYTES, highlightToHtml, withinHighlightBudget } from './highlight';
 import { renderMarkdown } from './markdown';
 import { renderTemplateView } from './template-view';
 
@@ -30,6 +30,13 @@ export function buildContentView(envelope: Envelope, options: { wifiQr?: boolean
   const template = envelope.template !== null && envelope.format === 'markdown' ? parseTemplateText(envelope.text) : null;
   const highlightable = envelope.format === 'code' && envelope.language !== null && highlightToHtml('', envelope.language) !== null;
 
+  // Computed once; null when the code is too costly to highlight (long lines, large block).
+  let highlightedHtml: string | null | undefined;
+  const highlighted = () => (highlightedHtml ??= highlightable && envelope.language ? highlightToHtml(envelope.text, envelope.language) : null);
+  if (highlightable && !large && !withinHighlightBudget(envelope.text)) {
+    controls.append(el('p', { class: 'hint' }, t('read.highlightSkipped')));
+  }
+
   const modes: Mode[] = [];
   if (template) modes.push('fields');
   if (envelope.format === 'markdown' || highlightable) modes.push('rendered');
@@ -41,9 +48,9 @@ export function buildContentView(envelope: Envelope, options: { wifiQr?: boolean
       container.replaceChildren(renderTemplateView(template, { wifiQr: options.wifiQr === true && envelope.template === 'wifi' }));
     } else if (mode === 'rendered' && envelope.format === 'markdown') {
       container.replaceChildren(renderMarkdown(envelope.text));
-    } else if (mode === 'rendered' && highlightable && envelope.language) {
+    } else if (mode === 'rendered' && highlightable && envelope.language && highlighted() !== null) {
       const code = el('code', { class: `hljs language-${envelope.language}` });
-      code.append(DOMPurify.sanitize(highlightToHtml(envelope.text, envelope.language) ?? '', { ALLOWED_TAGS: ['span'], ALLOWED_ATTR: ['class'], RETURN_DOM_FRAGMENT: true }));
+      code.append(DOMPurify.sanitize(highlighted() ?? '', { ALLOWED_TAGS: ['span'], ALLOWED_ATTR: ['class'], RETURN_DOM_FRAGMENT: true }));
       container.replaceChildren(el('pre', {}, code));
     } else {
       container.replaceChildren(el('pre', { class: 'plain' }, envelope.text));

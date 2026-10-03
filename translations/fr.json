@@ -252,6 +252,7 @@
   "read.view.rendered": "Rendu",
   "read.view.source": "Source",
   "read.richDisabled": "Ce contenu est volumineux : il est affiché en texte brut pour garder la page réactive.",
+  "read.highlightSkipped": "La coloration est désactivée pour ce code (lignes très longues ou grande taille) afin que la page reste réactive.",
   "read.richEnable": "Afficher la version mise en forme",
   "read.wrap": "Renvoyer les longues lignes à la ligne",
   "read.export": "Enregistrer en fichier texte",

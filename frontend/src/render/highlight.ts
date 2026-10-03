@@ -24,8 +24,28 @@ for (const [name, language] of Object.entries(LANGUAGES)) hljs.registerLanguage(
 
 export { HIGHLIGHT_LIMIT_BYTES, LANGUAGE_IDS } from './languages';
 
-/** Escaped HTML with hljs classes, or null when the language is unknown. */
+/**
+ * highlight.js grows quadratically with line length (100 KB of hex on one line blocks the Java
+ * grammar for ~24 s): code with long lines or large blocks is shown plain, so formatting never
+ * freezes the interface (§5.1). With short lines the cost is linear (~440 ms worst for 64 KiB).
+ */
+export const HIGHLIGHT_MAX_LINE = 500;
+export const HIGHLIGHT_MAX_BLOCK = 64 * 1024;
+
+export function withinHighlightBudget(code: string): boolean {
+  if (code.length > HIGHLIGHT_MAX_BLOCK) return false;
+  let start = 0;
+  while (start <= code.length) {
+    const end = code.indexOf('\n', start);
+    const stop = end === -1 ? code.length : end;
+    if (stop - start > HIGHLIGHT_MAX_LINE) return false;
+    start = stop + 1;
+  }
+  return true;
+}
+
+/** Escaped HTML with hljs classes, or null when the language is unknown or the code too costly. */
 export function highlightToHtml(code: string, language: string): string | null {
-  if (!language || !hljs.getLanguage(language)) return null;
+  if (!language || !hljs.getLanguage(language) || !withinHighlightBudget(code)) return null;
   return hljs.highlight(code, { language, ignoreIllegals: true }).value;
 }

@@ -10,7 +10,7 @@ import DOMPurify from 'dompurify';
 import MarkdownIt from 'markdown-it';
 
 type Renderer = InstanceType<typeof MarkdownIt>;
-import { highlightToHtml } from './highlight';
+import { HIGHLIGHT_MAX_BLOCK, highlightToHtml } from './highlight';
 import { t } from '../i18n';
 
 const ALLOWED_TAGS = ['p', 'br', 'strong', 'em', 'del', 's', 'code', 'pre', 'blockquote', 'ul', 'ol', 'li', 'a', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'span'];
@@ -25,8 +25,17 @@ export function isAllowedUrl(url: string): boolean {
   }
 }
 
+/** Characters left to highlight in the document being rendered. */
+let highlightBudget = HIGHLIGHT_MAX_BLOCK;
+
 function createRenderer(): Renderer {
-  const md = new MarkdownIt({ html: false, linkify: false, typographer: false, highlight: (code, lang) => highlightToHtml(code, lang) ?? '' });
+  const md = new MarkdownIt({ html: false, linkify: false, typographer: false, highlight: (code, lang) => {
+    // Total highlighted per document is bounded too (§5.1): later blocks stay plain.
+    if (code.length > highlightBudget) return '';
+    const html = highlightToHtml(code, lang);
+    if (html !== null) highlightBudget -= code.length;
+    return html ?? '';
+  } });
   md.validateLink = isAllowedUrl;
   md.renderer.rules.image = (tokens, idx) => {
     const token = tokens[idx];
@@ -59,6 +68,7 @@ let renderer: Renderer | null = null;
 
 export function renderMarkdown(source: string): DocumentFragment {
   renderer ??= createRenderer();
+  highlightBudget = HIGHLIGHT_MAX_BLOCK;
   const html = renderer.render(source);
   const fragment = DOMPurify.sanitize(html, {
     ALLOWED_TAGS,
