@@ -26,8 +26,12 @@ the document that raised it. Additional choices:
 - Storage OQ-01: every stored verifier is an unkeyed SHA-256, base64url without padding.
 - Storage OQ-02: idempotency keys are global; a collision with a different body yields `422`.
 - Storage OQ-06: request paths retry `LOCK_EX|LOCK_NB` for at most 2 s, then answer `503`.
-- Storage OQ-08: creation is refused when the last `health.json` (≤ 10 min old) reports free
-  inodes below the threshold; a stale or missing measurement does not block creation.
+- Storage OQ-08: creation is refused when `health.json` reports free inodes below the threshold,
+  and also when it is missing or older than 10 minutes (§7.5, "Anti-abus et disponibilité").
+- Rate limits (§7.5 lists the buckets but no values): defaults per client address are create 30 /
+  10 min, challenge 120 / min, open 60 / min, status 60 / min, consume 60 / min, delete 30 / 10 min,
+  health 60 / min; per paste (valid proofs only) open 20 / min and status 30 / min. All are
+  configurable under `http.rate_limits`.
 - Storage OQ-10: `usage.json`, `health.json` and `boot.json` get v1 JSON Schemas written with
   their implementation.
 
