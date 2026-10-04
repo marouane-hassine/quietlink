@@ -10,6 +10,7 @@
   "app.unsupported": "Ce navigateur ne peut pas chiffrer localement (Web Crypto absent). Utilisez un navigateur à jour.",
   "nav.language": "Langue",
   "nav.languageChanged": "Langue : {language}",
+  "nav.languageFailed": "Cette langue n’a pas pu être chargée. Vérifiez la connexion et réessayez.",
   "nav.theme": "Thème",
   "theme.auto": "Système",
   "theme.light": "Clair",

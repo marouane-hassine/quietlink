@@ -10,6 +10,7 @@
   "app.unsupported": "This browser cannot encrypt locally (Web Crypto is missing). Use an up-to-date browser.",
   "nav.language": "Language",
   "nav.languageChanged": "Language: {language}",
+  "nav.languageFailed": "This language could not be loaded. Check the connection and try again.",
   "nav.theme": "Theme",
   "theme.auto": "System",
   "theme.light": "Light",

@@ -33,6 +33,14 @@ describe('shipped catalogues', () => {
   });
 });
 
+describe('template field labels', () => {
+  it.each(Object.keys(catalogs))('%s gives every template field a distinct label (labels identify fields)', (code) => {
+    const catalog = catalogs[code] as Record<string, string>;
+    const labels = Object.entries(catalog).filter(([key]) => key.startsWith('tpl.field.') && key !== 'tpl.field.copy' && key !== 'tpl.field.copied').map(([, value]) => value.toLowerCase());
+    expect(labels.filter((label, index) => labels.indexOf(label) !== index)).toEqual([]);
+  });
+});
+
 describe('locale loading', () => {
   it('loads a catalogue on demand and applies its direction to the document', async () => {
     expect(await loadLocale('ar')).toBe(true);
@@ -68,3 +76,18 @@ describe('templates in every language', () => {
     }
   });
 });
+
+describe('catalogue loading failures', () => {
+  it('reports a catalogue that cannot be fetched instead of throwing (offline, stale deploy)', async () => {
+    // Spanish is not loaded by the other tests of this file (catalogues are cached once loaded).
+    const failing = { '../../translations/es.json': () => Promise.reject(new TypeError('Failed to fetch')) };
+    await expect(loadLocale('es', failing)).resolves.toBe(false);
+  });
+
+  it('never switches to a language whose catalogue is not loaded', () => {
+    setLocale('en');
+    expect(setLocale('xx')).toBe(false);
+    expect(locale()).toBe('en');
+  });
+});
+

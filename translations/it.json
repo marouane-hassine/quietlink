@@ -10,6 +10,7 @@
   "app.unsupported": "Questo browser non può cifrare localmente (Web Crypto non disponibile). Usa un browser aggiornato.",
   "nav.language": "Lingua",
   "nav.languageChanged": "Lingua: {language}",
+  "nav.languageFailed": "Impossibile caricare questa lingua. Controlla la connessione e riprova.",
   "nav.theme": "Tema",
   "theme.auto": "Sistema",
   "theme.light": "Chiaro",

@@ -10,6 +10,7 @@
   "app.unsupported": "لا يستطيع هذا المتصفح التشفير محليًا (واجهة Web Crypto غير متوفرة). استخدم متصفحًا محدّثًا.",
   "nav.language": "اللغة",
   "nav.languageChanged": "اللغة: {language}",
+  "nav.languageFailed": "تعذّر تحميل هذه اللغة. تحقّق من الاتصال وأعد المحاولة.",
   "nav.theme": "المظهر",
   "theme.auto": "حسب النظام",
   "theme.light": "فاتح",

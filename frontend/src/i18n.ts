@@ -15,15 +15,24 @@ const CATALOGS: Record<string, Catalog> = { en: en as Catalog, fr: fr as Catalog
  * language is adding a file, no code change (§6.6.1). */
 const LOADERS = import.meta.glob<Catalog>('../../translations/*.json', { import: 'default' });
 
-const loaderFor = (code: string) => (/^[a-z]{2}$/.test(code) ? LOADERS[`../../translations/${code}.json`] : undefined);
+type Loaders = Record<string, () => Promise<Catalog>>;
 
-/** Loads a catalogue before setLocale(); false when no such catalogue exists. */
-export async function loadLocale(code: string): Promise<boolean> {
+const loaderFor = (code: string, loaders: Loaders = LOADERS) => (/^[a-z]{2}$/.test(code) ? loaders[`../../translations/${code}.json`] : undefined);
+
+/**
+ * Loads a catalogue before setLocale(); false when it does not exist or cannot be fetched
+ * (offline, stale page after a redeploy): callers then keep or fall back to English.
+ */
+export async function loadLocale(code: string, loaders: Loaders = LOADERS): Promise<boolean> {
   if (code in CATALOGS) return true;
-  const loader = loaderFor(code);
+  const loader = loaderFor(code, loaders);
   if (!loader) return false;
-  CATALOGS[code] = await loader();
-  return true;
+  try {
+    CATALOGS[code] = await loader();
+    return true;
+  } catch {
+    return false;
+  }
 }
 const STORAGE_KEY = 'ql-locale';
 
@@ -55,8 +64,11 @@ export function selectLocale(enabled: string[]): string {
   return 'en';
 }
 
-export function setLocale(code: string, remember = false): void {
-  active = CATALOGS[code] ?? (CATALOGS.en as Catalog);
+/** Applies a loaded catalogue; false (nothing changes) when it is not loaded. */
+export function setLocale(code: string, remember = false): boolean {
+  const catalog = CATALOGS[code];
+  if (!catalog) return false;
+  active = catalog;
   document.documentElement.lang = active._meta.locale;
   document.documentElement.dir = active._meta.dir;
   if (remember) {
@@ -66,6 +78,7 @@ export function setLocale(code: string, remember = false): void {
       // Private mode: the preference is simply not remembered.
     }
   }
+  return true;
 }
 
 export function locale(): string {

@@ -9,9 +9,15 @@ import type { PublicConfig } from '../config';
 
 const THEME_KEY = 'ql-theme';
 
+const THEMES = ['auto', 'light', 'dark'];
+/** Increments with each language choice; only the latest one is applied. */
+let languageRequest = 0;
+
+/** The remembered theme, if it is one of the known choices (an old or edited value is ignored). */
 function storedTheme(): string | null {
   try {
-    return localStorage.getItem(THEME_KEY);
+    const value = localStorage.getItem(THEME_KEY);
+    return value !== null && THEMES.includes(value) ? value : null;
   } catch {
     return null;
   }
@@ -23,7 +29,7 @@ export function applyTheme(choice: string): void {
 }
 
 export function initTheme(config: PublicConfig): string {
-  const choice = storedTheme() ?? config.darkMode;
+  const choice = storedTheme() ?? (THEMES.includes(config.darkMode) ? config.darkMode : 'auto');
   applyTheme(choice);
   return choice;
 }
@@ -73,15 +79,26 @@ export function renderChrome(config: PublicConfig, theme: string, rerender: () =
     languageSelect.append(el('option', { value: option.code, selected: option.code === locale(), lang: option.code }, option.name));
   }
   languageSelect.addEventListener('change', async () => {
+    // Captured before loading: a later choice made meanwhile wins (arrow keys on the select fire
+    // one change per step), and an earlier load finishing late is dropped.
+    const code = languageSelect.value;
+    const name = languageSelect.selectedOptions[0]?.textContent ?? '';
+    const request = ++languageRequest;
     // Catalogues other than English and French are loaded on first use.
-    if (!(await loadLocale(languageSelect.value))) return;
-    setLocale(languageSelect.value, true);
+    const loaded = await loadLocale(code);
+    if (request !== languageRequest) return;
+    if (!loaded || !setLocale(code, true)) {
+      languageSelect.value = locale();
+      toast(t('nav.languageFailed'));
+      return;
+    }
+    const hadFocus = document.activeElement === languageSelect || document.activeElement === document.body;
     // Page title first: the redraw then names the current screen (showScreen).
     translateTitle(config);
     redrawInPlace(rerender);
     renderChrome(config, storedTheme() ?? theme, rerender);
-    document.getElementById('ql-language')?.focus();
-    toast(t('nav.languageChanged', { language: languageSelect.selectedOptions[0]?.textContent ?? '' }));
+    if (hadFocus) document.getElementById('ql-language')?.focus();
+    toast(t('nav.languageChanged', { language: name }));
   });
 
   // Theme: three icon-only choices in a labelled group (native radios: arrow keys, screen
