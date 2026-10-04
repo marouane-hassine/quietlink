@@ -110,6 +110,8 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
   };
 
   async function start(): Promise<void> {
+    // A new attempt replaces the previous screen: a language change must not redraw it.
+    redraw = null;
     clearExpiredReservations(Date.now());
     if (!cryptoAvailable()) return fail('app.unsupported');
     showScreen(main, el('h1', { class: 'page-title' }, t('page.read.title')), el('p', { class: 'status', role: 'status' }, t('state.checking')));

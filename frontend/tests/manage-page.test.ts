@@ -10,6 +10,7 @@ import { fingerprint, sha256 } from '../src/crypto/primitives';
 import { mountManage } from '../src/pages/manage';
 import { setLocale, t } from '../src/i18n';
 import { mockFetch, response, setSecureContext, until } from './support/fake-api';
+import { redrawInPlace } from '../src/ui/dom';
 
 describe('management page', () => {
   let main: HTMLElement;
@@ -54,5 +55,19 @@ describe('management page', () => {
 
     expect(main.querySelector('.error')?.getAttribute('role')).toBe('alert');
     expect((main.querySelector('.button-danger') as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('keeps focus where it is when a language change redraws the page', async () => {
+    await until(() => main.querySelector('.button-danger') !== null);
+    const outside = document.createElement('button');
+    document.body.append(outside);
+    outside.focus();
+    setLocale('fr');
+    redrawInPlace(rerender);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(document.activeElement).toBe(outside);
+    expect(main.querySelector('.button-danger')?.textContent).toBe(t('manage.delete'));
+    setLocale('en');
   });
 });

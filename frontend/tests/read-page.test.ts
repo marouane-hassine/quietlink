@@ -510,3 +510,28 @@ describe('key in the address bar (ADR-0009)', () => {
   });
 });
 
+describe('language change while retrying', () => {
+  it('does not bring the previous error screen back over the new attempt', async () => {
+    const paste = await makePaste();
+    let attempts = 0;
+    const gate = deferred<void>();
+    serve(paste, {}, async (request) => {
+      if (!request.path.endsWith('/status')) return null;
+      attempts += 1;
+      if (attempts === 1) throw new TypeError('offline');
+      await gate.promise;
+      return null;
+    });
+    mount();
+    await until(() => main.textContent?.includes(t('error.networkRead')) === true);
+    ([...main.querySelectorAll('button')].find((b) => b.textContent === t('action.retry')) as HTMLButtonElement).click();
+    await until(() => main.textContent?.includes(t('state.checking')) === true);
+    setLocale('fr');
+    rerender();
+
+    expect(main.textContent).not.toContain(t('error.networkRead'));
+    setLocale('en');
+    gate.resolve();
+  });
+});
+

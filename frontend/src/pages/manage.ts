@@ -9,7 +9,6 @@ import { api, ApiError } from '../api';
 import { decode, encode, EncodingError } from '../crypto/base64url';
 import { matchesDeletionToken } from '../crypto/protocol';
 import { t } from '../i18n';
-import { announce } from '../ui/announcer';
 import { confirmInline } from '../ui/confirm';
 import { el, forgetFragment, showScreen } from '../ui/dom';
 import { cryptoAvailable } from '../ui/capabilities';
@@ -17,13 +16,16 @@ import { cryptoAvailable } from '../ui/capabilities';
 export function mountManage(main: HTMLElement): () => void {
   /** Set once the deletion request is answered: a redraw must not offer deletion again. */
   let done = false;
-  const render = async () => {
-    const message = (key: string) => {
-      showScreen(main, el('h1', { class: 'page-title' }, t('page.manage.title')), el('p', { role: 'alert' }, t(key)), el('a', { href: '/', class: 'button button-secondary' }, t('action.new')));
-      announce(t(key));
-    };
-    if (done) return message('manage.done');
-    if (!cryptoAvailable()) return message('app.unsupported');
+  /** Result of the local link check, made once: redraws (language change) are synchronous. */
+  let verdict: { messageKey: string } | { id: string; token: Uint8Array } | null = null;
+
+  const message = (key: string) => {
+    // The role="alert" paragraph is announced on insertion: no second announcement.
+    showScreen(main, el('h1', { class: 'page-title' }, t('page.manage.title')), el('p', { role: 'alert' }, t(key)), el('a', { href: '/', class: 'button button-secondary' }, t('action.new')));
+  };
+
+  const check = async (): Promise<typeof verdict> => {
+    if (!cryptoAvailable()) return { messageKey: 'app.unsupported' };
     const id = location.pathname.split('/').pop() ?? '';
     let idBytes: Uint8Array;
     let token: Uint8Array;
@@ -31,11 +33,17 @@ export function mountManage(main: HTMLElement): () => void {
       idBytes = decode(id, 24);
       token = decode(location.hash.slice(1), 32);
     } catch (error) {
-      if (error instanceof EncodingError) return message('error.incompleteLink');
+      if (error instanceof EncodingError) return { messageKey: 'error.incompleteLink' };
       throw error;
     }
-    if (!(await matchesDeletionToken(idBytes, token))) return message('error.alteredLink');
+    return (await matchesDeletionToken(idBytes, token)) ? { id, token } : { messageKey: 'error.alteredLink' };
+  };
 
+  const draw = () => {
+    if (done) return message('manage.done');
+    if (verdict === null) return;
+    if ('messageKey' in verdict) return message(verdict.messageKey);
+    const { id, token } = verdict;
     const button = el('button', { type: 'button', class: 'button button-danger' }, t('manage.delete'));
     const status = el('p', { class: 'status', role: 'status' });
     const failure = el('p', { class: 'error', role: 'alert', hidden: true });
@@ -44,7 +52,6 @@ export function mountManage(main: HTMLElement): () => void {
       button.disabled = true;
       failure.hidden = true;
       status.textContent = t('state.deleting');
-      announce(t('state.deleting'));
       try {
         await api.remove(id, encode(token));
       } catch (error) {
@@ -64,6 +71,10 @@ export function mountManage(main: HTMLElement): () => void {
     });
     showScreen(main, el('h1', { class: 'page-title' }, t('page.manage.title')), el('p', {}, t('manage.intro')), el('p', { class: 'warning' }, t('manage.warning')), failure, el('div', { class: 'action-bar' }, button, status));
   };
-  void render();
-  return () => void render();
+
+  void check().then((result) => {
+    verdict = result;
+    draw();
+  });
+  return draw;
 }
