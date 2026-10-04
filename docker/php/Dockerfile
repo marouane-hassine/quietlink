@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # QuietLink application image: PHP-FPM, non-root, read-only root filesystem compatible.
-# Base images should be pinned by digest in release builds (see docs/README-admin.md).
+# Base images are pinned by multi-arch index digest (docs/README-developer.md, "Updating pinned dependencies").
 
-FROM node:24-alpine AS assets
+FROM node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS assets
 WORKDIR /src
 COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts
@@ -12,14 +12,14 @@ COPY translations ./translations
 COPY tests/vectors ./tests/vectors
 RUN npx vite build
 
-FROM composer:2 AS vendor
+FROM composer:2@sha256:af98f42dfff7c68ba8d53c2164fd9fde1087b7d449514baa38c418b1f6bc4bac AS vendor
 WORKDIR /src
 COPY composer.json composer.lock ./
 RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist --ignore-platform-reqs
 COPY src ./src
 RUN composer dump-autoload --no-dev --classmap-authoritative
 
-FROM php:8.3-fpm-alpine AS app
+FROM php:8.3-fpm-alpine@sha256:454b11c8907e32878ce92e87b13c14e1bbe6e1b10f4f96d4a19c9b62ec675d41 AS app
 RUN apk add --no-cache icu-libs \
  && apk add --no-cache --virtual .build icu-dev \
  && docker-php-ext-install -j"$(nproc)" intl opcache \

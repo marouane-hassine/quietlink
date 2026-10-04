@@ -2,14 +2,14 @@
 # Ephemeral CLI image: docker run --rm -i quietlink/cli decrypt --url-stdin
 # Use `docker run -it` for interactive passphrase prompts (/dev/tty).
 
-FROM composer:2 AS vendor
+FROM composer:2@sha256:af98f42dfff7c68ba8d53c2164fd9fde1087b7d449514baa38c418b1f6bc4bac AS vendor
 WORKDIR /src
 COPY composer.json composer.lock ./
 RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist --ignore-platform-reqs
 COPY src ./src
 RUN composer dump-autoload --no-dev --classmap-authoritative
 
-FROM php:8.3-cli-alpine
+FROM php:8.3-cli-alpine@sha256:8dbeb51c352cf1f70d5d50f3642c9fbed311e914475ea2382f5bc1525bef7bb3
 RUN apk add --no-cache icu-libs \
  && apk add --no-cache --virtual .build icu-dev \
  && docker-php-ext-install -j"$(nproc)" intl \
