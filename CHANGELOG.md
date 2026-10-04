@@ -7,6 +7,12 @@ a removed API version is announced at least one minor version in advance.
 
 ## [Unreleased]
 
+## [1.0.0-beta.1] - 2026-10-04
+
+First public beta: every V1 Must is implemented; the external security review, the
+reader tests and the native review of the Spanish, Italian and Arabic catalogues are still
+pending (docs/release-checklist.md).
+
 ### Added
 
 - Protocol `sp-proto/v1` with shared test vectors (PHP, TypeScript, CLI).
