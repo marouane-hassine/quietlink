@@ -1,6 +1,6 @@
 # Cahier des charges — QuietLink, outil de partage de textes confidentiels
 
-**Statut :** version 0.18 — projet de cahier des charges produit et technique  
+**Statut :** version 0.19 — projet de cahier des charges produit et technique  
 **Périmètre :** V1  
 **Technologie obligatoire :** PHP avec Symfony pour le backend, l’API et la CLI ; TypeScript avec Vite pour le frontend  
 **Licence :** GNU Affero General Public License v3.0 (AGPL-3.0)  
@@ -9,6 +9,7 @@
 
 **Historique :**
 
+- 0.19 — répertoire de données configurable par `storage.data_dir`, par défaut `datas/` à la racine du projet (hors de `public/`) ; les répertoires de contenus, d’idempotence, de rate limiting et d’état en dérivent par défaut et restent configurables individuellement ; en Docker, le volume de données est monté sur ce répertoire.
 - 0.18 — décisions de cadrage (licence AGPL-3.0, TypeScript + Vite, markdown-it + DOMPurify, @noble/ed25519 + hash-wasm, Argon2id 64 Mio / t = 3, listes de mots EFF et Lexique, Sigstore, audit externe ciblé, palette validée) ; retrait des honeypots ; identifiant de 192 bits liant aussi le jeton de suppression, pour une pré-vérification de `DELETE` sans stockage ; idempotence : contrôle d’empreinte en cas de course, purge des contenus orphelins, rate limiting des rejeux, détails de `link()` ; consommation idempotente après `consumed` ; quotas sous verrou.
 - 0.17 — idempotence sans état intermédiaire (enregistrement écrit une seule fois, après création, par `link()` atomique) : aucune reprise ne réutilise un identifiant ; identifiant retiré du corps de création ; pré-vérification sans stockage de `consume` ; limites de l’AAD documentées ; définition de `tronc64` ; contrôles client de l’identifiant et de l’AAD.
 - 0.16 — identifiant composé d’une empreinte de `access_pk` (64 bits) et d’un aléa attribué par le serveur (64 bits) : un détenteur du lien ne peut plus jamais recréer de contenu sous un lien existant ; retrait de `created_at` de l’AAD, suppression de la fenêtre de création et des pierres tombales autres que `consumed` ; identifiant de réservation généré par le client ; idempotence consultée avant quotas et rate limiting ; proxies de confiance et adresses IPv4 mappées ; relecture d’état après verrou étendue aux états terminaux avec contrôle d’inode ; nettoyage des `pending` en échec ; empreinte du secret dans le marqueur d’amorçage ; `ExecReload` ; purge conditionnée à l’amorçage ; `health.json` périmé bloquant ; limite documentée de `DELETE`.
@@ -1239,10 +1240,12 @@ Les transitions de lecture unique doivent être protégées par un verrou exclus
 
 #### 9.4.1 Stockage de fichiers V1
 
+Le répertoire de données est configurable dans `config.php` par `storage.data_dir` ; par défaut, il s’agit du dossier `datas/` à la racine du projet (un chemin relatif est résolu depuis la racine du projet). Il doit rester hors de la racine web `public/`. Les répertoires `storage.root_dir`, `storage.idempotency_dir`, `storage.ratelimit_dir` et `storage.state_dir` en dérivent par défaut (`datas/pastes`, `datas/idempotency`, `datas/ratelimit`, `datas/state`) et peuvent chacun être configurés séparément. En Docker, le système de fichiers racine étant en lecture seule, le volume de données est monté sur ce répertoire.
+
 Chaque contenu doit être stocké dans un répertoire partitionné par préfixes de son identifiant afin d’éviter un trop grand nombre de fichiers dans un même répertoire :
 
 ```text
-/var/lib/quietlink/
+<racine du projet>/datas/          # storage.data_dir
 ├── pastes/
 │   └── ab/
 │       └── cd/
@@ -1360,10 +1363,12 @@ return [
     ],
     'storage' => [
         'driver' => 'filesystem',
-        'root_dir' => '/var/lib/quietlink/pastes',
-        'idempotency_dir' => '/var/lib/quietlink/idempotency',
-        'ratelimit_dir' => '/var/lib/quietlink/ratelimit',
-        'state_dir' => '/var/lib/quietlink/state',
+        // Relatif à la racine du projet ; les quatre répertoires suivants en dérivent par défaut.
+        'data_dir' => 'datas',
+        'root_dir' => null,          // datas/pastes
+        'idempotency_dir' => null,   // datas/idempotency
+        'ratelimit_dir' => null,     // datas/ratelimit
+        'state_dir' => null,         // datas/state
         'generated_assets_dir' => '/var/lib/quietlink-generated',
         'max_total_bytes' => 10737418240,
         'max_items' => 100000,
@@ -1407,7 +1412,8 @@ Règles de sécurité de la configuration :
 - la configuration doit être validée au démarrage ;
 - une configuration invalide doit empêcher le démarrage ou désactiver l’option concernée de manière sûre ;
 - les fichiers de configuration doivent être lisibles uniquement par l’utilisateur du processus PHP ;
-- les répertoires `root_dir`, `idempotency_dir`, `ratelimit_dir`, `state_dir` et `generated_assets_dir` doivent être hors de la racine web ; `generated_assets_dir` est sur un volume distinct, seul monté dans le conteneur du serveur web, qui n’a jamais accès aux autres répertoires ; appartenir au compte système de l’application et ne pas traverser de lien symbolique sortant ;
+- `data_dir` vaut `datas` par défaut (racine du projet) ; un chemin relatif est résolu depuis la racine du projet ; `root_dir`, `idempotency_dir`, `ratelimit_dir` et `state_dir` valent par défaut `<data_dir>/pastes`, `<data_dir>/idempotency`, `<data_dir>/ratelimit` et `<data_dir>/state` ; `app:boot` refuse un répertoire de données situé dans `public/` ;
+- les répertoires `data_dir`, `root_dir`, `idempotency_dir`, `ratelimit_dir`, `state_dir` et `generated_assets_dir` doivent être hors de la racine web ; `generated_assets_dir` est sur un volume distinct, seul monté dans le conteneur du serveur web, qui n’a jamais accès aux autres répertoires ; appartenir au compte système de l’application et ne pas traverser de lien symbolique sortant ;
 - les chemins de stockage doivent être validés au démarrage et leur création automatique doit appliquer des permissions restrictives ;
 - le chargement de fichiers arbitraires par une valeur de configuration doit être interdit ; seuls des fichiers de tokens situés dans le répertoire autorisé `config/themes/`, sans chemin absolu, sans `..` et sans lien symbolique sortant de ce répertoire, peuvent être chargés ;
 - toute modification de configuration doit nécessiter un redémarrage ou un rechargement explicite du service ;
