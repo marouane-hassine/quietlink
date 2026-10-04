@@ -16,11 +16,18 @@ export interface Timed<T> {
   t1: number;
 }
 
+/** A request still unanswered after this delay is abandoned as a network error, which offers
+ * the usual Retry (same idempotency key or reservation) instead of waiting forever (§5.1). */
+const REQUEST_TIMEOUT_MS = 30_000;
+
 async function request<T>(method: string, path: string, body: string | null, headers: Record<string, string> = {}): Promise<Timed<T>> {
   const t0 = performance.now();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   let response: Response;
   try {
     response = await fetch(path, {
+      signal: controller.signal,
       method,
       body,
       headers: body === null ? headers : { 'Content-Type': 'application/json', ...headers },
@@ -31,13 +38,15 @@ async function request<T>(method: string, path: string, body: string | null, hea
     });
   } catch {
     throw new ApiError('network');
+  } finally {
+    clearTimeout(timer);
   }
   const t1 = performance.now();
   if (response.status === 204) return { data: undefined as T, t0, t1 };
   if (!response.ok) {
     const retry = Number.parseInt(response.headers.get('Retry-After') ?? '', 10);
     const retryAfter = Number.isFinite(retry) ? retry : null;
-    const kind: ApiErrorKind = ({ 404: 'unavailable', 409: 'reserved', 429: 'rate', 503: 'quota', 400: 'refused', 413: 'tooLarge', 422: 'server' } as Record<number, ApiErrorKind>)[response.status] ?? 'server';
+    const kind: ApiErrorKind = ({ 404: 'unavailable', 409: 'reserved', 429: 'rate', 503: 'quota', 400: 'refused', 413: 'tooLarge', 422: 'refused' } as Record<number, ApiErrorKind>)[response.status] ?? 'server';
     throw new ApiError(kind, retryAfter);
   }
   try {
