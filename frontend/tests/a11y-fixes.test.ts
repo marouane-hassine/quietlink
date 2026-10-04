@@ -61,4 +61,13 @@ describe('accessibility fixes', () => {
     const toggle = [...form.querySelectorAll('button')].find((b) => b.textContent === t('editor.sensitive.show')) as HTMLButtonElement;
     expect(toggle.hasAttribute('aria-pressed')).toBe(false);
   });
+
+  it('lets user content take its own direction and keeps links and code left to right (§6.6.1)', () => {
+    setLocale('en');
+    const markdown = buildContentView({ v: 1, format: 'markdown', language: null, template: null, text: 'نص\n\n```\ncode\n```' });
+    expect(markdown.container.getAttribute('dir')).toBe('auto');
+    expect(markdown.container.querySelector('pre')?.getAttribute('dir')).toBe('ltr');
+    const code = buildContentView({ v: 1, format: 'code', language: 'python', template: null, text: 'x = 1' });
+    expect(code.container.querySelector('pre')?.getAttribute('dir')).toBe('ltr');
+  });
 });

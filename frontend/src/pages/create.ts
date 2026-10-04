@@ -110,6 +110,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     const editorId = nextId('editor');
     const hintId = nextId('hint');
     const editor = el('textarea', {
+      dir: 'auto',
       id: editorId,
       class: 'editor',
       placeholder: t('editor.placeholder'),
@@ -613,7 +614,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       redrawResult = draw;
       if (!manageCopied) setUnloadGuard(true, t('result.leaveWarning'));
 
-      const linkInput = el('input', { id: nextId('share'), class: 'link-field', type: 'text', readonly: true, value: shareLink, spellcheck: 'false' });
+      const linkInput = el('input', { id: nextId('share'), class: 'link-field', type: 'text', dir: 'ltr', readonly: true, value: shareLink, spellcheck: 'false' });
       const copy = el('button', { type: 'button', class: 'button button-primary' }, t('action.copy'));
       copy.addEventListener('click', () => void copyText(shareLink));
 
@@ -668,7 +669,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
         dangerBody.hidden = !dangerBody.hidden;
         reveal.setAttribute('aria-expanded', String(!dangerBody.hidden));
         if (dangerBody.childElementCount === 0) {
-          const manageField = el('input', { class: 'link-field', type: 'text', readonly: true, value: manageLink, 'aria-label': t('manage.title') });
+          const manageField = el('input', { class: 'link-field', type: 'text', dir: 'ltr', readonly: true, value: manageLink, 'aria-label': t('manage.title') });
           const copyManage = el('button', { type: 'button', class: 'button button-secondary' }, t('action.copy'));
           copyManage.addEventListener('click', async () => {
             if (await copyText(manageLink, t('manage.copied'))) {

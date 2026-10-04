@@ -2,8 +2,9 @@
 
 /** Markdown templates (§6.1.1), filled entirely in the browser. Labels come from the catalogs. */
 
-import en from '../../translations/en.json';
-import fr from '../../translations/fr.json';
+// Every shipped catalogue, to recognise field labels written in any language (this module is
+// only loaded with the creation and reading pages, not on the first screen).
+const CATALOGS = Object.values(import.meta.glob<Record<string, unknown>>('../../translations/*.json', { eager: true, import: 'default' }));
 import { t } from './i18n';
 
 interface Section {
@@ -68,7 +69,7 @@ export function renderTemplate(id: string): string {
 export const SENSITIVE_FIELDS = ['password', 'token', 'relatedToken', 'keyOrPath', 'value'];
 
 const SENSITIVE_LABELS = new Set(
-  [en, fr].flatMap((catalog) => SENSITIVE_FIELDS.map((field) => String((catalog as Record<string, unknown>)[`tpl.field.${field}`] ?? '').toLowerCase())),
+  CATALOGS.flatMap((catalog) => SENSITIVE_FIELDS.map((field) => String((catalog as Record<string, unknown>)[`tpl.field.${field}`] ?? '').toLowerCase())),
 );
 
 export function isSensitiveLabel(label: string): boolean {
@@ -139,7 +140,7 @@ export function serializeTemplate(template: ParsedTemplate): string {
 /** Field identifier (tpl.field.<id>) of a label written in any catalog language, or null. */
 export function fieldIdForLabel(label: string): string | null {
   const wanted = label.trim().toLowerCase();
-  for (const catalog of [en, fr] as Record<string, unknown>[]) {
+  for (const catalog of CATALOGS) {
     for (const [key, value] of Object.entries(catalog)) {
       if (key.startsWith('tpl.field.') && typeof value === 'string' && value.toLowerCase() === wanted) return key.slice('tpl.field.'.length);
     }

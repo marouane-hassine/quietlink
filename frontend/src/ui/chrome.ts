@@ -2,7 +2,7 @@
 
 /** Header controls: language and light/dark choice (only preferences are remembered). */
 
-import { availableLocales, locale, setLocale, t } from '../i18n';
+import { availableLocales, loadLocale, locale, setLocale, t } from '../i18n';
 import { el, redrawInPlace } from './dom';
 import { toast } from './announcer';
 import type { PublicConfig } from '../config';
@@ -69,13 +69,16 @@ export function renderChrome(config: PublicConfig, theme: string, rerender: () =
   const slot = document.getElementById('ql-controls');
   if (!slot) return;
   const languageSelect = el('select', { id: 'ql-language', class: 'control-select' });
-  for (const option of availableLocales(config.enabledLocales)) {
+  for (const option of availableLocales(config.enabledLocales, config.locales)) {
     languageSelect.append(el('option', { value: option.code, selected: option.code === locale(), lang: option.code }, option.name));
   }
-  languageSelect.addEventListener('change', () => {
+  languageSelect.addEventListener('change', async () => {
+    // Catalogues other than English and French are loaded on first use.
+    if (!(await loadLocale(languageSelect.value))) return;
     setLocale(languageSelect.value, true);
-    redrawInPlace(rerender);
+    // Page title first: the redraw then names the current screen (showScreen).
     translateTitle(config);
+    redrawInPlace(rerender);
     renderChrome(config, storedTheme() ?? theme, rerender);
     document.getElementById('ql-language')?.focus();
     toast(t('nav.languageChanged', { language: languageSelect.selectedOptions[0]?.textContent ?? '' }));

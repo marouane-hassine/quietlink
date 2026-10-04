@@ -114,7 +114,7 @@ docker/, compose.yaml  container images and demonstration deployment
 | `render/` | Markdown (markdown-it with `html: false` + DOMPurify), syntax highlighting. |
 | `ui/` | DOM helpers, clipboard, countdown, QR code (SVG built through the DOM), passphrase generator, live announcer. |
 | `templates.ts` | Markdown templates (`ui.templates`). |
-| `i18n.ts` | Catalog loading and locale selection. |
+| `i18n.ts` | Catalog loading (on demand except `en`/`fr`) and locale selection. |
 | `wordlists/` | Generated passphrase word list (`tools/wordlists/build-en.mjs`, do not edit). |
 | `styles/app.css` | Styles using `--ql-*` tokens. |
 
@@ -253,21 +253,33 @@ Commits follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org/
 ## 11. Translations
 
 Catalogs live in `translations/<locale>.json` and are shared by the Twig page (through
-`QuietLink\Web\Catalogs`) and the frontend (imported at build time by `frontend/src/i18n.ts`).
-Each catalog has a `_meta` object (`locale`, `name`, `dir`) and flat dotted keys
-(`"footer.how": "How it works"`). Placeholders use `{name}` and are replaced as text, never as
-HTML. English is the reference and the fallback for missing keys.
+`QuietLink\Web\Catalogs`) and the frontend (`frontend/src/i18n.ts`): English and French are
+built into the first screen, every other catalogue is a separate chunk loaded when the language
+is chosen (`import.meta.glob`). Each catalog has a `_meta` object (`locale`, `name`, `dir` =
+`ltr` or `rtl`) and flat dotted keys (`"footer.how": "How it works"`). Placeholders use `{name}`
+and are replaced as text, never as HTML. English is the reference and the fallback for missing
+keys. Shipped: `en`, `ar` (right to left), `es`, `fr`, `it` (ADR-0010).
 
 ### Adding a language
 
+No code change is needed (§6.6.1):
+
 1. Copy `translations/en.json` to `translations/<code>.json` (two-letter code), translate every
-   value and fill `_meta` (`dir` is `ltr`; V1 supports left-to-right languages only).
-2. Import it in `frontend/src/i18n.ts` and add it to `CATALOGS`.
-3. Add the code to `ConfigLoader::AVAILABLE_LOCALES`.
-4. Write the tests first: catalog key parity with English (frontend) and configuration
-   acceptance (PHPUnit).
-5. Optionally provide a passphrase word list in `frontend/src/wordlists/`.
-6. Run `composer qa` and `npm run qa`, then document the language in `docs/README-admin.md`.
+   value, keep every `{placeholder}`, and fill `_meta` (`dir` is `ltr` or `rtl`). Do not use
+   bidi control characters: direction comes from the `dir` attribute. Keep the ASCII `- ` and
+   `:` of `tpl.fieldLine` (template parsing depends on them).
+2. Rebuild the frontend (`npm run build`; Docker images do it) and run `app:boot`: the
+   language is discovered from the file and enabled by default (`app.enabled_locales`
+   restricts it).
+3. `npm run qa` checks key and placeholder parity with English for every catalogue
+   (`frontend/tests/locales.test.ts`); `composer qa` checks discovery and direction.
+4. Optionally provide a passphrase word list in `frontend/src/wordlists/` (English is used
+   otherwise), and have the translation reviewed by a native speaker.
+
+Right-to-left: the CSS uses logical properties only (`margin-inline`, `text-align: start`,
+enforced by `frontend/tests/css.test.ts`); the few drawn decorations that cannot be logical (the
+select arrow) have a `[dir="rtl"]` rule. User content takes its own direction (`dir="auto"`),
+links and code stay left to right.
 
 ## 12. Themes and Markdown templates
 

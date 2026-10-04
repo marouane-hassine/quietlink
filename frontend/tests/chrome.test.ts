@@ -3,6 +3,9 @@
 // Requirements (texts from the catalogues only, §6.6.1): EXG-I18N-001, EXG-UX-051.
 
 import { describe, expect, it } from 'vitest';
+
+// The language switch first loads the catalogue (asynchronous).
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 import { setLocale, t } from '../src/i18n';
 import { showScreen } from '../src/ui/dom';
 import { renderChrome } from '../src/ui/chrome';
@@ -11,19 +14,20 @@ import type { PublicConfig } from '../src/config';
 const config = { enabledLocales: ['en', 'fr'], darkMode: 'auto', page: 'read' } as PublicConfig;
 
 describe('header controls', () => {
-  it('announces the language change with the punctuation of the new language', () => {
+  it('announces the language change with the punctuation of the new language', async () => {
     setLocale('fr');
     document.body.innerHTML = '<div id="ql-controls"></div><div id="ql-toast" aria-live="polite"></div>';
     renderChrome(config, 'auto', () => undefined);
     const select = document.getElementById('ql-language') as HTMLSelectElement;
     select.value = 'en';
     select.dispatchEvent(new Event('change'));
+    await settle();
 
     expect(document.getElementById('ql-toast')?.textContent).toBe('Language: English');
 
   });
 
-  it('keeps focus on the language control and translates the window title (§6.6.1)', () => {
+  it('keeps focus on the language control and translates the window title (§6.6.1)', async () => {
     setLocale('fr');
     document.title = 'Texte confidentiel · QuietLink';
     document.body.innerHTML = '<div id="ql-controls"></div><main id="main"></main>';
@@ -35,6 +39,7 @@ describe('header controls', () => {
     select.focus();
     select.value = 'en';
     select.dispatchEvent(new Event('change'));
+    await settle();
 
     expect(document.activeElement?.id).toBe('ql-language');
     expect(main.querySelector('h1')?.textContent).toBe('Confidential text');
@@ -66,5 +71,21 @@ describe('header controls', () => {
     radios[2]!.dispatchEvent(new Event('change', { bubbles: true }));
     expect(document.documentElement.dataset.theme).toBe('dark');
     expect(localStorage.getItem('ql-theme')).toBe('dark');
+  });
+
+  it('keeps the current screen in the window title after a language change', async () => {
+    setLocale('fr');
+    document.title = 'Chiffré et prêt à partager · QuietLink';
+    document.body.innerHTML = '<div id="ql-controls"></div><main id="main"></main>';
+    const main = document.getElementById('main') as HTMLElement;
+    const draw = () => showScreen(main, Object.assign(document.createElement('h1'), { textContent: t('result.title') }));
+    draw();
+    renderChrome({ ...config, page: 'create' }, 'auto', draw);
+    const select = document.getElementById('ql-language') as HTMLSelectElement;
+    select.value = 'en';
+    select.dispatchEvent(new Event('change'));
+    await settle();
+
+    expect(document.title).toBe('Encrypted and ready to share · QuietLink');
   });
 });

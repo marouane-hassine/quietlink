@@ -24,7 +24,8 @@ export interface ContentView {
 }
 
 export function buildContentView(envelope: Envelope, options: { wifiQr?: boolean } = {}): ContentView {
-  const container = el('div', { class: 'reader', tabindex: '0', 'aria-label': t('page.read.title') });
+  // The text takes its own direction, whatever the interface language (§6.6.1).
+  const container = el('div', { class: 'reader', tabindex: '0', dir: 'auto', 'aria-label': t('page.read.title') });
   const controls = el('div', { class: 'reader-controls' });
   const large = byteLength(envelope.text) > HIGHLIGHT_LIMIT_BYTES;
   const template = envelope.template !== null && envelope.format === 'markdown' ? parseTemplateText(envelope.text) : null;
@@ -58,6 +59,8 @@ export function buildContentView(envelope: Envelope, options: { wifiQr?: boolean
     // Block copy only for blocks inside a larger text: a lone plain block is the whole text,
     // already copied by the main Copy action.
     for (const pre of container.querySelectorAll('pre:not(.plain)')) {
+      // Code reads left to right, also in a right-to-left interface.
+      pre.setAttribute('dir', 'ltr');
       const blockText = pre.textContent ?? '';
       const copyBlock = el('button', { type: 'button', class: 'button button-tertiary copy-block' }, t('read.copyBlock'));
       copyBlock.addEventListener('click', () => void copyText(blockText, t('read.copied')));

@@ -58,4 +58,8 @@ describe('stylesheet', () => {
     const runtime = new Set(['--ql-keyboard-offset', '--ql-bar-height']);
     expect(used.filter((name) => name !== undefined && !defined.has(name) && !runtime.has(name))).toEqual([]);
   });
+  it('mirrors what logical properties cannot in a right-to-left language (§6.6.1)', () => {
+    expect(css).toMatch(/\[dir="rtl"\] select\s*\{[^}]*background-position:\s*0\.75rem 55%,\s*1\.1rem 55%/);
+    expect(css).not.toMatch(/padding-inline:\s*env\(safe-area-inset-left\)\s*env\(safe-area-inset-right\)/);
+  });
 });

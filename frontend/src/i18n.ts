@@ -9,13 +9,33 @@ import en from '../../translations/en.json';
 import fr from '../../translations/fr.json';
 
 type Catalog = Record<string, unknown> & { _meta: { locale: string; name: string; dir: 'ltr' | 'rtl' } };
+/** Built in: English (mandatory fallback) and French (required in V1, §6.6.1). */
 const CATALOGS: Record<string, Catalog> = { en: en as Catalog, fr: fr as Catalog };
+/** Every other catalogue in translations/ is a separate chunk loaded on demand: adding a
+ * language is adding a file, no code change (§6.6.1). */
+const LOADERS = import.meta.glob<Catalog>('../../translations/*.json', { import: 'default' });
+
+const loaderFor = (code: string) => (/^[a-z]{2}$/.test(code) ? LOADERS[`../../translations/${code}.json`] : undefined);
+
+/** Loads a catalogue before setLocale(); false when no such catalogue exists. */
+export async function loadLocale(code: string): Promise<boolean> {
+  if (code in CATALOGS) return true;
+  const loader = loaderFor(code);
+  if (!loader) return false;
+  CATALOGS[code] = await loader();
+  return true;
+}
 const STORAGE_KEY = 'ql-locale';
 
 let active: Catalog = CATALOGS.en as Catalog;
 
-export function availableLocales(enabled: string[]): { code: string; name: string }[] {
-  return enabled.filter((code) => code in CATALOGS).map((code) => ({ code, name: (CATALOGS[code] as Catalog)._meta.name }));
+/** Languages offered in the selector; names come from the page configuration when given, so
+ * that catalogues are only loaded when chosen. */
+export function availableLocales(enabled: string[], known: readonly { code: string; name: string; dir?: string }[] = []): { code: string; name: string }[] {
+  return enabled.flatMap((code) => {
+    const name = known.find((entry) => entry.code === code)?.name ?? CATALOGS[code]?._meta.name;
+    return name !== undefined && (code in CATALOGS || loaderFor(code)) ? [{ code, name }] : [];
+  });
 }
 
 function stored(): string | null {
@@ -30,7 +50,7 @@ function stored(): string | null {
 export function selectLocale(enabled: string[]): string {
   const candidates = [stored(), ...navigator.languages.map((l) => l.toLowerCase().split('-')[0])];
   for (const candidate of candidates) {
-    if (candidate && enabled.includes(candidate) && candidate in CATALOGS) return candidate;
+    if (candidate && enabled.includes(candidate) && (candidate in CATALOGS || loaderFor(candidate))) return candidate;
   }
   return 'en';
 }
