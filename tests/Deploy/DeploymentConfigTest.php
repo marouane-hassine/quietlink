@@ -120,4 +120,17 @@ final class DeploymentConfigTest extends TestCase
         self::assertStringContainsString('app:purge-expired', $compose);
         self::assertStringContainsString('USER 10001:10001', self::file('docker/php/Dockerfile'));
     }
+
+    /**
+     * The default data directory (storage.data_dir = datas) exists in a fresh clone, while the
+     * stored content it receives is never committed.
+     */
+    #[Group('EXG-STORE-041')]
+    public function testDefaultDataDirectoryIsVersionedButItsContentIsIgnored(): void
+    {
+        self::assertFileExists(dirname(__DIR__, 2) . '/datas/.gitkeep');
+        $gitignore = self::file('.gitignore');
+        self::assertMatchesRegularExpression('#^/datas/\*$#m', $gitignore);
+        self::assertMatchesRegularExpression('#^!/datas/\.gitkeep$#m', $gitignore);
+    }
 }
