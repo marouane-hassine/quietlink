@@ -1,5 +1,12 @@
 # QuietLink
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/logo-dark.svg">
+    <img src="docs/brand/logo.svg" alt="QuietLink" width="320">
+  </picture>
+</p>
+
 Self-hostable sharing of confidential text, encrypted in the browser.
 
 QuietLink encrypts text on the sender's device with a random key placed after the `#` of the

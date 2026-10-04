@@ -72,6 +72,20 @@ final class PageController
     }
 
     /**
+     * Logo mark used as the favicon: a static SVG shipped with the templates (§6.5).
+     */
+    #[Route('/favicon.svg', name: 'favicon', methods: ['GET'])]
+    public function favicon(): Response
+    {
+        $svg = file_get_contents(dirname(__DIR__, 2) . '/templates/brand/mark.svg');
+        if ($svg === false) {
+            throw new NotFoundHttpException();
+        }
+
+        return new Response($svg, 200, ['Content-Type' => 'image/svg+xml']);
+    }
+
+    /**
      * Minimal manifest (§6.10): no Service Worker, browser display mode, no secret data.
      */
     #[Route('/manifest.json', name: 'manifest', methods: ['GET'])]

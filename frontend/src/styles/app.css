@@ -170,11 +170,37 @@ a {
 
 .brand {
   font-weight: 700;
+  font-size: 1.125rem;
+  letter-spacing: -0.01em;
   color: var(--ql-color-text);
   text-decoration: none;
   min-block-size: 44px;
   display: inline-flex;
   align-items: center;
+  gap: 0.5rem;
+}
+
+/* Logo mark: colours come from theme tokens, so the dark theme and operator themes apply. */
+.brand-mark {
+  inline-size: 2rem;
+  block-size: 2rem;
+  flex: none;
+}
+
+.brand-mark-shield {
+  fill: var(--ql-color-primary);
+}
+
+.brand-mark-link {
+  stroke: var(--ql-color-primary-contrast);
+}
+
+.brand-mark-gap {
+  stroke: var(--ql-color-primary);
+}
+
+.brand-accent {
+  color: var(--ql-color-primary-text);
 }
 
 .controls {

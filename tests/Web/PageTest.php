@@ -108,8 +108,38 @@ final class PageTest extends KernelTestCase
         self::assertInstanceOf(\Symfony\Component\Routing\RouterInterface::class, $router);
         $paths = array_map(static fn (\Symfony\Component\Routing\Route $route): string => $route->getPath(), $router->getRouteCollection()->all());
         sort($paths);
-        self::assertSame(['/', '/api/v1/pastes', '/api/v1/pastes/{id}', '/api/v1/pastes/{id}/challenge', '/api/v1/pastes/{id}/consume', '/api/v1/pastes/{id}/open', '/api/v1/pastes/{id}/status', '/healthz', '/how-it-works', '/manage/{id}', '/manifest.json', '/p/{id}'], array_values(array_unique($paths)));
+        self::assertSame(['/', '/api/v1/pastes', '/api/v1/pastes/{id}', '/api/v1/pastes/{id}/challenge', '/api/v1/pastes/{id}/consume', '/api/v1/pastes/{id}/open', '/api/v1/pastes/{id}/status', '/favicon.svg', '/healthz', '/how-it-works', '/manage/{id}', '/manifest.json', '/p/{id}'], array_values(array_unique($paths)));
         $kernel->shutdown();
         self::assertSame(404, $this->request('GET', '/config/config.php')->getStatusCode());
+    }
+
+    /**
+     * The logo mark is inline SVG coloured by theme tokens (no colour in the markup, so the dark
+     * theme and operator themes apply) and decorative: the link name stays the instance name. The
+     * wordmark is one flex item so the gap does not split it and RTL does not reorder it.
+     */
+    #[Group('EXG-THEME-021')]
+    public function testHeaderShowsTheDecorativeLogoMarkColouredByTokens(): void
+    {
+        $html = (string) $this->request('GET', '/')->getContent();
+        self::assertStringContainsString('<a class="brand" href="/"><svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false">', $html);
+        $mark = substr($html, (int) strpos($html, '<svg class="brand-mark"'));
+        $mark = substr($mark, 0, (int) strpos($mark, '</svg>'));
+        self::assertStringNotContainsString('#', $mark);
+        self::assertStringNotContainsString('style=', $mark);
+        self::assertStringContainsString('</svg><span class="brand-name">Quiet<span class="brand-accent">Link</span></span></a>', $html);
+        self::assertStringContainsString('<link rel="icon" href="/favicon.svg" type="image/svg+xml">', $html);
+    }
+
+    #[Group('EXG-THEME-021')]
+    public function testFaviconIsTheStaticMarkWithoutScript(): void
+    {
+        $response = $this->request('GET', '/favicon.svg');
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame('image/svg+xml', $response->headers->get('Content-Type'));
+        $svg = (string) $response->getContent();
+        self::assertStringStartsWith('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">', $svg);
+        self::assertDoesNotMatchRegularExpression('/<script|\son\w+=|href=/i', $svg);
     }
 }
