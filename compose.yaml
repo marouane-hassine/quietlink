@@ -25,7 +25,8 @@ x-app: &app
   volumes:
     - ./config/config.php:/app/config/config.php:ro
     - ./config/themes:/app/config/themes:ro
-    - data:/var/lib/quietlink
+    # Data volume on storage.data_dir (datas/ at the project root, spec §9.4.1).
+    - data:/app/datas
     - generated:/var/lib/quietlink-generated
 
 services:

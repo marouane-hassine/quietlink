@@ -26,7 +26,7 @@ Deployment assumptions (§9.4.1, l. 1280–1284, 1296; §9.5, l. 1410): single a
 ## 2. Directory tree
 
 ```text
-/var/lib/quietlink/                       # data volume (only writable mount besides tmp)
+datas/                                    # storage.data_dir: project root by default (Docker: data volume, only writable mount besides tmp)
 ├── pastes/                               # storage.root_dir
 │   └── <s1>/                             # 2 first chars of the encoded id
 │       └── <s2>/                         # chars 3–4 of the encoded id
@@ -379,7 +379,7 @@ Concurrency with reads: the purge never touches a paste without its `LOCK_EX`; r
 | OQ-13 | Threshold semantics and payload on T6 | §6.3.1 l. 495–496; §9.4.1 l. 1272 | Is the threshold compared after increment? Does T6 also unlink `payload.bin` and start the 10-min window (assumed yes)? |
 | OQ-14 | Empty shard directories | §9.4.1 l. 1242, 1275 | May empty `ab/` and `ab/cd/` be removed by the purge? Proposed: never removed. |
 | OQ-15 | Orphan age threshold | §9.4.1 l. 1286 | Minimum age before removing temp files/dirs is not specified; proposed 1 h. |
-| OQ-16 | `root_dir` meaning | §9.4.1 l. 1245, 1280 vs §9.5 l. 1365 | Tree shows `/var/lib/quietlink/` as root with `pastes/` inside, while the config sets `storage.root_dir` to `/var/lib/quietlink/pastes`; FS check at l. 1280 targets `root_dir` only — should it cover all storage dirs? |
+| OQ-16 | `root_dir` meaning (resolved by spec v0.19: `storage.data_dir` is the data directory, `root_dir` its `pastes/` sub-directory by default) | §9.4.1 l. 1245, 1280 vs §9.5 l. 1365 | Tree shows `/var/lib/quietlink/` as root with `pastes/` inside, while the config sets `storage.root_dir` to `/var/lib/quietlink/pastes`; FS check at l. 1280 targets `root_dir` only — should it cover all storage dirs? |
 | OQ-17 | `payload.bin` size bookkeeping | §9.4 l. 1222; §9.4.1 l. 1291 | Field list is closed, so the ciphertext size is not stored; decrements rely on `stat()` before unlink. If a crash happens after unlink but before the decrement, only the hourly recompute fixes it. Acceptable? |
 | OQ-18 | `idempotency.expires_at` meaning | §9.4 l. 1235 | Assumed to be the paste's `expires_at` (returned on replay); confirm. Also whether `retain_until` should be `min(created_at + idempotency_max_ttl, paste expiry)`. |
 | OQ-19 | `consume` on expired reserved paste | §6.3.1 l. 516 | State after refusal is not specified (assumed: unchanged until purge deletes it as expired). |

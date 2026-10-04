@@ -654,6 +654,7 @@ Decisions already recorded in §19.1 are applied: Playwright for E2E tests, JSON
 | EXG-CONF-021 | 9.5 | Config validated at startup; invalid config blocks start or safely disables option | Must | MUST | PHPUnit unit: invalid config handling |
 | EXG-SEC-101 | 9.5 | Config files readable only by PHP process user | Must | MUST | PHPUnit integration: perms check in boot |
 | EXG-STORE-041 | 9.5 | Storage dirs outside web root, app-owned, no outward symlinks | Must | MUST | PHPUnit integration: path validation |
+| EXG-STORE-046 | 9.4.1 | Data directory configurable (storage.data_dir), default datas/ at the project root; storage dirs derive from it and stay configurable (spec v0.19) | Must | MUST | PHPUnit unit: config defaults and derivation |
 | EXG-STORE-042 | 9.5 | Storage paths validated at boot; auto-created with restrictive perms | Must | MUST | PHPUnit integration: dir creation mode |
 | EXG-SEC-102 | 9.5 | Only token files under config/themes/ without absolute path, .. or outward symlink | Must | MUST | PHPUnit unit: token path validation |
 | EXG-CONF-022 | 9.5 | Config change requires explicit restart or reload | Must | MUST | PHPUnit integration: fingerprint enforcement |

@@ -178,7 +178,8 @@ final class ConfigLoaderTest extends TestCase
         yield 'public url with path' => [['app' => ['public_url' => 'https://paste.example.test/sub?x=1']], 'public_url'];
         yield 'absolute tokens file' => [$base + ['theme' => ['custom_tokens_file' => '/etc/passwd']], 'custom_tokens_file'];
         yield 'traversing tokens file' => [$base + ['theme' => ['custom_tokens_file' => '../x.json']], 'custom_tokens_file'];
-        yield 'relative storage path' => [$base + ['storage' => ['root_dir' => 'pastes']], 'root_dir'];
+        // Relative storage paths are resolved from the project root (spec v0.19), ".." is refused.
+        yield 'storage path with parent segment' => [$base + ['storage' => ['root_dir' => 'datas/../pastes']], 'root_dir'];
         yield 'ipv6 prefix out of range' => [$base + ['http' => ['ratelimit_ipv6_prefix' => 32]], 'ratelimit_ipv6_prefix'];
         yield 'rate limit zero' => [$base + ['http' => ['rate_limits' => ['create' => ['limit' => 0, 'interval' => 60]]]], 'rate_limits'];
         yield 'unknown rate limit bucket' => [$base + ['http' => ['rate_limits' => ['upload' => ['limit' => 1, 'interval' => 60]]]], 'rate_limits'];
@@ -338,5 +339,40 @@ final class ConfigLoaderTest extends TestCase
         self::assertSame(64, strlen($config->secret->check()));
         self::assertStringNotContainsString(bin2hex($config->secret->bytes()), $config->secret->check());
         self::assertStringNotContainsString(base64_encode($config->secret->bytes()), var_export($config->describe(), true));
+    }
+
+    /**
+     * Storage lives in datas/ at the project root by default; the four directories derive from
+     * storage.data_dir and stay individually configurable (spec §9.4.1, §9.5).
+     */
+    #[Group('EXG-STORE-046')]
+    public function testStorageDirectoriesDeriveFromTheDataDirectory(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $this->writeConfig(['app' => ['public_url' => 'https://paste.example.test']]);
+        $storage = $this->load()->storage;
+        self::assertSame($root . '/datas/pastes', $storage->rootDir);
+        self::assertSame($root . '/datas/idempotency', $storage->idempotencyDir);
+        self::assertSame($root . '/datas/ratelimit', $storage->ratelimitDir);
+        self::assertSame($root . '/datas/state', $storage->stateDir);
+
+        $this->writeConfig(['app' => ['public_url' => 'https://paste.example.test'], 'storage' => ['data_dir' => '/srv/quietlink', 'state_dir' => '/run/quietlink-state']]);
+        $storage = $this->load()->storage;
+        self::assertSame('/srv/quietlink/pastes', $storage->rootDir);
+        self::assertSame('/run/quietlink-state', $storage->stateDir);
+
+        $this->writeConfig(['app' => ['public_url' => 'https://paste.example.test'], 'storage' => ['data_dir' => 'var/store', 'root_dir' => 'elsewhere/pastes']]);
+        $storage = $this->load()->storage;
+        self::assertSame($root . '/var/store/idempotency', $storage->idempotencyDir);
+        self::assertSame($root . '/elsewhere/pastes', $storage->rootDir);
+    }
+
+    #[Group('EXG-STORE-031')]
+    #[Group('EXG-STORE-041')]
+    public function testDataDirectoryInsideTheWebRootOrWithDotsIsRefused(): void
+    {
+        $this->assertInvalid(['app' => ['public_url' => 'https://paste.example.test'], 'storage' => ['data_dir' => 'public/datas']], 'web root');
+        $this->assertInvalid(['app' => ['public_url' => 'https://paste.example.test'], 'storage' => ['root_dir' => 'public']], 'web root');
+        $this->assertInvalid(['app' => ['public_url' => 'https://paste.example.test'], 'storage' => ['data_dir' => '../outside']], '..');
     }
 }

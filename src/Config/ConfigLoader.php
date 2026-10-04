@@ -47,6 +47,36 @@ final class ConfigLoader
         return self::$localeMemo[$directory];
     }
 
+    private static function projectRoot(): string
+    {
+        return dirname(__DIR__, 2);
+    }
+
+    /** Absolute paths as given; relative ones are resolved from the project root. */
+    private static function resolvePath(string $path): string
+    {
+        $path = rtrim($path, '/');
+
+        return str_starts_with($path, '/') ? $path : self::projectRoot() . '/' . $path;
+    }
+
+    /**
+     * The four storage directories: each one as configured, or derived from storage.data_dir.
+     *
+     * @return array<string, string>
+     */
+    private static function storageDirs(TreeReader $r): array
+    {
+        $data = self::resolvePath($r->string('storage.data_dir'));
+        $dirs = [];
+        foreach (self::DATA_SUBDIRS as $key => $sub) {
+            $configured = $r->nullableString('storage.' . $key);
+            $dirs[$key] = $configured === null || $configured === '' ? $data . '/' . $sub : self::resolvePath($configured);
+        }
+
+        return $dirs;
+    }
+
     /**
      * Versioned defaults (§9.5, ADR-0007 for rate limits).
      *
@@ -68,10 +98,13 @@ final class ConfigLoader
             ],
             'storage' => [
                 'driver' => 'filesystem',
-                'root_dir' => '/var/lib/quietlink/pastes',
-                'idempotency_dir' => '/var/lib/quietlink/idempotency',
-                'ratelimit_dir' => '/var/lib/quietlink/ratelimit',
-                'state_dir' => '/var/lib/quietlink/state',
+                // Relative to the project root; the four directories below derive from it when
+                // null (spec §9.4.1, v0.19).
+                'data_dir' => 'datas',
+                'root_dir' => null,
+                'idempotency_dir' => null,
+                'ratelimit_dir' => null,
+                'state_dir' => null,
                 'generated_assets_dir' => '/var/lib/quietlink-generated',
                 'max_total_bytes' => 10737418240,
                 'max_items' => 100000,
@@ -132,7 +165,10 @@ final class ConfigLoader
     /**
      * Keys whose value may be null in addition to their default type.
      */
-    private const NULLABLE = ['app.public_url', 'theme.custom_tokens_file', 'paste.max_retention'];
+    private const NULLABLE = ['app.public_url', 'theme.custom_tokens_file', 'paste.max_retention', 'storage.root_dir', 'storage.idempotency_dir', 'storage.ratelimit_dir', 'storage.state_dir'];
+
+    /** Storage directories derived from storage.data_dir when not set: key => sub-directory. */
+    private const DATA_SUBDIRS = ['root_dir' => 'pastes', 'idempotency_dir' => 'idempotency', 'ratelimit_dir' => 'ratelimit', 'state_dir' => 'state'];
 
     /**
      * Keys whose value is a free-form list (not merged key by key).
@@ -308,10 +344,13 @@ final class ConfigLoader
             }
         }
 
-        foreach (['root_dir', 'idempotency_dir', 'ratelimit_dir', 'state_dir', 'generated_assets_dir'] as $dir) {
-            $path = $r->string('storage.' . $dir);
-            if (!str_starts_with($path, '/') || str_contains($path, '/../') || str_ends_with($path, '/..')) {
-                $errors[] = sprintf('"storage.%s" must be an absolute path without "..".', $dir);
+        $webRoot = self::projectRoot() . '/public';
+        foreach (['data_dir' => $r->string('storage.data_dir')] + self::storageDirs($r) + ['generated_assets_dir' => $r->string('storage.generated_assets_dir')] as $dir => $path) {
+            $path = self::resolvePath($path);
+            if (preg_match('#(^|/)\.\.(/|$)#', $path) === 1) {
+                $errors[] = sprintf('"storage.%s" must not contain "..".', $dir);
+            } elseif ($path === $webRoot || str_starts_with($path, $webRoot . '/')) {
+                $errors[] = sprintf('"storage.%s" must be outside the web root (public/).', $dir);
             }
         }
         if ($r->string('storage.driver') !== 'filesystem') {
@@ -439,11 +478,11 @@ final class ConfigLoader
             'app' => new AppSettings($r->string('app.name'), rtrim($publicUrl, '/'), $locales, $r->string('app.source_url')),
             'theme' => new ThemeSettings($r->string('theme.name'), $tokensFile, $tokensDigest === false ? null : $tokensDigest),
             'storage' => new StorageSettings(
-                $r->string('storage.root_dir'),
-                $r->string('storage.idempotency_dir'),
-                $r->string('storage.ratelimit_dir'),
-                $r->string('storage.state_dir'),
-                $r->string('storage.generated_assets_dir'),
+                self::storageDirs($r)['root_dir'],
+                self::storageDirs($r)['idempotency_dir'],
+                self::storageDirs($r)['ratelimit_dir'],
+                self::storageDirs($r)['state_dir'],
+                self::resolvePath($r->string('storage.generated_assets_dir')),
                 $r->int('storage.max_total_bytes'),
                 $r->int('storage.max_items'),
                 $r->int('storage.min_free_bytes'),

@@ -65,7 +65,8 @@ Deployment model:
 - **`web`**: unprivileged Nginx image (`docker/nginx/Dockerfile`) serving `public/` and the
   generated theme volume (read-only), forwarding other requests to `app:9000`. It listens on
   port 8080, published on `127.0.0.1` only: an HTTPS reverse proxy must sit in front of it.
-- Volumes: **`/var/lib/quietlink`** (data: pastes, idempotency, rate limiting, state) and
+- Volumes: **`/app/datas`** (data: pastes, idempotency, rate limiting, state; the default
+  `storage.data_dir`, `datas/` at the project root) and
   **`/var/lib/quietlink-generated`** (generated theme assets, shared read-only with `web`).
 - Secret: `QUIETLINK_APP_SECRET_FILE=/run/secrets/app_secret`, provided as a Docker secret.
 
@@ -136,7 +137,7 @@ No prebuilt archive is published for this mode: build from a checkout of a signe
 3. Create the directories (`app:boot` creates missing ones, but the parent must be writable):
 
    ```sh
-   install -d -o quietlink -g quietlink -m 0700 /var/lib/quietlink
+   install -d -o quietlink -g quietlink -m 0700 /path/to/quietlink/datas
    install -d -o quietlink -g quietlink -m 0755 /var/lib/quietlink-generated
    ```
 
@@ -226,10 +227,11 @@ Durations use the format `<integer><m|h|d>` (e.g. `30m`, `24h`, `7d`). Expiratio
 | Key | Default | Rule |
 |---|---|---|
 | `storage.driver` | `'filesystem'` | Only `filesystem` is supported. |
-| `storage.root_dir` | `'/var/lib/quietlink/pastes'` | Absolute path without `..`; outside the web root; mode 0700. |
-| `storage.idempotency_dir` | `'/var/lib/quietlink/idempotency'` | Same rules. |
-| `storage.ratelimit_dir` | `'/var/lib/quietlink/ratelimit'` | Same rules. |
-| `storage.state_dir` | `'/var/lib/quietlink/state'` | Same rules. |
+| `storage.data_dir` | `'datas'` | Data directory: absolute, or relative to the project root; without `..`; outside `public/`; mode 0700. The four directories below derive from it. |
+| `storage.root_dir` | `null` (`<data_dir>/pastes`) | Pastes. `null` derives it from `data_dir`; a path (absolute or relative to the project root) places it elsewhere. Same rules. |
+| `storage.idempotency_dir` | `null` (`<data_dir>/idempotency`) | Same rules. |
+| `storage.ratelimit_dir` | `null` (`<data_dir>/ratelimit`) | Same rules. |
+| `storage.state_dir` | `null` (`<data_dir>/state`) | Same rules. |
 | `storage.generated_assets_dir` | `'/var/lib/quietlink-generated'` | Same rules; mode 0755, readable by the web server. |
 | `storage.max_total_bytes` | `10737418240` (10 GiB) | Integer ≥ 1. Total ciphertext quota. |
 | `storage.max_items` | `100000` | Integer ≥ 1. Maximum number of stored pastes. |
@@ -343,7 +345,7 @@ from the secret).
 ### 7.1 Layout
 
 ```text
-/var/lib/quietlink/                 # data volume
+datas/                              # storage.data_dir (project root by default; Docker volume)
 ├── pastes/<s1>/<s2>/<id>/          # storage.root_dir, sharded by id prefix
 │   ├── payload.bin                 # nonce ‖ ciphertext (removed on consume/delete)
 │   ├── meta.json                   # immutable
@@ -404,7 +406,7 @@ Recommendations:
 Ciphertexts are useless without the keys contained in the share links, but backups still contain
 confidential material and metadata: encrypt them and restrict access.
 
-- Back up `/var/lib/quietlink/pastes` and `/var/lib/quietlink/idempotency` with a
+- Back up `datas/pastes` and `datas/idempotency` (or the configured directories) with a
   filesystem-consistent method (snapshot of the volume, or stop `app`/`purge` before copying).
   `ratelimit/` and `state/` do not need to be backed up (rebuilt by `app:boot` and the purge).
 - Backups weaken read-once guarantees: a restored paste that was already consumed can be read

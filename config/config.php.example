@@ -27,10 +27,14 @@ return [
     ],
     'storage' => [
         'driver' => 'filesystem',
-        'root_dir' => '/var/lib/quietlink/pastes',
-        'idempotency_dir' => '/var/lib/quietlink/idempotency',
-        'ratelimit_dir' => '/var/lib/quietlink/ratelimit',
-        'state_dir' => '/var/lib/quietlink/state',
+        // Data directory, relative to the project root or absolute; outside public/.
+        'data_dir' => 'datas',
+        // null: derived from data_dir (datas/pastes, datas/idempotency, ...). Set a path
+        // (relative or absolute) to place one of them elsewhere.
+        'root_dir' => null,
+        'idempotency_dir' => null,
+        'ratelimit_dir' => null,
+        'state_dir' => null,
         'generated_assets_dir' => '/var/lib/quietlink-generated',
         'max_total_bytes' => 10737418240,
         'max_items' => 100000,
