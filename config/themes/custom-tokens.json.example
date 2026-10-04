@@ -1,0 +1,11 @@
+{
+  "light": {
+    "color-primary": "#c94f26",
+    "color-primary-hover": "#a83e1d",
+    "color-primary-text": "#a83e1d",
+    "radius": "0.5rem"
+  },
+  "dark": {
+    "color-primary-text": "#f0a07f"
+  }
+}

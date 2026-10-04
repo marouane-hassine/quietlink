@@ -1,0 +1,105 @@
+<?php
+
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// QuietLink instance configuration. Copy to config/config.php and adjust.
+// Every key is optional except app.public_url; omitted keys use the defaults shown here.
+// Never put secrets in this file: QUIETLINK_APP_SECRET (or QUIETLINK_APP_SECRET_FILE)
+// is read from the environment. Run `php bin/console app:boot` after any change.
+
+declare(strict_types=1);
+
+return [
+    'app' => [
+        'name' => 'QuietLink',
+        // Public https origin of the instance, without path (http only for localhost).
+        'public_url' => 'https://quietlink.example.test',
+        // Link to the source code of the deployed version (AGPL-3.0 section 13).
+        'source_url' => 'https://github.com/marouane-hassine/quietlink',
+        // null enables every shipped language (translations/*.json), including languages added
+        // by later releases. To restrict, list codes; English is the mandatory fallback:
+        // 'enabled_locales' => ['en', 'fr'],
+        'enabled_locales' => null,
+    ],
+    'theme' => [
+        // Only the built-in "default" theme exists; customize it with custom_tokens_file.
+        'name' => 'default',
+        // Relative path of a JSON token file inside config/themes/ (see docs/README-admin.md).
+        'custom_tokens_file' => null,
+    ],
+    'storage' => [
+        'driver' => 'filesystem',
+        // Data directory, relative to the project root or absolute; outside public/.
+        'data_dir' => 'datas',
+        // null: derived from data_dir (datas/pastes, datas/idempotency, ...). Set a path
+        // (relative or absolute) to place one of them elsewhere.
+        'root_dir' => null,
+        'idempotency_dir' => null,
+        'ratelimit_dir' => null,
+        'state_dir' => null,
+        'generated_assets_dir' => '/var/lib/quietlink-generated',
+        'max_total_bytes' => 10737418240,
+        'max_items' => 100000,
+        'min_free_bytes' => 1073741824,
+        'min_free_inodes_percent' => 10,
+        'allow_unsupported_fs' => false,
+    ],
+    'paste' => [
+        'default_expiration' => '1d',
+        // Allowed codes: 5m, 1h, 1d, 7d, 30d. "never" is offered only with allow_forever.
+        'allowed_expirations' => ['5m', '1h', '1d', '7d', '30d'],
+        // Requires max_retention = null.
+        'allow_forever' => false,
+        'allow_read_once' => true,
+        'allow_passphrase' => true,
+        // Serialized envelope limit, 1024 to 16777216 (16 MiB); raise http.max_request_bytes with it.
+        'max_envelope_bytes' => 1048576,
+        'max_metadata_bytes' => 4096,
+        'max_retention' => '30d',
+        'max_unconfirmed_opens' => 3,
+        'read_once_reservation_ttl' => 60,
+        'idempotency_max_ttl' => '24h',
+    ],
+    'http' => [
+        'max_request_bytes' => 1441792,
+        'ratelimit_ipv6_prefix' => 64,
+        // Reverse proxies allowed to set X-Forwarded-For and X-Forwarded-Proto (IPs or CIDR
+        // ranges); Forwarded and X-Forwarded-Host/Port are ignored.
+        'trusted_proxies' => [],
+        // CORS is disabled when empty.
+        'cors_allowed_origins' => [],
+        'hsts_max_age' => 31536000,
+        // Per client address; *_per_paste count only requests carrying a valid access proof.
+        'rate_limits' => [
+            'create' => ['limit' => 30, 'interval' => 600],
+            // Idempotent replays of a creation (wider than create, §10).
+            'create_replay' => ['limit' => 120, 'interval' => 600],
+            'challenge' => ['limit' => 120, 'interval' => 60],
+            'open' => ['limit' => 60, 'interval' => 60],
+            'status' => ['limit' => 60, 'interval' => 60],
+            'consume' => ['limit' => 60, 'interval' => 60],
+            'delete' => ['limit' => 30, 'interval' => 600],
+            'health' => ['limit' => 60, 'interval' => 60],
+            'open_per_paste' => ['limit' => 20, 'interval' => 60],
+            'status_per_paste' => ['limit' => 30, 'interval' => 60],
+        ],
+    ],
+    'ui' => [
+        // auto follows the system preference.
+        'dark_mode' => 'auto',
+        'templates' => ['credentials', 'api-token', 'wifi', 'ssh-key', 'database', 'env-vars', 'temporary-access', 'incident'],
+        'enable_qr_code' => true,
+        'allow_print' => false,
+        'allow_export' => false,
+        'enable_manifest' => false,
+    ],
+    'log' => [
+        // PSR-3 level; logs go to stderr as JSON lines (ADR-0005).
+        'level' => 'info',
+        // Documented retention expected from the log collector.
+        'retention' => '14d',
+    ],
+    'metrics' => [
+        'enabled' => false,
+    ],
+];

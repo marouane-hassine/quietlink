@@ -1,14 +1,18 @@
 # Cahier des charges — QuietLink, outil de partage de textes confidentiels
 
-**Statut :** version 0.18 — projet de cahier des charges produit et technique  
+**Statut :** version 0.22 — projet de cahier des charges produit et technique  
 **Périmètre :** V1  
 **Technologie obligatoire :** PHP avec Symfony pour le backend, l’API et la CLI ; TypeScript avec Vite pour le frontend  
 **Licence :** GNU Affero General Public License v3.0 (AGPL-3.0)  
 **Référence fonctionnelle :** PrivateBin (projet libre sous licence zlib), utilisé comme référence d’usage uniquement : aucune reprise de marque, de logo, d’identité visuelle ni de code, et aucune compatibilité de format visée  
-**Date :** 3 octobre 2026
+**Date :** 4 octobre 2026
 
 **Historique :**
 
+- 0.22 — outillage d’exploitation (§15.1) : `app:boot --dry-run`, sorties JSON et codes de sortie documentés de `app:boot` et `app:config:check`, `app:secret:generate --output`, événements d’exploitation journalisés sans identifiant, validation locale et test de fumée en Docker ; marqueurs de création en cours dans `state/creating/` ; correction : seule la purge retire les répertoires `<id>/` incomplets (et non `app:boot`).
+- 0.21 — logo QuietLink : symbole bouclier et maillons, mot-symbole, versions claire et sombre en SVG, intégration en ligne colorée par les tokens et favicon.
+- 0.20 — langues : l’application doit accepter les langues écrites de droite à gauche (RTL) en plus des langues LTR ; langues fournies en V1 : anglais (référence et fallback), français, espagnol, italien et arabe (RTL) ; catalogues découverts automatiquement et chargés à la demande ; contenu utilisateur avec direction automatique, liens et code toujours LTR.
+- 0.19 — répertoire de données configurable par `storage.data_dir`, par défaut `datas/` à la racine du projet (hors de `public/`) ; les répertoires de contenus, d’idempotence, de rate limiting et d’état en dérivent par défaut et restent configurables individuellement ; en Docker, le volume de données est monté sur ce répertoire.
 - 0.18 — décisions de cadrage (licence AGPL-3.0, TypeScript + Vite, markdown-it + DOMPurify, @noble/ed25519 + hash-wasm, Argon2id 64 Mio / t = 3, listes de mots EFF et Lexique, Sigstore, audit externe ciblé, palette validée) ; retrait des honeypots ; identifiant de 192 bits liant aussi le jeton de suppression, pour une pré-vérification de `DELETE` sans stockage ; idempotence : contrôle d’empreinte en cas de course, purge des contenus orphelins, rate limiting des rejeux, détails de `link()` ; consommation idempotente après `consumed` ; quotas sous verrou.
 - 0.17 — idempotence sans état intermédiaire (enregistrement écrit une seule fois, après création, par `link()` atomique) : aucune reprise ne réutilise un identifiant ; identifiant retiré du corps de création ; pré-vérification sans stockage de `consume` ; limites de l’AAD documentées ; définition de `tronc64` ; contrôles client de l’identifiant et de l’AAD.
 - 0.16 — identifiant composé d’une empreinte de `access_pk` (64 bits) et d’un aléa attribué par le serveur (64 bits) : un détenteur du lien ne peut plus jamais recréer de contenu sous un lien existant ; retrait de `created_at` de l’AAD, suppression de la fenêtre de création et des pierres tombales autres que `consumed` ; identifiant de réservation généré par le client ; idempotence consultée avant quotas et rate limiting ; proxies de confiance et adresses IPv4 mappées ; relecture d’état après verrou étendue aux états terminaux avec contrôle d’inode ; nettoyage des `pending` en échec ; empreinte du secret dans le marqueur d’amorçage ; `ExecReload` ; purge conditionnée à l’amorçage ; `health.json` périmé bloquant ; limite documentée de `DELETE`.
@@ -306,7 +310,7 @@ Le QR code doit être généré localement, uniquement à partir du lien de part
 - utiliser un système de design basé sur des tokens ;
 - appliquer les mêmes composants, espacements, libellés et états partout ;
 - ne pas modifier la hiérarchie visuelle des alertes de sécurité avec un thème personnalisé ;
-- conserver une interface lisible avec toutes les langues LTR activées ;
+- conserver une interface lisible avec toutes les langues activées, qu’elles s’écrivent de gauche à droite (LTR) ou de droite à gauche (RTL) ;
 - respecter le mode clair, sombre et le thème système, avec un sélecteur à trois états (Système, Clair, Sombre) ;
 - respecter `prefers-reduced-motion` ;
 - ne pas utiliser d’animation pour retarder une action critique.
@@ -625,6 +629,8 @@ Le thème sombre doit conserver l’accent terracotta avec une luminosité adapt
 
 La typographie doit privilégier une pile système locale sans appel à une police distante. Une police sans empattement est utilisée pour l’interface et une pile monospace pour le contenu de type code, les secrets structurés et les logs. La palette ne doit jamais prendre le pas sur la hiérarchie des actions, la lisibilité ou la visibilité des alertes.
 
+Le logo QuietLink associe un bouclier terracotta et deux maillons entrelacés, suivi du mot-symbole « Quiet » en couleur de texte et « Link » en couleur d’accent. Il est fourni en SVG (`docs/brand/logo.svg` et `docs/brand/logo-dark.svg`) dans une version claire et une version sombre ; dans l’interface, le symbole est intégré en SVG en ligne coloré par les tokens du thème (`--ql-color-primary` pour le bouclier), ce qui fournit la version sombre sans fichier supplémentaire et respecte les thèmes personnalisés. Le symbole est décoratif (`aria-hidden`) : le nom accessible du lien d’accueil reste le nom de l’instance (`app.name`). Le même symbole sert d’icône de favori (`/favicon.svg`), servi par l’instance.
+
 Exigences de sécurité :
 
 - les thèmes personnalisés doivent être servis uniquement depuis l’instance ;
@@ -669,9 +675,9 @@ Règles de sélection de la langue :
 3. utiliser cette langue si elle est supportée par l’instance ;
 4. sinon utiliser l’anglais.
 
-L’anglais (`en`) est la langue par défaut et le fallback obligatoire. Le français (`fr`) doit être fourni en V1. L’ajout de nouvelles langues doit être possible en ajoutant un catalogue de traductions, sans modifier le code métier.
+L’anglais (`en`) est la langue par défaut et le fallback obligatoire. La V1 fournit les langues suivantes : anglais (`en`), français (`fr`), espagnol (`es`), italien (`it`) et arabe (`ar`). L’ajout de nouvelles langues doit être possible en ajoutant un catalogue de traductions, sans modifier le code métier : les catalogues présents sont découverts automatiquement, activés par défaut et restreints au besoin par `app.enabled_locales` ; les catalogues autres que l’anglais et le français sont chargés à la demande, sans alourdir le premier affichage.
 
-La V1 doit être compatible avec les langues écrites de gauche à droite (LTR). Chaque catalogue de traduction doit déclarer sa direction (`ltr`) et l’interface doit appliquer cette direction au document HTML et aux composants concernés.
+L’application doit accepter les langues écrites de gauche à droite (LTR) **et** de droite à gauche (RTL). Chaque catalogue de traduction doit déclarer sa direction (`ltr` ou `rtl`) et l’interface doit appliquer cette direction au document HTML (pages servies par le serveur, pages d’erreur, changement de langue côté client) et aux composants concernés. En RTL, toute la mise en page est miroir ; le contenu saisi ou déchiffré prend sa propre direction (`dir="auto"`), tandis que les liens, identifiants et blocs de code restent LTR.
 
 Exigences :
 
@@ -683,11 +689,12 @@ Exigences :
 - ne pas envoyer le contenu du paste pour déterminer la langue ;
 - permettre à l’utilisateur de changer la langue depuis l’interface ;
 - mémoriser uniquement la préférence de langue, jamais le contenu en clair ;
-- utiliser `dir="ltr"` et `lang` correctement sur le document HTML ;
+- utiliser `dir` (`ltr` ou `rtl`, selon le catalogue) et `lang` correctement sur le document HTML ;
 - utiliser les propriétés CSS logiques comme `margin-inline`, `padding-inline` et `text-align: start` ;
 - ne pas coder en dur des positions gauche/droite dans les composants réutilisables ;
-- conserver l’alignement, les boutons et les raccourcis cohérents avec une interface LTR ;
-- tester l’interface avec une langue longue et une langue utilisant des caractères non latins.
+- conserver l’alignement, les boutons et les raccourcis cohérents avec la direction de la langue (LTR ou RTL) ; les éléments graphiques directionnels (flèches, icônes, jauges) sont mis en miroir en RTL ;
+- tester l’interface avec une langue longue, une langue utilisant des caractères non latins et une langue RTL ;
+- faire relire chaque catalogue par un locuteur natif avant une publication publique.
 
 ### 6.7 API et CLI
 
@@ -1239,10 +1246,12 @@ Les transitions de lecture unique doivent être protégées par un verrou exclus
 
 #### 9.4.1 Stockage de fichiers V1
 
+Le répertoire de données est configurable dans `config.php` par `storage.data_dir` ; par défaut, il s’agit du dossier `datas/` à la racine du projet (un chemin relatif est résolu depuis la racine du projet). Il doit rester hors de la racine web `public/`. Les répertoires `storage.root_dir`, `storage.idempotency_dir`, `storage.ratelimit_dir` et `storage.state_dir` en dérivent par défaut (`datas/pastes`, `datas/idempotency`, `datas/ratelimit`, `datas/state`) et peuvent chacun être configurés séparément. En Docker, le système de fichiers racine étant en lecture seule, le volume de données est monté sur ce répertoire.
+
 Chaque contenu doit être stocké dans un répertoire partitionné par préfixes de son identifiant afin d’éviter un trop grand nombre de fichiers dans un même répertoire :
 
 ```text
-/var/lib/quietlink/
+<racine du projet>/datas/          # storage.data_dir
 ├── pastes/
 │   └── ab/
 │       └── cd/
@@ -1258,7 +1267,8 @@ Chaque contenu doit être stocké dans un répertoire partitionné par préfixes
     ├── health.json     # seuils d’espace et d’inodes, horodaté, écrit par la purge et app:boot
     ├── boot.json       # marqueur d’amorçage (empreinte de la configuration validée)
     ├── usage.lock
-    └── purge.lock
+    ├── purge.lock
+    └── creating/       # marqueurs vides, nommés aléatoirement, des créations en cours
 
 /var/lib/quietlink-generated/   # storage.generated_assets_dir, volume distinct
 └── tokens.<hash>.css
@@ -1272,7 +1282,7 @@ Règles obligatoires :
 - lors de la consommation, `payload.bin` est supprimé sous verrou juste après l’écriture de l’état `consumed` ;
 - toute suppression d’un contenu (suppression manuelle, purge d’un contenu expiré ou d’un contenu consommé depuis plus de 10 minutes) se fait en deux temps : sous verrou, `state.json` passe d’abord à l’état terminal `deleted` avec `terminal_at`, et `payload.bin` est supprimé ; les autres fichiers puis le répertoire sont ensuite supprimés, `state.lock` en dernier ; si un arrêt brutal intervient entre ces étapes, la purge suivante termine la suppression de tout contenu en état `deleted` ;
 - tout processus qui obtient le verrou doit, **après l’obtention du verrou**, vérifier que le descripteur verrouillé désigne toujours `<id>/state.lock` (égalité du périphérique et de l’inode entre `fstat()` sur le descripteur et `stat()` sur le chemin), puis relire l’état ; il abandonne l’opération, avec la réponse générique d’indisponibilité, si l’inode diffère, si le répertoire n’existe plus ou si l’état est `deleted`, ainsi que si l’état est `consumed`, sauf pour le rejeu idempotent de `consume` (§6.3.1) ; un verrou obtenu sur un fichier déjà supprimé ne permet donc jamais de réserver, servir ou modifier un contenu ;
-- un répertoire partiellement supprimé ne doit jamais rester vide sous le nom `<id>/` : la purge supprime les fichiers puis le répertoire dans la même opération sous verrou, et un répertoire `<id>/` sans `state.json` ou sans `state.lock` trouvé par `app:boot` ou par la purge est traité comme supprimé et retiré ;
+- un répertoire partiellement supprimé ne doit jamais rester vide sous le nom `<id>/` : la purge supprime les fichiers puis le répertoire dans la même opération sous verrou, et un répertoire `<id>/` sans `state.json` ou sans `state.lock` trouvé par la purge est traité comme supprimé et retiré par celle-ci (`app:boot` ne parcourt pas les contenus) ;
 - `state.lock` est utilisé avec `flock()` en mode exclusif pour les transitions de lecture unique, de suppression et de réservation ;
 - `state.lock` est créé uniquement avec le répertoire temporaire, lors de la création du contenu ; il est ensuite toujours ouvert **sans création** (mode `r+`, jamais `c`, `a`, `w` ni `x`) ; un fichier de verrou absent signifie que le contenu n’existe pas, et la requête reçoit la réponse générique d’indisponibilité ; aucun processus ne peut ainsi recréer un verrou dans un répertoire en cours de suppression ;
 - toute modification de `state.json` est écrite dans un fichier temporaire du même répertoire, synchronisée avec `fsync()` (PHP ≥ 8.1), puis appliquée par `rename()` atomique ;
@@ -1288,6 +1298,7 @@ Règles obligatoires :
 - l’index d’idempotence est lui aussi stocké sous forme de fichiers ne contenant ni texte en clair ni jeton de suppression brut ; sa durée de conservation est bornée indépendamment de l’expiration du contenu (§10) afin d’éviter toute accumulation et l’épuisement des inodes ;
 - la commande de purge parcourt uniquement les répertoires attendus, refuse les liens symboliques sortants et reste idempotente ; elle s’exécute sous un verrou global exclusif non bloquant (`purge.lock`) : une exécution qui trouve le verrou déjà pris se termine immédiatement, ce qui empêche les exécutions concurrentes lorsque la planification est plus fréquente que la durée d’une purge ;
 - les contenus `consumed` sont conservés au moins 10 minutes après `terminal_at`, sans payload, pour l’idempotence de `consume` (§6.3.1), puis supprimés par la purge ; une suppression manuelle d’un contenu `consumed` conserve l’état `consumed` jusqu’à cette échéance afin de ne pas casser l’idempotence de `consume` ;
+- une création en cours est signalée par un fichier vide, nommé aléatoirement, dans `state/creating/`, écrit avant la réservation du quota et supprimé après la validation ou l’abandon de la création ; le recalcul horaire de `usage.json` n’est pas appliqué tant qu’un marqueur de moins d’une heure existe, afin de ne pas effacer une création encore absente du disque ; la purge supprime les marqueurs de plus d’une heure laissés par un arrêt brutal ; ces marqueurs ne contiennent aucune donnée et ne modifient aucun format de fichier existant ;
 - `usage.json` est protégé par un verrou dédié (`usage.lock`, créé par `app:boot`) ; le contrôle de quota et la réservation de la taille et d’un contenu se font sous ce même verrou, de sorte que des créations concurrentes ne peuvent pas dépasser les quotas ; il est mis à jour à chaque création (ajout de la taille du ciphertext et d’un contenu), à chaque suppression d’un contenu perdant ou en échec d’idempotence (retrait), et à chaque suppression de `payload.bin` (consommation, suppression, expiration : retrait de la taille) ; le nombre de contenus n’est décrémenté qu’à la suppression du répertoire ;
 - les sauvegardes portent sur ce stockage de fichiers et doivent conserver les permissions, la cohérence des renommages et la confidentialité des ciphertexts ; une copie `tar` d’un répertoire actif n’est pas considérée comme une sauvegarde cohérente ;
 - une sauvegarde doit être réalisée depuis un snapshot cohérent du système de fichiers ou après arrêt/mise en lecture seule du service ; une copie en direct d’un répertoire actif sans garantie de cohérence est interdite ; la restauration doit être testée régulièrement ;
@@ -1360,10 +1371,12 @@ return [
     ],
     'storage' => [
         'driver' => 'filesystem',
-        'root_dir' => '/var/lib/quietlink/pastes',
-        'idempotency_dir' => '/var/lib/quietlink/idempotency',
-        'ratelimit_dir' => '/var/lib/quietlink/ratelimit',
-        'state_dir' => '/var/lib/quietlink/state',
+        // Relatif à la racine du projet ; les quatre répertoires suivants en dérivent par défaut.
+        'data_dir' => 'datas',
+        'root_dir' => null,          // datas/pastes
+        'idempotency_dir' => null,   // datas/idempotency
+        'ratelimit_dir' => null,     // datas/ratelimit
+        'state_dir' => null,         // datas/state
         'generated_assets_dir' => '/var/lib/quietlink-generated',
         'max_total_bytes' => 10737418240,
         'max_items' => 100000,
@@ -1407,7 +1420,8 @@ Règles de sécurité de la configuration :
 - la configuration doit être validée au démarrage ;
 - une configuration invalide doit empêcher le démarrage ou désactiver l’option concernée de manière sûre ;
 - les fichiers de configuration doivent être lisibles uniquement par l’utilisateur du processus PHP ;
-- les répertoires `root_dir`, `idempotency_dir`, `ratelimit_dir`, `state_dir` et `generated_assets_dir` doivent être hors de la racine web ; `generated_assets_dir` est sur un volume distinct, seul monté dans le conteneur du serveur web, qui n’a jamais accès aux autres répertoires ; appartenir au compte système de l’application et ne pas traverser de lien symbolique sortant ;
+- `data_dir` vaut `datas` par défaut (racine du projet) ; un chemin relatif est résolu depuis la racine du projet ; `root_dir`, `idempotency_dir`, `ratelimit_dir` et `state_dir` valent par défaut `<data_dir>/pastes`, `<data_dir>/idempotency`, `<data_dir>/ratelimit` et `<data_dir>/state` ; `app:boot` refuse un répertoire de données situé dans `public/` ;
+- les répertoires `data_dir`, `root_dir`, `idempotency_dir`, `ratelimit_dir`, `state_dir` et `generated_assets_dir` doivent être hors de la racine web ; `generated_assets_dir` est sur un volume distinct, seul monté dans le conteneur du serveur web, qui n’a jamais accès aux autres répertoires ; appartenir au compte système de l’application et ne pas traverser de lien symbolique sortant ;
 - les chemins de stockage doivent être validés au démarrage et leur création automatique doit appliquer des permissions restrictives ;
 - le chargement de fichiers arbitraires par une valeur de configuration doit être interdit ; seuls des fichiers de tokens situés dans le répertoire autorisé `config/themes/`, sans chemin absolu, sans `..` et sans lien symbolique sortant de ce répertoire, peuvent être chargés ;
 - toute modification de configuration doit nécessiter un redémarrage ou un rechargement explicite du service ;
@@ -1756,6 +1770,19 @@ Livrables attendus :
 - healthcheck et arrêt propre ;
 - planification de la purge en conteneur : un service dédié du Docker Compose, basé sur la même image, avec le même utilisateur non root, le même filesystem racine en lecture seule et le même volume de stockage, exécute `app:purge-expired` toutes les 60 secondes dans une boucle supervisée ; aucun démon `cron` n’est requis dans l’image ; l’équivalent systemd est un timer (`OnUnitActiveSec=60s`).
 
+### 15.1 Outillage d’exploitation
+
+L’exploitation se fait uniquement par la console, la configuration et les outils système (aucun backoffice). Les commandes suivantes sont attendues (priorité Should) :
+
+- `app:boot --dry-run` exécute tous les contrôles d’amorçage sans rien créer, écrire ni supprimer : un répertoire absent devient un avertissement, contrôlé par son plus proche parent existant, et le test de `rename()`/`link()`, qui exige des fichiers de test, est omis (`EXG-OPS-001`) ;
+- `app:boot` signale en avertissement un fichier de secret ou une configuration lisibles par tous les comptes, des inodes non mesurables et un `post_max_size` PHP inférieur à `http.max_request_bytes`, et refuse les répertoires de stockage accessibles à d’autres comptes (mode `0700` exigé) (`EXG-OPS-002`) ;
+- `app:boot` et `app:config:check` acceptent `--format=json` (un document JSON unique, sans jamais le secret) ; les codes de sortie sont documentés : `0` succès, `1` échec bloquant ou configuration invalide, `2` erreur d’usage ou, pour `app:config:check`, configuration valide mais non amorcée ; `app:config:check` est en lecture seule et sert au healthcheck du conteneur (`EXG-OPS-003`) ;
+- les procédures d’exploitation (unités systemd, sauvegarde et restauration avec test régulier, permissions, mise à jour et retour arrière, vérification après déploiement, dépannage, procédure d’incident) sont documentées dans le README administrateur (`EXG-OPS-004`) ;
+- les situations d’exploitation autrement invisibles sont journalisées sous forme d’événements (`health_stale`, `boot_marker_mismatch`, `purge_failures`, en plus de `quota_alert`), au plus une fois par minute et par worker pour ceux émis par les requêtes, sans identifiant, chemin ni adresse (`EXG-OPS-005`) ;
+- `app:secret:generate --output=<fichier>` écrit le secret dans un nouveau fichier (mode `0600`, ou `0640` avec `--group-readable`) sans l’afficher ; un fichier existant n’est remplacé, atomiquement, qu’avec `--force` (`EXG-OPS-006`) ;
+- hygiène Docker : healthcheck du service applicatif conditionné à l’état d’amorçage, signal d’arrêt adapté du service de purge, exclusions du contexte de build (données, rapports, artefacts), espace temporaire suffisant pour Nginx et journal d’erreurs Nginx limité au niveau `emerg` (`EXG-OPS-007`) ;
+- validation locale en Docker (`tools/docker/qa.sh`) et test de fumée de la pile Compose (`tools/docker/smoke.sh`), exécutés avant chaque version (`EXG-OPS-008`).
+
 ## 16. Tests et validation
 
 ### 16.0 Méthode TDD obligatoire
@@ -1789,8 +1816,8 @@ Règles obligatoires :
 - fallback anglais pour une langue non supportée ;
 - fallback anglais conservé même si aucune langue de navigateur n’est supportée ;
 - changement manuel de langue sans stockage de contenu en clair ;
-- direction `ltr` et attributs `lang` corrects ;
-- affichage correct des langues LTR sur mobile et desktop ;
+- direction (`ltr` ou `rtl`) et attributs `lang` corrects ;
+- affichage correct des langues LTR et RTL sur mobile et desktop, sans débordement ni texte tronqué ;
 - parcours de création utilisable sans compte en quelques étapes ;
 - prévention des doubles clics et doubles créations ;
 - conservation de la saisie après une erreur réseau ;
@@ -2056,7 +2083,7 @@ La V1 est considérée comme livrable si :
 - matrice de traçabilité exigences ↔ tests ;
 - tests unitaires, intégration, E2E et sécurité ;
 - tests PHPUnit et analyse statique PHP ;
-- catalogues de traduction anglais et français ;
+- catalogues de traduction anglais, français, espagnol, italien et arabe ;
 - image Docker et Compose ;
 - documentation de la stratégie de cache et commande de purge contrôlée ;
 - commandes `app:boot`, `app:config:check`, `app:secret:generate` et `app:purge-expired` ; commande `app:theme:preview` (priorité Could) ;
@@ -2118,7 +2145,7 @@ Il doit couvrir :
 - format des enregistrements de fichiers et stratégie de lecture unique ;
 - configuration locale sans secrets ;
 - génération et gestion des thèmes ;
-- gestion des catalogues de traduction et des langues LTR ;
+- gestion des catalogues de traduction et des langues LTR et RTL ;
 - exécution des tests PHPUnit, intégration, E2E et sécurité ;
 - PHPStan, linters, audits de dépendances et génération du SBOM ;
 - règles interdisant le plaintext dans les logs, caches et API ;
@@ -2230,10 +2257,10 @@ Il doit préciser :
 | Markdown | markdown-it (`html: false`) + DOMPurify |
 | Cryptographie navigateur | Web Crypto ; repli Ed25519 @noble/ed25519 (JavaScript pur) ; Argon2id hash-wasm dans un worker dédié |
 | Argon2id par défaut | `m = 64 Mio`, `t = 3`, `p = 1`, à confirmer par la calibration de Phase 0 |
-| Listes de mots | EFF « large » (`en`) ; liste `fr` construite en Phase 0 à partir de Lexique, filtrée, d’au moins 2 048 mots, avec scripts de génération versionnés |
+| Listes de mots | EFF « large » (`en`) ; liste `fr` construite en Phase 0 à partir de Lexique, filtrée, d’au moins 2 048 mots, avec scripts de génération versionnés ; liste anglaise utilisée pour les autres langues tant qu’une liste dédiée n’existe pas |
 | Signature des releases | Sigstore (`cosign`) + attestations de provenance GitHub |
 | Audit | audit externe ciblé (crypto, protocole, code client de chiffrement) avant la première version publique |
-| Identité visuelle | palette de départ inspirée d’Agillia.shop validée ; logo à créer |
+| Identité visuelle | palette de départ inspirée d’Agillia.shop validée ; logo QuietLink (bouclier et maillons) en SVG, versions claire et sombre |
 | Valeurs par défaut | celles de §9.5 (conservation maximale 30 jours, option « jamais » désactivée, quotas 10 Gio / 100 000 contenus, 3 ouvertures non confirmées, réservation 60 s, idempotence 24 h, masquage après 2 minutes, seuil de coloration 200 Kio) et objectifs de charge de §13 |
 | Priorités | classement Must / Should / Could de §0.3 validé |
 | Honeypots | retirés de la V1 (§6.1.2) |

@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Secret scanning: default rules, minus files that only hold public dummy test material
+# (shared protocol vectors, schema and protocol examples, disposable test instance secret).
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Public dummy test vectors and documentation examples (no real secret)"
+paths = [
+  '''^tests/vectors/sp-proto-v1\.json$''',
+  '''^tools/vectors/generate-sp-proto-v1\.mjs$''',
+  '''^tests/Crypto/SpProtoV1VectorsTest\.php$''',
+  '''^docs/schemas/[a-z]+\.v1\.schema\.json$''',
+  '''^docs/protocol/sp-proto-v1\.md$''',
+  '''^tools/e2e/server\.sh$''',
+  '''^tools/bench/server\.sh$''',
+]

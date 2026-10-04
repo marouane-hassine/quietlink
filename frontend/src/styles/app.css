@@ -1,0 +1,1073 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+
+/*
+ * Design tokens (ADR-0003). Operators override the allowlisted --ql-* tokens through
+ * config/themes/*.json, compiled by app:boot into /themes/generated/tokens.<hash>.css.
+ * Security state colours (--ql-security-*) are not customisable.
+ */
+:root {
+  color-scheme: light;
+  --ql-color-background: #ffffff;
+  --ql-color-surface: #f7f6f4;
+  --ql-color-surface-accent: #fcece5;
+  --ql-color-text: #111111;
+  --ql-color-text-muted: #686868;
+  --ql-color-border: #e5e1dd;
+  --ql-color-border-control: #857f79;
+  --ql-color-primary: #c94f26;
+  --ql-color-primary-hover: #a83e1d;
+  --ql-color-primary-contrast: #ffffff;
+  --ql-color-primary-text: #a83e1d;
+  --ql-color-focus: #8f2f16;
+  --ql-radius: 0.5rem;
+  --ql-radius-small: 0.25rem;
+  --ql-space: 1rem;
+  --ql-font-size: 1rem;
+  --ql-content-width: 46rem;
+  --ql-shadow: 0 1px 3px rgb(0 0 0 / 12%);
+  --ql-font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Arabic-capable fonts before the generic family: monospace fonts lack arabic glyphs and the
+     generic fallback draws them unjoined. Latin text stays monospace. */
+  --ql-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", "Geeza Pro", "Segoe UI", "Noto Sans Arabic", Tahoma, monospace;
+
+  --ql-security-success-text: #1d6b33;
+  --ql-security-success-surface: #e8f5ec;
+  --ql-security-warning-text: #7a4b00;
+  --ql-security-warning-surface: #fff4dc;
+  --ql-security-danger-text: #a3141b;
+  --ql-security-danger-surface: #fde8e8;
+  --ql-security-danger-fill: #b3261e;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ql-color-background: #161413;
+    --ql-color-surface: #221f1d;
+    --ql-color-surface-accent: #33241e;
+    --ql-color-text: #f3efeb;
+    --ql-color-text-muted: #b9b2ab;
+    --ql-color-border: #3d3834;
+    --ql-color-border-control: #8f8781;
+    --ql-color-primary: #c94f26;
+    --ql-color-primary-hover: #b2441f;
+    --ql-color-primary-contrast: #ffffff;
+    --ql-color-primary-text: #f0a07f;
+    --ql-color-focus: #f3b49a;
+    --ql-security-success-text: #8fd6a2;
+    --ql-security-success-surface: #17301e;
+    --ql-security-warning-text: #f2c66d;
+    --ql-security-warning-surface: #33270f;
+    --ql-security-danger-text: #ffaba6;
+    --ql-security-danger-surface: #3b1716;
+    --ql-security-danger-fill: #c9372f;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ql-color-background: #161413;
+  --ql-color-surface: #221f1d;
+  --ql-color-surface-accent: #33241e;
+  --ql-color-text: #f3efeb;
+  --ql-color-text-muted: #b9b2ab;
+  --ql-color-border: #3d3834;
+  --ql-color-border-control: #8f8781;
+  --ql-color-primary: #c94f26;
+  --ql-color-primary-hover: #b2441f;
+  --ql-color-primary-contrast: #ffffff;
+  --ql-color-primary-text: #f0a07f;
+  --ql-color-focus: #f3b49a;
+  --ql-security-success-text: #8fd6a2;
+  --ql-security-success-surface: #17301e;
+  --ql-security-warning-text: #f2c66d;
+  --ql-security-warning-surface: #33270f;
+  --ql-security-danger-text: #ffaba6;
+  --ql-security-danger-surface: #3b1716;
+  --ql-security-danger-fill: #c9372f;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html {
+  font-size: 100%;
+  -webkit-text-size-adjust: 100%;
+  /* Height of the sticky action bar, measured by followActionBar(). */
+  scroll-padding-block-end: calc(var(--ql-bar-height, 7rem) + 1rem);
+}
+
+body {
+  margin: 0;
+  min-block-size: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--ql-color-background);
+  color: var(--ql-color-text);
+  font-family: var(--ql-font-sans);
+  font-size: var(--ql-font-size);
+  line-height: 1.5;
+  /* Symmetric: the safe areas are physical sides, the inline axis flips in right-to-left. */
+  padding-inline: max(env(safe-area-inset-left), env(safe-area-inset-right));
+}
+
+a {
+  color: var(--ql-color-primary-text);
+}
+
+:focus-visible {
+  outline: 3px solid var(--ql-color-focus);
+  outline-offset: 2px;
+}
+
+.visually-hidden {
+  position: absolute !important;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.skip-link {
+  position: absolute;
+  inset-inline-start: var(--ql-space);
+  inset-block-start: -10rem;
+  padding: 0.75rem 1rem;
+  background: var(--ql-color-background);
+  color: var(--ql-color-text);
+  border: 2px solid var(--ql-color-focus);
+  z-index: 10;
+}
+
+.skip-link:focus {
+  inset-block-start: var(--ql-space);
+}
+
+.site-header,
+.site-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem var(--ql-space);
+  border-block-end: 1px solid var(--ql-color-border);
+}
+
+.site-footer {
+  border-block-end: 0;
+  border-block-start: 1px solid var(--ql-color-border);
+  color: var(--ql-color-text-muted);
+  font-size: 0.875rem;
+  padding-block-end: calc(0.75rem + env(safe-area-inset-bottom));
+}
+
+.brand {
+  font-weight: 700;
+  font-size: 1.125rem;
+  letter-spacing: -0.01em;
+  color: var(--ql-color-text);
+  text-decoration: none;
+  min-block-size: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Logo mark: colours come from theme tokens, so the dark theme and operator themes apply. */
+.brand-mark {
+  inline-size: 2rem;
+  block-size: 2rem;
+  flex: none;
+}
+
+.brand-mark-shield {
+  fill: var(--ql-color-primary);
+}
+
+.brand-mark-link {
+  stroke: var(--ql-color-primary-contrast);
+}
+
+.brand-mark-gap {
+  stroke: var(--ql-color-primary);
+}
+
+.brand-accent {
+  color: var(--ql-color-primary-text);
+}
+
+.controls {
+  display: flex;
+  gap: 0.5rem;
+}
+
+main {
+  flex: 1;
+  inline-size: 100%;
+  max-inline-size: var(--ql-content-width);
+  margin-inline: auto;
+  padding: var(--ql-space);
+}
+
+.page-title {
+  font-size: 1.5rem;
+  line-height: 1.25;
+  margin-block: 0.5rem 0.75rem;
+}
+
+/* Focused by script on each screen change for screen readers; not interactive, never reached
+   with Tab, so no focus ring. */
+.page-title[tabindex="-1"]:focus {
+  outline: none;
+}
+
+h2 {
+  font-size: 1.15rem;
+}
+
+.lead,
+.hint {
+  color: var(--ql-color-text-muted);
+}
+
+.hint {
+  font-size: 0.9rem;
+  margin-block: 0.25rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-block: 0.75rem;
+}
+
+.field-label,
+.field > label {
+  font-weight: 600;
+}
+
+.field-check {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.field-check input {
+  /* A flex item shrinks by default: keep 24x24 next to a label wrapping on narrow screens. */
+  flex: none;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  accent-color: var(--ql-color-primary);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1rem;
+}
+
+.row > .field {
+  flex: 1 1 10rem;
+}
+
+input[type="text"],
+input[type="password"],
+select,
+textarea {
+  font: inherit;
+  font-size: max(16px, 1rem);
+  color: var(--ql-color-text);
+  background: var(--ql-color-background);
+  border: 1px solid var(--ql-color-border-control);
+  border-radius: var(--ql-radius-small);
+  padding: 0.6rem 0.75rem;
+  min-block-size: 44px;
+  inline-size: 100%;
+}
+
+/* Safari ignores the minimum height of native selects: draw them (arrow made of gradients, no image). */
+select {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-inline-end: 2.25rem;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 1.1rem) 55%, calc(100% - 0.75rem) 55%;
+  background-size: 0.35rem 0.35rem;
+  background-repeat: no-repeat;
+}
+
+/* The drawn arrow sits at the inline end: mirrored for right-to-left languages. */
+[dir="rtl"] select {
+  background-position: 0.75rem 55%, 1.1rem 55%;
+}
+
+.editor {
+  font-family: var(--ql-font-mono);
+  min-block-size: 14rem;
+  resize: vertical;
+  overscroll-behavior: contain;
+}
+
+/* The placeholder is interface text from the catalogues, not content. */
+.editor::placeholder {
+  font-family: var(--ql-font-sans);
+}
+
+/* With dir="auto" and no text, Chromium and WebKit resolve the editor to LTR. */
+[dir="rtl"] .editor:placeholder-shown {
+  direction: rtl;
+}
+
+.control-select {
+  inline-size: auto;
+  min-block-size: 44px;
+}
+
+/* Theme: segmented group of three icon buttons (native radios kept for keyboard and AT). */
+.theme-switch {
+  display: inline-flex;
+  margin: 0;
+  padding: 2px;
+  border: 1px solid var(--ql-color-border);
+  border-radius: 999px;
+  background: var(--ql-color-surface);
+}
+
+.theme-switch input {
+  position: absolute;
+  opacity: 0;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: 0;
+}
+
+.theme-switch label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 44px;
+  min-block-size: 44px;
+  border-radius: 999px;
+  color: var(--ql-color-text-muted);
+  cursor: pointer;
+}
+
+.theme-switch label:hover {
+  color: var(--ql-color-text);
+}
+
+.theme-switch input:checked + label {
+  color: var(--ql-color-primary-contrast);
+  background: var(--ql-color-primary);
+}
+
+.theme-switch input:focus-visible + label {
+  outline: 3px solid var(--ql-color-focus);
+  outline-offset: 2px;
+}
+
+.icon {
+  inline-size: 20px;
+  block-size: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.icon .icon-fill {
+  fill: currentColor;
+  stroke: none;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-block-size: 44px;
+  min-inline-size: 44px;
+  padding: 0.6rem 1.1rem;
+  border-radius: var(--ql-radius);
+  border: 1px solid transparent;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.button[disabled] {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.button-primary {
+  background: var(--ql-color-primary);
+  color: var(--ql-color-primary-contrast);
+}
+
+.button-primary:not([disabled]):hover {
+  background: var(--ql-color-primary-hover);
+}
+
+.button-secondary {
+  background: var(--ql-color-surface);
+  color: var(--ql-color-text);
+  border-color: var(--ql-color-border-control);
+}
+
+.button-tertiary,
+.link-button {
+  background: transparent;
+  color: var(--ql-color-primary-text);
+  border-color: transparent;
+  text-decoration: underline;
+}
+
+.link-button {
+  font: inherit;
+  cursor: pointer;
+  min-block-size: 44px;
+  padding-inline: 0.25rem;
+}
+
+.button-danger {
+  background: var(--ql-security-danger-fill);
+  color: #ffffff;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block: 0.5rem;
+}
+
+.chip {
+  min-block-size: 44px;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--ql-color-border-control);
+  background: var(--ql-color-surface);
+  color: var(--ql-color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block: 0.75rem;
+}
+
+details {
+  border: 1px solid var(--ql-color-border);
+  border-radius: var(--ql-radius);
+  padding: 0 var(--ql-space);
+  margin-block: 0.75rem;
+  background: var(--ql-color-surface);
+}
+
+summary {
+  cursor: pointer;
+  font-weight: 600;
+  min-block-size: 44px;
+  display: flex;
+  align-items: center;
+}
+
+/* display: flex removes the native marker: draw a chevron that points to the inline end when
+   closed and down when open. */
+summary {
+  list-style: none;
+  gap: 0.5rem;
+}
+
+summary::-webkit-details-marker {
+  display: none;
+}
+
+summary::after {
+  content: "";
+  flex: none;
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  margin-inline-start: auto;
+  border-inline-end: 2px solid currentcolor;
+  border-block-end: 2px solid currentcolor;
+  transform: rotate(-45deg);
+}
+
+[dir="rtl"] summary::after {
+  transform: rotate(45deg);
+}
+
+details[open] > summary::after {
+  transform: rotate(45deg);
+}
+
+[dir="rtl"] details[open] > summary::after {
+  transform: rotate(-45deg);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  summary::after {
+    transition: transform 0.15s ease;
+  }
+}
+
+.action-bar {
+  position: sticky;
+  inset-block-end: var(--ql-keyboard-offset, 0px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 0 calc(0.75rem + env(safe-area-inset-bottom));
+  background: var(--ql-color-background);
+  border-block-start: 1px solid var(--ql-color-border);
+  margin-block-start: 1rem;
+}
+
+/* On short viewports (landscape phones, 400 % zoom) a sticky bar would cover most of the
+   screen: it scrolls with the content instead. */
+@media (max-height: 30rem) {
+  .action-bar {
+    position: static;
+  }
+
+  html {
+    scroll-padding-block-end: 1rem;
+  }
+}
+
+.action-bar .button-primary {
+  flex: 1 1 14rem;
+}
+
+.summary,
+.size,
+.disabled-reason,
+.status {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.disabled-reason {
+  color: var(--ql-color-text-muted);
+}
+
+.gauge {
+  flex-basis: 100%;
+  block-size: 0.5rem;
+  background: var(--ql-color-border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.gauge-bar {
+  block-size: 100%;
+  inline-size: 0;
+  background: var(--ql-security-warning-text);
+}
+
+.gauge[data-level="over"] .gauge-bar {
+  background: var(--ql-security-danger-fill);
+}
+
+.success,
+.warning,
+.error,
+.notice,
+.banner,
+.error-box,
+.field-error {
+  border-radius: var(--ql-radius-small);
+}
+
+.success {
+  color: var(--ql-security-success-text);
+  background: var(--ql-security-success-surface);
+  padding: 0.75rem;
+}
+
+.warning,
+.banner {
+  color: var(--ql-security-warning-text);
+  background: var(--ql-security-warning-surface);
+  padding: 0.75rem;
+  border-inline-start: 4px solid currentColor;
+}
+
+/* Placed before <main> (it survives screen changes): aligned on the content column. */
+.offline-banner {
+  box-sizing: border-box;
+  inline-size: calc(100% - 2 * var(--ql-space));
+  max-inline-size: calc(var(--ql-content-width) - 2 * var(--ql-space));
+  margin: var(--ql-space) auto 0;
+}
+
+.warning::before {
+  content: "⚠ ";
+}
+
+.error,
+.error-box,
+.field-error:not(:empty) {
+  color: var(--ql-security-danger-text);
+  background: var(--ql-security-danger-surface);
+  padding: 0.75rem;
+}
+
+.field-error:empty {
+  display: none;
+}
+
+.notice {
+  background: var(--ql-color-surface-accent);
+  padding: 0.75rem;
+}
+
+.chip[aria-pressed="true"] {
+  background: var(--ql-color-surface-accent);
+  border-color: var(--ql-color-primary-text);
+  font-weight: 600;
+}
+
+.template-fields {
+  display: grid;
+  grid-template-columns: minmax(8rem, max-content) 1fr;
+  gap: 0.5rem 1rem;
+  margin: 0;
+}
+
+.template-fields dt {
+  font-weight: 600;
+}
+
+.template-fields dd {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+}
+
+.field-value {
+  font-family: var(--ql-font-mono);
+  overflow-wrap: anywhere;
+}
+
+.template-section {
+  border: 0;
+  padding: 0;
+  margin-block: 1rem;
+}
+
+.template-section legend,
+.template-section h3 {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+@media (max-width: 30rem) {
+  .template-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+.confirm-panel {
+  margin-block: 0.5rem;
+  padding: 0.75rem;
+  border: 2px solid var(--ql-color-border-control);
+  border-radius: var(--ql-radius);
+  background: var(--ql-color-surface);
+  flex-basis: 100%;
+}
+
+.confirm-message {
+  margin-block: 0 0.5rem;
+  font-weight: 600;
+}
+
+.inline-notice {
+  margin: 0;
+}
+
+.link-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.link-field {
+  font-family: var(--ql-font-mono);
+}
+
+.danger-zone {
+  margin-block-start: 2rem;
+  padding: var(--ql-space);
+  border: 1px dashed var(--ql-security-danger-fill);
+  border-radius: var(--ql-radius);
+}
+
+.danger-zone h2 {
+  margin-block-start: 0;
+  color: var(--ql-security-danger-text);
+}
+
+.qr-box {
+  margin-block: 0.5rem;
+  flex-basis: 100%;
+}
+
+.qr {
+  inline-size: min(18rem, 100%);
+  block-size: auto;
+  display: block;
+}
+
+.qr-box:fullscreen {
+  /* Light background whatever the theme: a focus ring readable on white (WCAG 1.4.11). */
+  --ql-color-focus: #8f2f16;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 1.5rem;
+  background: #ffffff;
+}
+
+.qr-box:fullscreen .qr {
+  inline-size: min(90vmin, 40rem);
+}
+
+/* The full-screen background is always white (scannable): fixed dark button colours. */
+.qr-box:fullscreen .button {
+  color: #1a1a1a;
+  background: #ffffff;
+  border-color: #1a1a1a;
+}
+
+.qr-background {
+  fill: #ffffff;
+}
+
+.qr-modules {
+  fill: #000000;
+}
+
+.reader {
+  background: var(--ql-color-surface);
+  border: 1px solid var(--ql-color-border-control);
+  border-radius: var(--ql-radius);
+  padding: var(--ql-space);
+  overflow-wrap: anywhere;
+  max-block-size: 70vh;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.reader.no-wrap pre {
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.reader.is-hidden {
+  filter: blur(12px);
+  user-select: none;
+}
+
+.reader pre {
+  font-family: var(--ql-font-mono);
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+.reader.markdown pre {
+  background: var(--ql-color-background);
+  padding: 0.75rem;
+  border-radius: var(--ql-radius-small);
+}
+
+.copy-block {
+  float: inline-end;
+}
+
+.external-link::after {
+  content: " ↗";
+}
+
+.how-lead {
+  max-inline-size: 48rem;
+  margin-block: 0 1.5rem;
+  font-size: 1.05rem;
+}
+
+.how-section {
+  margin-block: 2rem;
+}
+
+.how-section > h2 {
+  margin-block-end: 0.75rem;
+}
+
+.how-flow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: how-step;
+}
+
+.how-flow li {
+  counter-increment: how-step;
+  padding: 1rem;
+  background: var(--ql-color-surface);
+  border: 1px solid var(--ql-color-border-control);
+  border-block-start: 4px solid var(--ql-color-primary);
+  border-radius: var(--ql-radius);
+}
+
+.how-flow li::before {
+  content: counter(how-step);
+  display: inline-grid;
+  place-items: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  margin-block-end: 0.5rem;
+  border-radius: 50%;
+  background: var(--ql-color-primary);
+  color: var(--ql-color-primary-contrast);
+  font-weight: 700;
+}
+
+.how-flow h3,
+.how-data-card h3 {
+  margin-block: 0 0.35rem;
+  font-size: 1rem;
+}
+
+.how-flow p,
+.how-data-card ul,
+.how-section > p {
+  margin-block: 0;
+}
+
+.how-data-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.how-data-card {
+  padding: 1rem;
+  border: 1px solid var(--ql-color-border-control);
+  border-radius: var(--ql-radius);
+  background: var(--ql-color-surface);
+}
+
+.how-data-card ul,
+.how-options,
+.how-read-once {
+  display: grid;
+  gap: 0.45rem;
+  padding-inline-start: 1.25rem;
+}
+
+.how-data-card-sees {
+  border-block-start: 4px solid var(--ql-security-warning-text);
+}
+
+.how-data-card-never {
+  border-block-start: 4px solid var(--ql-security-success-text);
+}
+
+.how-link-content {
+  max-inline-size: 100%;
+}
+
+.how-link-example {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  max-inline-size: 100%;
+  padding: 0.85rem;
+  direction: ltr;
+  overflow-x: auto;
+  background: var(--ql-color-surface);
+  border: 1px solid var(--ql-color-border-control);
+  border-radius: var(--ql-radius-small);
+}
+
+.how-link-example code {
+  overflow-wrap: anywhere;
+}
+
+.how-link-fragment {
+  padding: 0.2rem 0.35rem;
+  color: var(--ql-color-primary-contrast);
+  background: var(--ql-color-primary);
+  border-radius: var(--ql-radius-small);
+}
+
+.how-caption {
+  margin-block-start: 0.65rem !important;
+  color: var(--ql-color-text-muted);
+}
+
+.how-section .warning {
+  margin: 0;
+}
+
+.how-faq {
+  border-block-start: 1px solid var(--ql-color-border);
+}
+
+.how-faq details {
+  border-block-end: 1px solid var(--ql-color-border);
+}
+
+.how-faq summary {
+  min-block-size: 44px;
+  padding-block: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.how-faq details p {
+  margin-block: 0 0.9rem;
+  color: var(--ql-color-text-muted);
+}
+
+.how-actions {
+  margin-block: 2rem;
+  text-align: center;
+}
+
+@media (max-width: 42rem) {
+  .how-flow,
+  .how-data-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.toast {
+  position: fixed;
+  inset-inline: var(--ql-space);
+  inset-block-end: calc(5.5rem + env(safe-area-inset-bottom));
+  margin-inline: auto;
+  max-inline-size: 28rem;
+  padding: 0.75rem 1rem;
+  background: var(--ql-color-text);
+  color: var(--ql-color-background);
+  border-radius: var(--ql-radius);
+  box-shadow: var(--ql-shadow);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  z-index: 20;
+}
+
+.toast.is-visible {
+  opacity: 1;
+}
+
+.expiry,
+.mode {
+  margin-block: 0.25rem;
+}
+
+.hljs-keyword,
+.hljs-built_in {
+  color: var(--ql-color-primary-text);
+  font-weight: 600;
+}
+
+.hljs-string {
+  color: var(--ql-security-success-text);
+}
+
+.hljs-comment {
+  color: var(--ql-color-text-muted);
+  font-style: italic;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* Printing is disabled by default (ui.allow_print): nothing is printed unless the reader
+   confirmed printing, and then only the decrypted content (§6.8). */
+@media print {
+  .site-header,
+  .site-footer,
+  .action-bar,
+  .danger-zone,
+  .qr-box,
+  .button,
+  .reader-controls,
+  .confirm-panel,
+  details {
+    display: none !important;
+  }
+
+  body:not(.print-allowed) main {
+    display: none !important;
+  }
+
+  body.print-allowed main > :not(.reader) {
+    display: none !important;
+  }
+
+  body.print-allowed .reader {
+    max-block-size: none;
+    overflow: visible;
+    border: 0;
+    filter: none;
+  }
+}
+
+/* Default placeholder grey falls below 4.5:1 on the dark background (WCAG 1.4.3). */
+::placeholder {
+  color: var(--ql-color-text-muted);
+  opacity: 1;
+}
+
+.site-footer a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 44px;
+}
+
+.reader table {
+  border-collapse: collapse;
+  margin-block: 0.75rem;
+}
+
+.reader th,
+.reader td {
+  border: 1px solid var(--ql-color-border);
+  padding: 0.35rem 0.6rem;
+  text-align: start;
+}

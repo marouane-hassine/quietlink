@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QuietLink · Argon2id calibration</title>
+</head>
+<body>
+  <main>
+    <h1>Argon2id calibration</h1>
+    <p>Measures how long the passphrase derivation takes on this device, in the same dedicated worker as
+      the application. Dummy passphrase only; nothing is sent anywhere.</p>
+    <button id="run" type="button">Run measurements</button>
+    <pre id="out" aria-live="polite"></pre>
+  </main>
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://quietlink.example.test/schemas/health.v1.schema.json",
+  "title": "health.json (v1)",
+  "description": "Free space and inode measurement written by the purge and app:boot (spec \u00a77.5). Older than 10 minutes means degraded.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "measured_at",
+    "free_bytes",
+    "free_inodes_percent"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "measured_at": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "free_bytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "free_inodes_percent": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 100,
+      "description": "null when the filesystem does not report inodes."
+    }
+  }
+}

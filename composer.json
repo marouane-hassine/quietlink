@@ -1,0 +1,70 @@
+{
+    "name": "quietlink/quietlink",
+    "description": "Self-hostable sharing of client-side encrypted confidential texts.",
+    "type": "project",
+    "license": "AGPL-3.0-or-later",
+    "require": {
+        "php": ">=8.3",
+        "ext-intl": "*",
+        "ext-json": "*",
+        "ext-mbstring": "*",
+        "ext-openssl": "*",
+        "ext-sodium": "*",
+        "symfony/console": "^7.3",
+        "symfony/framework-bundle": "^7.3",
+        "symfony/http-foundation": "^7.3",
+        "symfony/rate-limiter": "^7.3",
+        "symfony/routing": "^7.3",
+        "symfony/twig-bundle": "^7.3",
+        "symfony/validator": "^7.3"
+    },
+    "autoload": {
+        "psr-4": {
+            "QuietLink\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "QuietLink\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "platform": {
+            "php": "8.3.0"
+        },
+        "allow-plugins": {
+            "phpstan/extension-installer": true
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "stan": "phpstan analyse --memory-limit=1G",
+        "cs": "php-cs-fixer fix --dry-run --diff",
+        "cs-fix": "php-cs-fixer fix",
+        "qa": [
+            "@cs",
+            "@stan",
+            "@test"
+        ],
+        "vectors": "node tools/vectors/generate-sp-proto-v1.mjs > tests/vectors/sp-proto-v1.json",
+        "vectors:check": "node tools/vectors/generate-sp-proto-v1.mjs --check tests/vectors/sp-proto-v1.json"
+    },
+    "scripts-descriptions": {
+        "test": "Run the PHPUnit test suite",
+        "stan": "Run PHPStan static analysis (level max)",
+        "cs": "Check coding style (PSR-12) without modifying files",
+        "cs-fix": "Fix coding style (PSR-12)",
+        "qa": "Run coding style, static analysis and tests",
+        "vectors": "Regenerate the shared sp-proto/v1 test vectors (Node >= 24.7)",
+        "vectors:check": "Check that the committed test vectors match the generator"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3",
+        "phpstan/extension-installer": "^1.4",
+        "phpstan/phpstan": "^2",
+        "phpstan/phpstan-phpunit": "^2.0",
+        "phpstan/phpstan-strict-rules": "^2.0",
+        "phpunit/phpunit": "^12"
+    }
+}

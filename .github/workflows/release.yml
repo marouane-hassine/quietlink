@@ -1,0 +1,170 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Signed release: images and PHAR signed keyless with cosign (Sigstore/Rekor), SBOM and
+# SLSA provenance attestations, published hashes of the frontend files (§7.5).
+# Actions are pinned to full commit SHAs (tag in the trailing comment); see
+# docs/README-developer.md, "Updating pinned dependencies".
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    # Nothing is built or published unless the tag matches the code version, the tagged
+    # commit is on main and the full QA suite passes on it.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+      - name: Tag matches Version::APP
+        run: |
+          app_version=$(sed -n "s/.*public const APP = '\([^']*\)';.*/\1/p" src/Version.php)
+          if [ "${GITHUB_REF_NAME#v}" != "$app_version" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match Version::APP ${app_version}"
+            exit 1
+          fi
+      - name: Tagged commit is on main
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not point to a commit of main"
+            exit 1
+          fi
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.3'
+          extensions: intl, sodium, openssl, mbstring
+          coverage: none
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: '24'
+      - run: composer install --no-interaction --prefer-dist --no-scripts
+      - run: composer validate --strict
+      - run: composer qa
+      - run: npm ci --ignore-scripts
+      - run: npm run qa
+      - name: Requirement coverage report is up to date
+        run: node tools/traceability/coverage.mjs --check
+      - name: Shared vectors are reproducible
+        run: node tools/vectors/generate-sp-proto-v1.mjs --check tests/vectors/sp-proto-v1.json
+
+  release:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      attestations: write
+    env:
+      REGISTRY: ghcr.io/${{ github.repository_owner }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: '24'
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.3'
+          extensions: intl, sodium, openssl, mbstring
+          ini-values: phar.readonly=0
+          tools: box:4.7.0
+      - uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
+      - uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Frontend build and published hashes
+        run: |
+          npm ci --ignore-scripts && npx vite build
+          (cd public/build && find . -type f -exec sha256sum {} + | sort) > frontend-sha256sums.txt
+
+      - name: Reproducible PHAR of the CLI (fixed alias, timestamp of the tagged commit)
+        run: |
+          composer install --no-dev --classmap-authoritative --no-interaction --no-scripts
+          jq --arg ts "$(git log -1 --format=%cI)" '.timestamp = $ts' box.json > box.release.json
+          box compile --config=box.release.json --no-interaction
+          sha256sum quietlink.phar > quietlink.phar.sha256
+
+      - name: Build and push images (linux/amd64, immutable version tag)
+        id: images
+        run: |
+          for image in app web cli; do
+            case "$image" in app) dir=php ;; web) dir=nginx ;; *) dir=cli ;; esac
+            dockerfile=docker/$dir/Dockerfile
+            name="$REGISTRY/quietlink-$image"
+            docker build --platform linux/amd64 -f "$dockerfile" -t "$name:${GITHUB_REF_NAME}" .
+            docker push "$name:${GITHUB_REF_NAME}"
+            ref=$(docker inspect --format='{{index .RepoDigests 0}}' "$name:${GITHUB_REF_NAME}")
+            {
+              echo "$image=$ref"
+              echo "${image}_name=$name"
+              echo "${image}_digest=${ref##*@}"
+            } >> "$GITHUB_OUTPUT"
+            syft "$ref" -o spdx-json > "sbom-$image.spdx.json"
+            cosign sign --yes "$ref"
+            cosign attest --yes --predicate "sbom-$image.spdx.json" --type spdxjson "$ref"
+          done
+          syft dir:. -o spdx-json > sbom-source.spdx.json
+
+      - name: SLSA provenance (app image)
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-name: ${{ steps.images.outputs.app_name }}
+          subject-digest: ${{ steps.images.outputs.app_digest }}
+          push-to-registry: true
+      - name: SLSA provenance (web image)
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-name: ${{ steps.images.outputs.web_name }}
+          subject-digest: ${{ steps.images.outputs.web_digest }}
+          push-to-registry: true
+      - name: SLSA provenance (cli image)
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-name: ${{ steps.images.outputs.cli_name }}
+          subject-digest: ${{ steps.images.outputs.cli_digest }}
+          push-to-registry: true
+
+      - name: Sign files
+        run: |
+          for file in quietlink.phar frontend-sha256sums.txt; do
+            cosign sign-blob --yes --bundle "$file.sigstore.json" "$file"
+          done
+
+      - name: SLSA provenance (PHAR and frontend hashes)
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-path: |
+            quietlink.phar
+            frontend-sha256sums.txt
+
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+        with:
+          # Digests to deploy and verify (docs/README-admin.md, "Upgrade and rollback").
+          body: |
+            Signed images (linux/amd64, deploy by digest):
+            - `${{ steps.images.outputs.app }}`
+            - `${{ steps.images.outputs.web }}`
+            - `${{ steps.images.outputs.cli }}`
+          generate_release_notes: true
+          # A version with a suffix (1.0.0-beta.1) is a pre-release, never the latest release.
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: ${{ !contains(github.ref_name, '-') }}
+          files: |
+            quietlink.phar
+            quietlink.phar.sha256
+            quietlink.phar.sigstore.json
+            frontend-sha256sums.txt
+            frontend-sha256sums.txt.sigstore.json
+            sbom-*.spdx.json

@@ -1,0 +1,27 @@
+#!/usr/bin/env php
+<?php
+
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+declare(strict_types=1);
+
+use QuietLink\Kernel;
+use QuietLink\Runtime\Environment;
+use Symfony\Bundle\FrameworkBundle\Console\Application;
+use Symfony\Component\Console\Input\ArgvInput;
+
+require dirname(__DIR__) . '/vendor/autoload.php';
+
+$input = new ArgvInput();
+$variables = Environment::processVariables();
+$env = $input->getParameterOption(['--env', '-e'], null, true);
+if (is_string($env)) {
+    $variables['APP_ENV'] = $env;
+}
+if ($input->hasParameterOption('--no-debug', true)) {
+    $variables['APP_DEBUG'] = '0';
+}
+$environment = Environment::fromVariables($variables);
+$kernel = new Kernel($environment->name, $environment->debug);
+
+exit((new Application($kernel))->run($input));
