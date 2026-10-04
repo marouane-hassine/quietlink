@@ -442,6 +442,11 @@ Cron example (host installation):
   connecting address to `X-Forwarded-For`) and the application decides from
   `http.trusted_proxies`.
   `includeSubDomains` applies to every subdomain of the instance host: use a dedicated host.
+  Check it after deployment: `curl -sI https://quietlink.example.test/ | grep -i strict-transport`
+  must print the header; if not, `http.trusted_proxies` does not match the proxy address.
+- The shipped Nginx configuration logs only critical errors (`error_log … crit`): client errors
+  would otherwise record the client address and request line. Errors Nginx answers itself (400,
+  404, 405, 408, 413, 414) use the application's `problem+json` body and security headers.
 - **`http.trusted_proxies`**: list the address(es) of the proxy that connects to PHP-FPM's web
   server, as seen by the application. In the Compose setup PHP-FPM sees the `web` container,
   which itself sees the HTTPS proxy through the Docker bridge: list the Compose network range

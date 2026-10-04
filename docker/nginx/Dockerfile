@@ -14,5 +14,6 @@ RUN npx vite build
 
 FROM nginxinc/nginx-unprivileged:1.29-alpine
 COPY docker/nginx/default.conf /etc/nginx/conf.d/default.conf
+COPY docker/nginx/errors /usr/share/quietlink/__errors
 COPY --from=assets /src/public/build /usr/share/quietlink/public/build
 EXPOSE 8080

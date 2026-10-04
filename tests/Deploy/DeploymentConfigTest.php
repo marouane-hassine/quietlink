@@ -69,6 +69,45 @@ final class DeploymentConfigTest extends TestCase
         self::assertStringNotContainsString('add_header', $serverLevel);
     }
 
+    /**
+     * nginx's error log records the client address and the request line (paste identifiers) for
+     * client errors such as 413: only critical errors are logged (ADR-0005, §7.5).
+     */
+    #[Group('EXG-OBS-005')]
+    public function testNginxErrorLogCollectsNoClientRequest(): void
+    {
+        self::assertMatchesRegularExpression('/^\s*error_log\s+\S+\s+crit;/m', self::file('docker/nginx/default.conf'));
+    }
+
+    /**
+     * Errors nginx answers itself carry the same problem+json body and security headers as the
+     * application's, and are never cached.
+     */
+    #[Group('EXG-SEC-058')]
+    #[Group('EXG-CACHE-008')]
+    public function testNginxOwnErrorsAreUniformAndHardened(): void
+    {
+        $nginx = self::file('docker/nginx/default.conf');
+        foreach ([400, 404, 405, 408, 413, 414] as $status) {
+            self::assertStringContainsString("error_page {$status} /__errors/{$status}.json;", $nginx);
+            $body = json_decode(self::file("docker/nginx/errors/{$status}.json"), true);
+            self::assertIsArray($body);
+            self::assertSame($status, $body['status']);
+            self::assertSame('about:blank', $body['type']);
+        }
+        self::assertMatchesRegularExpression('/location \^~ \/__errors\/ \{\s*internal;.*?problem\+json;.*?Content-Security-Policy.*?no-store/s', $nginx);
+        self::assertStringContainsString('COPY docker/nginx/errors /usr/share/quietlink/__errors', self::file('docker/nginx/Dockerfile'));
+    }
+
+    #[Group('EXG-DEPLOY-001')]
+    public function testPhpDisablesProcessExecution(): void
+    {
+        $ini = self::file('docker/php/php.ini');
+        self::assertMatchesRegularExpression('/^disable_functions\s*=\s*exec,\s*passthru,\s*shell_exec,\s*system,\s*popen,\s*pcntl_exec\s*$/m', $ini);
+        // DiskProbe runs df through proc_open (free inodes, §9.4): it stays available.
+        self::assertDoesNotMatchRegularExpression('/^disable_functions\s*=.*\bproc_open\b/m', $ini);
+    }
+
     #[Group('EXG-DEPLOY-001')]
     public function testComposeHasNoDatabaseAndRunsHardened(): void
     {
