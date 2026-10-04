@@ -730,8 +730,161 @@ summary {
   content: " ↗";
 }
 
-.steps h2 {
-  margin-block-end: 0.25rem;
+.how-lead {
+  max-inline-size: 48rem;
+  margin-block: 0 1.5rem;
+  font-size: 1.05rem;
+}
+
+.how-section {
+  margin-block: 2rem;
+}
+
+.how-section > h2 {
+  margin-block-end: 0.75rem;
+}
+
+.how-flow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: how-step;
+}
+
+.how-flow li {
+  counter-increment: how-step;
+  padding: 1rem;
+  background: var(--ql-color-surface);
+  border: 1px solid var(--ql-color-border-control);
+  border-block-start: 4px solid var(--ql-color-primary);
+  border-radius: var(--ql-radius);
+}
+
+.how-flow li::before {
+  content: counter(how-step);
+  display: inline-grid;
+  place-items: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  margin-block-end: 0.5rem;
+  border-radius: 50%;
+  background: var(--ql-color-primary);
+  color: var(--ql-color-background);
+  font-weight: 700;
+}
+
+.how-flow h3,
+.how-data-card h3 {
+  margin-block: 0 0.35rem;
+  font-size: 1rem;
+}
+
+.how-flow p,
+.how-data-card ul,
+.how-section > p {
+  margin-block: 0;
+}
+
+.how-data-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.how-data-card {
+  padding: 1rem;
+  border: 1px solid var(--ql-color-border-control);
+  border-radius: var(--ql-radius);
+  background: var(--ql-color-surface);
+}
+
+.how-data-card ul,
+.how-options,
+.how-read-once {
+  display: grid;
+  gap: 0.45rem;
+  padding-inline-start: 1.25rem;
+}
+
+.how-data-card-sees {
+  border-block-start: 4px solid var(--ql-security-warning-text);
+}
+
+.how-data-card-never {
+  border-block-start: 4px solid var(--ql-security-success-text);
+}
+
+.how-link-content {
+  max-inline-size: 100%;
+}
+
+.how-link-example {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  max-inline-size: 100%;
+  padding: 0.85rem;
+  direction: ltr;
+  overflow-x: auto;
+  background: var(--ql-color-surface);
+  border: 1px solid var(--ql-color-border-control);
+  border-radius: var(--ql-radius-small);
+}
+
+.how-link-example code {
+  overflow-wrap: anywhere;
+}
+
+.how-link-fragment {
+  padding: 0.2rem 0.35rem;
+  color: var(--ql-color-background);
+  background: var(--ql-color-primary);
+  border-radius: var(--ql-radius-small);
+}
+
+.how-caption {
+  margin-block-start: 0.65rem !important;
+  color: var(--ql-color-text-muted);
+}
+
+.how-section .warning {
+  margin: 0;
+}
+
+.how-faq {
+  border-block-start: 1px solid var(--ql-color-border);
+}
+
+.how-faq details {
+  border-block-end: 1px solid var(--ql-color-border);
+}
+
+.how-faq summary {
+  min-block-size: 44px;
+  padding-block: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.how-faq details p {
+  margin-block: 0 0.9rem;
+  color: var(--ql-color-text-muted);
+}
+
+.how-actions {
+  margin-block: 2rem;
+  text-align: center;
+}
+
+@media (max-width: 42rem) {
+  .how-flow,
+  .how-data-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .toast {
@@ -838,4 +991,3 @@ summary {
   padding: 0.35rem 0.6rem;
   text-align: start;
 }
-

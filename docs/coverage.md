@@ -72,10 +72,10 @@ None.
 | EXG-UX-004 | `tests/e2e/ux.spec.ts` |
 | EXG-UX-009 | `tests/Web/ErrorPageTest.php` |
 | EXG-UX-011 | `tests/e2e/ux.spec.ts` |
-| EXG-SEC-001 | `tests/e2e/flows.spec.ts` |
-| EXG-SEC-002 | `tests/Http/ApiTest.php` |
+| EXG-SEC-001 | `frontend/tests/how-page.test.ts`, `tests/e2e/flows.spec.ts` |
+| EXG-SEC-002 | `frontend/tests/how-page.test.ts`, `tests/Http/ApiTest.php` |
 | EXG-UX-013 | `frontend/tests/create-page.test.ts` |
-| EXG-SEC-003 | `frontend/tests/create-page.test.ts` |
+| EXG-SEC-003 | `frontend/tests/create-page.test.ts`, `frontend/tests/how-page.test.ts` |
 | EXG-SEC-004 | `frontend/tests/create-page.test.ts` |
 | EXG-UX-015 | `frontend/tests/css.test.ts` |
 | EXG-UX-017 | `tests/e2e/result.spec.ts` |
@@ -152,7 +152,7 @@ None.
 | EXG-UX-073 | `tests/e2e/result.spec.ts` |
 | EXG-READ-001 | `tests/e2e/flows.spec.ts` |
 | EXG-READ-002 | `tests/e2e/flows.spec.ts` |
-| EXG-UX-074 | `tests/e2e/ux.spec.ts` |
+| EXG-UX-074 | `frontend/tests/how-page.test.ts`, `tests/e2e/ux.spec.ts` |
 | EXG-SEC-018 | `frontend/tests/read-page.test.ts` |
 | EXG-UX-075 | `tests/e2e/ux.spec.ts` |
 | EXG-UX-077 | `tests/e2e/ux.spec.ts` |
@@ -180,7 +180,7 @@ None.
 | EXG-UX-088 | `frontend/tests/confirm.test.ts` |
 | EXG-UX-089 | `frontend/tests/viewport.test.ts` |
 | EXG-THEME-002 | `tests/Theme/TokenThemeBuilderTest.php` |
-| EXG-I18N-001 | `frontend/tests/a11y-fixes.test.ts`, `frontend/tests/chrome.test.ts`, `frontend/tests/manage-page.test.ts`, `frontend/tests/read-failures.test.ts` |
+| EXG-I18N-001 | `frontend/tests/a11y-fixes.test.ts`, `frontend/tests/chrome.test.ts`, `frontend/tests/how-page.test.ts`, `frontend/tests/manage-page.test.ts`, `frontend/tests/read-failures.test.ts` |
 | EXG-THEME-003 | `tests/e2e/result.spec.ts` |
 | EXG-A11Y-008 | `frontend/tests/css.test.ts` |
 | EXG-UX-097 | `tests/e2e/ux.spec.ts` |

@@ -18,7 +18,7 @@ import type { PublicConfig } from '../src/config';
 describe('accessibility fixes', () => {
   it('numbers the how-it-works steps once (the list numbers them)', () => {
     for (const catalog of [en, fr] as unknown as Record<string, string>[]) {
-      for (const n of [1, 2, 3]) expect(catalog[`how.step${n}.title`]).not.toMatch(/^\d/);
+      for (const n of [1, 2, 3]) expect(catalog[`how.flow.step${n}.title`]).not.toMatch(/^\d/);
     }
   });
 
