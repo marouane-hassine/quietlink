@@ -74,17 +74,28 @@ final class FilesystemPasteStore implements PasteStore
                     self::removeTree($staging);
                     throw $e;
                 }
-                AtomicFile::syncDirectory($shard);
-                // Visible on disk now: a usage recomputation scanning meanwhile is deferred.
-                $this->usage->committed();
-
-                return $id;
+                $published = $id;
+                break;
             }
-            throw new StorageException('Unable to allocate a unique identifier.');
         } catch (Throwable $e) {
             $this->usage->release($size, 1);
             throw $e;
         }
+        if (!isset($published)) {
+            $this->usage->release($size, 1);
+            throw new StorageException('Unable to allocate a unique identifier.');
+        }
+        // The paste exists from the rename on: later failures must neither release its quota nor
+        // report a failed creation (a retry would duplicate it). The counter update only bumps
+        // the generation that defers a concurrent recomputation; the next one catches up.
+        try {
+            AtomicFile::syncDirectory(dirname($this->layout->pasteDir($published)));
+            $this->usage->committed();
+        } catch (StorageException) {
+            // Already published.
+        }
+
+        return $published;
     }
 
     /**

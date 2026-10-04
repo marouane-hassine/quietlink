@@ -261,4 +261,28 @@ final class FilesystemPasteStoreTest extends TestCase
 
         self::assertSame([$upper->encoded(), $lower->encoded()], $ids);
     }
+
+    /**
+     * Once the paste is renamed into place it exists: a failure of the final counter update
+     * must neither release its quota nor report a failed creation (a retry would duplicate it).
+     */
+    #[Group('EXG-STORE-019')]
+    public function testCreationThatSucceededKeepsItsQuotaWhenTheCounterUpdateFails(): void
+    {
+        $layout = new StorageLayout($this->tmp->path . '/pastes', $this->tmp->path . '/idempotency', $this->tmp->path . '/state');
+        $id = $this->store->create(
+            function (PasteId $id) use ($layout): PasteMeta {
+                // The usage lock disappears between the reservation and the final update.
+                unlink($layout->usageLock());
+
+                return $this->meta($id);
+            },
+            static fn (): PasteId => PasteId::fromBytes(random_bytes(24)),
+            'nonce+ciphertext',
+        );
+        touch($layout->usageLock());
+
+        self::assertNotNull($this->store->find($id));
+        self::assertSame(1, $this->usage->read()['items']);
+    }
 }
