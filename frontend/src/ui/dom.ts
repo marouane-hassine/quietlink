@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { clearAlerts } from './announcer';
+
 /** Small DOM builder: text is always set through textContent, never innerHTML. */
 
 type Attrs = Record<string, string | boolean | undefined>;
@@ -53,6 +55,7 @@ export function focusUnlessRedrawing(target: HTMLElement | null | undefined): vo
 
 /** Replaces the main content and moves focus to the new screen title (§6.6). */
 export function showScreen(main: HTMLElement, ...nodes: (Node | null)[]): void {
+  clearAlerts();
   main.replaceChildren(...nodes.filter((n): n is Node => n !== null));
   const heading = main.querySelector('h1, h2');
   if (heading instanceof HTMLElement) {

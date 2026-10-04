@@ -27,6 +27,11 @@ export function announce(message: string, urgent = false): void {
   }, 50);
 }
 
+/** Empties the urgent region so a previous screen's error is not read again later. */
+export function clearAlerts(): void {
+  if (assertive) assertive.textContent = '';
+}
+
 /** Visible, temporary confirmation (also announced). Never contains secrets. */
 export function toast(message: string): void {
   let node = document.getElementById('ql-toast');

@@ -36,6 +36,7 @@ const announced = vi.hoisted(() => [] as string[]);
 vi.mock('../src/ui/announcer', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/ui/announcer')>();
   return {
+    ...actual,
     announce: (message: string, urgent?: boolean) => {
       announced.push(message);
       actual.announce(message, urgent);
