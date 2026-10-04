@@ -288,10 +288,10 @@ None.
 | EXG-SEC-038 | `frontend/tests/create-security.test.ts` |
 | EXG-THEME-021 | `tests/Web/PageTest.php` |
 | EXG-A11Y-016 | `frontend/tests/a11y-fixes.test.ts`, `frontend/tests/format-title.test.ts`, `frontend/tests/viewport.test.ts` |
-| EXG-A11Y-017 | `tests/e2e/keyboard.spec.ts` |
+| EXG-A11Y-017 | `frontend/tests/redraw-state.test.ts`, `tests/e2e/keyboard.spec.ts` |
 | EXG-A11Y-018 | `frontend/tests/create-page.test.ts` |
 | EXG-I18N-003 | `frontend/tests/locales.test.ts`, `tests/e2e/languages.spec.ts` |
-| EXG-I18N-005 | `frontend/tests/chrome-switch.test.ts`, `frontend/tests/locales.test.ts`, `tests/Web/ErrorPageTest.php`, `tests/Web/PageTest.php`, `tests/e2e/languages.spec.ts` |
+| EXG-I18N-005 | `frontend/tests/chrome-switch.test.ts`, `frontend/tests/locales.test.ts`, `frontend/tests/redraw-state.test.ts`, `tests/Web/ErrorPageTest.php`, `tests/Web/PageTest.php`, `tests/e2e/languages.spec.ts` |
 | EXG-I18N-006 | `frontend/tests/ui.test.ts`, `tests/Web/CatalogsTest.php` |
 | EXG-I18N-007 | `frontend/tests/chrome-switch.test.ts`, `frontend/tests/locales.test.ts`, `frontend/tests/ui.test.ts`, `tests/Web/CatalogsTest.php`, `tests/Web/PageTest.php`, `tests/e2e/languages.spec.ts` |
 | EXG-I18N-008 | `frontend/tests/locales.test.ts`, `frontend/tests/ui.test.ts`, `tests/Web/CatalogsTest.php`, `tests/Web/PageTest.php`, `tests/e2e/languages.spec.ts` |

@@ -40,12 +40,57 @@ let redrawing = false;
  * announced, focus stays where the user is (§6.6.1).
  */
 export function redrawInPlace(redraw: () => void): void {
+  const main = document.getElementById('main');
+  const before = main ? snapshotFields(main) : null;
   redrawing = true;
   try {
     redraw();
   } finally {
     redrawing = false;
   }
+  if (main && before) restoreFields(main, before);
+}
+
+type Field = HTMLInputElement | HTMLTextAreaElement;
+interface FieldState {
+  kind: string;
+  value: string;
+  checked: boolean;
+  focused: boolean;
+  selection: [number | null, number | null];
+}
+
+const fieldKind = (field: Field): string => (field instanceof HTMLInputElement ? `input:${field.type}` : 'textarea');
+const fieldsOf = (root: HTMLElement): Field[] => [...root.querySelectorAll<Field>('input, textarea')];
+const hasSelection = (field: Field): boolean => !(field instanceof HTMLInputElement) || ['text', 'password', 'search', 'url', 'tel'].includes(field.type);
+
+function snapshotFields(root: HTMLElement): FieldState[] {
+  return fieldsOf(root).map((field) => ({
+    kind: fieldKind(field),
+    value: field.value,
+    checked: field instanceof HTMLInputElement && field.checked,
+    focused: document.activeElement === field,
+    selection: hasSelection(field) ? [field.selectionStart, field.selectionEnd] : [null, null],
+  }));
+}
+
+/**
+ * Screens are rebuilt with new element ids: typed values (a passphrase being entered), focus and
+ * caret are carried over by position when the redrawn screen has the same fields, and only into
+ * fields it left empty, so state a page restores itself always wins.
+ */
+function restoreFields(root: HTMLElement, before: FieldState[]): void {
+  const after = fieldsOf(root);
+  if (after.length !== before.length || after.some((field, i) => fieldKind(field) !== before[i]?.kind)) return;
+  after.forEach((field, i) => {
+    const state = before[i] as FieldState;
+    if (field.value === '' && state.value !== '' && !(field instanceof HTMLInputElement && ['checkbox', 'radio'].includes(field.type))) field.value = state.value;
+    if (state.focused && document.activeElement !== field) {
+      field.focus({ preventScroll: true });
+      const [start, end] = state.selection;
+      if (start !== null && end !== null && hasSelection(field)) field.setSelectionRange(start, end);
+    }
+  });
 }
 
 /** Moves focus unless the current screen is only being redrawn. */

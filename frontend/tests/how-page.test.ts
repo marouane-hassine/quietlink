@@ -158,4 +158,10 @@ describe('how-it-works page', () => {
     rerender();
     expect([...faq()].map((d) => d.open)).toEqual([false, false, true, false, false, false]);
   });
+  test('gives the same trust advice in the limit and the faq, in every language', () => {
+    const last = (text: string) => text.split(/(?<=[.!؟])\s/).pop();
+    for (const catalog of catalogs as Record<string, string>[]) {
+      expect(last(catalog['how.faq.a1'] as string)).toBe(last(catalog['how.limits'] as string));
+    }
+  });
 });
