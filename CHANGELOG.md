@@ -36,3 +36,6 @@ a removed API version is announced at least one minor version in advance.
   release verification procedure; release notes list the signed image digests.
 - Optional CORS for `/api/v1` (`http.cors_allowed_origins`, exact origins, no credentials) and an
   OpenAPI contract test.
+- Browser navigations to an unknown page or to an unavailable instance (invalid configuration,
+  boot marker mismatch) show a plain bilingual HTML page instead of a JSON problem document; the
+  API and `/healthz` keep their formats.

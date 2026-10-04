@@ -16,6 +16,7 @@ use QuietLink\Paste\PayloadTooLargeException;
 use QuietLink\Paste\ReservationConflictException;
 use QuietLink\Storage\QuotaExceededException;
 use QuietLink\Storage\StorageException;
+use QuietLink\Web\ErrorPage;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
@@ -26,11 +27,12 @@ use Symfony\Component\HttpKernel\KernelEvents;
 
 /**
  * Converts every exception into a generic problem response (§7.5); logs only the class name.
+ * An unknown page requested by a browser navigation gets a plain HTML 404 page instead.
  * Propagation is stopped so that the framework never logs exception messages.
  */
 final class ExceptionSubscriber implements EventSubscriberInterface
 {
-    public function __construct(private readonly LoggerInterface $logger)
+    public function __construct(private readonly LoggerInterface $logger, private readonly ErrorPage $errorPage)
     {
     }
 
@@ -43,6 +45,7 @@ final class ExceptionSubscriber implements EventSubscriberInterface
     {
         $exception = $event->getThrowable();
         $response = match (true) {
+            $exception instanceof NotFoundHttpException && ErrorPage::appliesTo($event->getRequest()) => $this->errorPage->response($event->getRequest(), 404),
             $exception instanceof PasteUnavailableException, $exception instanceof NotFoundHttpException => Problem::response(404),
             $exception instanceof InvalidRequestException => Problem::response(400),
             $exception instanceof PayloadTooLargeException => Problem::response(413),
