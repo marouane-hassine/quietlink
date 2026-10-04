@@ -6,7 +6,7 @@ Resume from this file after a context reset; do not re-read the full specificati
 
 - Phase 0: closed (see git history up to `docs: add phase 0 progress tracker`).
 - V1 development: feature-complete on `develop`; remaining work is Phase 3 evidence and the
-  external audit (see `docs/release-checklist.md`). ADR-0007 accepted for V1, ADR-0008 records the
+  external audit (see `docs/release-checklist.md`). ADR-0007 accepted for V1, ADR-0008 and ADR-0009 record the
   product owner decisions. No tag before the audit; `main` stays untouched until the release PR.
 
 | Lot | Status | Notes |

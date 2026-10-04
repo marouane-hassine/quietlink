@@ -678,7 +678,7 @@ Each item cites the CDC location. "Proposed:" text is **non-normative**.
 - **OQ-16 — Envelope `v` value and identifier sets.** L1022 defines `v` as "envelope version" without a value (the example L1015 shows `1`); the sets of `language` and `template` identifiers are not in the read range. Relationship between envelope `v`, AAD `v` and challenge `version` is unstated.
 - **OQ-17 — Line ending normalisation.** L1021 "normalised only for line endings (`\n`)": treatment of lone `\r` and of U+2028/U+0085 is unspecified. Proposed: `\r\n` → `\n`, then lone `\r` → `\n`.
 - **OQ-18 — Passphrase constraints.** §8.3 gives no minimum/maximum length, no rule for an empty passphrase, nor whether NFC is applied before or after trimming. Proposed: non-empty, no trimming, a documented maximum byte length.
-- **OQ-27 — Wrong passphrase on non-read-once content.** §6.3.1, L488 defines local checking via `consume_pk` only for read-once; for normal content the only signal is an AES-GCM failure, indistinguishable from tampering. Clarify UI/error semantics.
+- **OQ-27 — Wrong passphrase on non-read-once content.** §6.3.1, L488 defines local checking via `consume_pk` only for read-once; for normal content the only signal is an AES-GCM failure, indistinguishable from tampering. Clarify UI/error semantics. **Resolved by ADR-0009:** the reader shows "Incorrect passphrase, or the content was altered"; an invalid envelope after decryption is an integrity error.
 
 ### Encoding and storage gaps
 
