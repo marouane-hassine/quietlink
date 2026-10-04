@@ -95,7 +95,7 @@ final class DeploymentConfigTest extends TestCase
             self::assertSame($status, $body['status']);
             self::assertSame('about:blank', $body['type']);
         }
-        self::assertMatchesRegularExpression('/location \^~ \/__errors\/ \{\s*internal;.*?problem\+json;.*?Content-Security-Policy.*?no-store/s', $nginx);
+        self::assertMatchesRegularExpression('/location \^~ \/__errors\/ \{\s*internal;.*?problem\+json;.*?Content-Security-Policy.*?Cache-Control "no-store, private"/s', $nginx);
         self::assertStringContainsString('COPY docker/nginx/errors /usr/share/quietlink/__errors', self::file('docker/nginx/Dockerfile'));
     }
 
