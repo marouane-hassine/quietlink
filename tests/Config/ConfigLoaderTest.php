@@ -375,4 +375,29 @@ final class ConfigLoaderTest extends TestCase
         $this->assertInvalid(['app' => ['public_url' => 'https://paste.example.test'], 'storage' => ['root_dir' => 'public']], 'web root');
         $this->assertInvalid(['app' => ['public_url' => 'https://paste.example.test'], 'storage' => ['data_dir' => '../outside']], '..');
     }
+
+    /**
+     * The web-root check compares normalised paths: dot segments, doubled slashes, letter case
+     * (case-insensitive filesystems) and symbolic links cannot place storage under public/.
+     */
+    #[Group('EXG-STORE-031')]
+    #[Group('EXG-STORE-041')]
+    public function testWebRootCheckCannotBeBypassed(): void
+    {
+        $url = ['public_url' => 'https://paste.example.test'];
+        foreach ([['data_dir' => './public/datas'], ['root_dir' => './public'], ['data_dir' => 'public//datas'], ['generated_assets_dir' => './public/x'], ['data_dir' => 'Public/datas'], ['data_dir' => dirname(__DIR__, 2) . '/./public']] as $storage) {
+            $this->assertInvalid(['app' => $url, 'storage' => $storage], 'web root');
+        }
+        foreach (['', '/', '.', './'] as $empty) {
+            $this->assertInvalid(['app' => $url, 'storage' => ['data_dir' => $empty]], 'storage.data_dir');
+        }
+
+        $link = sys_get_temp_dir() . '/ql-public-link-' . bin2hex(random_bytes(4));
+        self::assertTrue(symlink(dirname(__DIR__, 2) . '/public', $link));
+        try {
+            $this->assertInvalid(['app' => $url, 'storage' => ['data_dir' => $link . '/datas']], 'web root');
+        } finally {
+            unlink($link);
+        }
+    }
 }

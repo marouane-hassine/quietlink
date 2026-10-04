@@ -52,12 +52,44 @@ final class ConfigLoader
         return dirname(__DIR__, 2);
     }
 
-    /** Absolute paths as given; relative ones are resolved from the project root. */
+    /**
+     * Absolute paths as given, relative ones resolved from the project root; "." segments and
+     * doubled slashes are removed so that comparisons see the canonical spelling.
+     */
     private static function resolvePath(string $path): string
     {
-        $path = rtrim($path, '/');
+        $absolute = str_starts_with($path, '/') ? $path : self::projectRoot() . '/' . $path;
+        $segments = array_filter(explode('/', $absolute), static fn (string $s): bool => $s !== '' && $s !== '.');
 
-        return str_starts_with($path, '/') ? $path : self::projectRoot() . '/' . $path;
+        return '/' . implode('/', $segments);
+    }
+
+    /**
+     * True when the path is the web root or lies below it, also through a symbolic link on an
+     * existing ancestor or a letter-case variant (case-insensitive filesystems).
+     */
+    private static function isInsideWebRoot(string $path): bool
+    {
+        $webRoot = self::projectRoot() . '/public';
+        $candidates = [[$path, $webRoot]];
+        $ancestor = $path;
+        while (!file_exists($ancestor) && $ancestor !== '/') {
+            $ancestor = dirname($ancestor);
+        }
+        $realAncestor = realpath($ancestor);
+        $realWebRoot = realpath($webRoot);
+        if ($realAncestor !== false && $realWebRoot !== false) {
+            $candidates[] = [$realAncestor . substr($path, strlen($ancestor)), $realWebRoot];
+        }
+        foreach ($candidates as [$candidate, $root]) {
+            $candidate = strtolower($candidate);
+            $root = strtolower($root);
+            if ($candidate === $root || str_starts_with($candidate, $root . '/')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -344,12 +376,14 @@ final class ConfigLoader
             }
         }
 
-        $webRoot = self::projectRoot() . '/public';
+        $dataDir = trim($r->string('storage.data_dir'));
+        if ($dataDir === '' || self::resolvePath($dataDir) === '/' || self::resolvePath($dataDir) === self::projectRoot()) {
+            $errors[] = '"storage.data_dir" must name a dedicated directory, not the filesystem or project root.';
+        }
         foreach (['data_dir' => $r->string('storage.data_dir')] + self::storageDirs($r) + ['generated_assets_dir' => $r->string('storage.generated_assets_dir')] as $dir => $path) {
-            $path = self::resolvePath($path);
             if (preg_match('#(^|/)\.\.(/|$)#', $path) === 1) {
                 $errors[] = sprintf('"storage.%s" must not contain "..".', $dir);
-            } elseif ($path === $webRoot || str_starts_with($path, $webRoot . '/')) {
+            } elseif (self::isInsideWebRoot(self::resolvePath($path))) {
                 $errors[] = sprintf('"storage.%s" must be outside the web root (public/).', $dir);
             }
         }

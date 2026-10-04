@@ -513,7 +513,7 @@ None.
 | EXG-SEC-098 | `tests/Web/PageTest.php` |
 | EXG-CONF-021 | `tests/Config/ConfigLoaderTest.php`, `tests/Http/HardeningTest.php`, `tests/Web/ErrorPageTest.php` |
 | EXG-SEC-101 | `tests/Maintenance/BooterTest.php` |
-| EXG-STORE-041 | `tests/Config/ConfigLoaderTest.php`, `tests/Maintenance/BooterTest.php` |
+| EXG-STORE-041 | `tests/Config/ConfigLoaderTest.php`, `tests/Deploy/DeploymentConfigTest.php`, `tests/Maintenance/BooterTest.php` |
 | EXG-STORE-046 | `tests/Config/ConfigLoaderTest.php` |
 | EXG-STORE-042 | `tests/Maintenance/BooterTest.php`, `tests/Storage/FilesystemPasteStoreTest.php` |
 | EXG-SEC-102 | `tests/Config/ConfigLoaderTest.php` |
