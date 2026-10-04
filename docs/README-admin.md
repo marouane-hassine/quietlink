@@ -227,7 +227,7 @@ Durations use the format `<integer><m|h|d>` (e.g. `30m`, `24h`, `7d`). Expiratio
 | Key | Default | Rule |
 |---|---|---|
 | `storage.driver` | `'filesystem'` | Only `filesystem` is supported. |
-| `storage.data_dir` | `'datas'` | Data directory: absolute, or relative to the project root; without `..`; outside `public/`; mode 0700. The four directories below derive from it. |
+| `storage.data_dir` | `'datas'` | Data directory: absolute, or relative to the project root; without `..`; outside `public/` (checked after normalisation, through symbolic links and ignoring letter case); not empty, `/` or the project root itself; mode 0700. The four directories below derive from it. |
 | `storage.root_dir` | `null` (`<data_dir>/pastes`) | Pastes. `null` derives it from `data_dir`; a path (absolute or relative to the project root) places it elsewhere. Same rules. |
 | `storage.idempotency_dir` | `null` (`<data_dir>/idempotency`) | Same rules. |
 | `storage.ratelimit_dir` | `null` (`<data_dir>/ratelimit`) | Same rules. |

@@ -11,7 +11,10 @@ Self-hostable sharing of confidential text, encrypted in the browser.
 
 QuietLink encrypts text on the sender's device with a random key placed after the `#` of the
 link, a part browsers never send to servers. The server stores only ciphertext and minimal
-technical metadata; it cannot read the content.
+technical metadata; it cannot read the content. The built-in **How it works** page explains, in
+every language, what the server receives (ciphertext, expiry, read-once flag, passphrase use,
+encrypted size, a keyed hash of the client address) and what it never receives (plaintext, link
+key, passphrase, deletion token).
 
 - Read-once mode, optional passphrase (Argon2id), expiration from 5 minutes to 30 days, deletion
   link.
@@ -23,6 +26,8 @@ technical metadata; it cannot read the content.
   adding a catalogue in `translations/`, no code change.
 - System, light and dark themes; keyboard and screen reader accessible (WCAG 2.2 AA target).
 - No database, no account, no tracking, no third-party resource; strict CSP and Trusted Types.
+- Logo and favicon as SVG coloured by the theme tokens, with light and dark variants
+  ([docs/brand/](docs/brand/)).
 
 > QuietLink makes verifiable promises — local encryption, no plaintext on the server,
 > authenticated integrity, minimal logs — not absolute security. A compromised server can
@@ -42,7 +47,8 @@ docker compose up -d
 
 Then put an HTTPS reverse proxy in front of `127.0.0.1:8080`. No database is used: storage is
 local files only, in `datas/` at the project root by default (`storage.data_dir` in
-`config/config.php`; with Docker, the `data` volume mounted on `/app/datas`). See
+`config/config.php`; with Docker, the `data` volume mounted on `/app/datas`). The empty
+`datas/` directory is part of the repository; whatever is stored in it is git-ignored. See
 [docs/README-admin.md](docs/README-admin.md).
 
 ## Configuration at a glance
@@ -54,7 +60,7 @@ All settings live in `config/config.php` (copied from `config/config.php.example
 |---|---|---|
 | `app.public_url` | — (required) | Public `https://` origin of the instance |
 | `app.enabled_locales` | every shipped language | Languages offered (`en` mandatory) |
-| `storage.data_dir` | `datas` | Data directory (relative to the project root or absolute) |
+| `storage.data_dir` | `datas` | Data directory, relative to the project root or absolute; refused inside `public/` (symbolic links and letter case included) or at the project root |
 | `paste.default_expiration` | `1d` | Expiration preselected in the form |
 | `ui.dark_mode` | `auto` | Default theme (`auto`, `light`, `dark`) |
 | `http.cors_allowed_origins` | `[]` | Optional CORS for `/api/v1` (exact origins) |
