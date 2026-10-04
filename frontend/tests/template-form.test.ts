@@ -19,4 +19,17 @@ describe('template form', () => {
 
     expect(text).toContain('# restart nginx\nsystemctl restart nginx');
   });
+
+  it('writes notes that the form and the reading view can parse back (blank lines, "## ")', () => {
+    setLocale('en');
+    let text = renderTemplate('credentials');
+    const form = buildTemplateForm(parseTemplateText(text)!, (written) => (text = written));
+    const notes = form.querySelector('textarea') as HTMLTextAreaElement;
+    notes.value = 'line a\n\nline b\n## not a section';
+    notes.dispatchEvent(new Event('input'));
+
+    const parsed = parseTemplateText(text);
+    expect(parsed).not.toBeNull();
+    expect(text).toContain('line a\n\nline b');
+  });
 });

@@ -34,9 +34,10 @@ describe('template text', () => {
 });
 
 describe('lossless template editing (§6.1.1, §6.2)', () => {
-  it('refuses texts the form could not write back unchanged', () => {
-    // Notes before fields would move after them.
-    expect(parseTemplateText('# T\n\n## S\nnote first\n- A: 1\n')).toBeNull();
+  it('accepts only texts the form writes back unchanged', () => {
+    // A field line after notes stays a note line: nothing moves, the text round-trips.
+    const notesFirst = '# T\n\n## S\nnote first\n- A: 1\n';
+    expect(serializeTemplate(parseTemplateText(notesFirst)!)).toBe(notesFirst);
     // A blank line inside a code block would disappear and "## " in it would start a section.
     expect(parseTemplateText('# T\n\n## S\n- A: x\n```\nl1\n\nl2\n## not section\n```\n')).toBeNull();
   });

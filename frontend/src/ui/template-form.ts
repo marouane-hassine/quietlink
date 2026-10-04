@@ -46,7 +46,9 @@ export function buildTemplateForm(template: ParsedTemplate, onChange: (text: str
     notes.addEventListener('input', () => {
       // Kept as typed (nothing is dropped silently); trailing blank lines only are trimmed.
       const typed = notes.value.replace(/\s+$/, '');
-      section.notes = typed === '' ? [] : typed.split('\n');
+      // A notes line starting with "## " would start a new section: escaped as "\## ", which
+      // Markdown shows unchanged.
+      section.notes = typed === '' ? [] : typed.split('\n').map((line) => line.replace(/^## /, '\\## '));
       emit();
     });
     group.append(el('div', { class: 'field' }, el('label', { for: notesId }, t('tpl.notes', { section: section.title })), notes));

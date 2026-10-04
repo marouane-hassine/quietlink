@@ -107,11 +107,18 @@ export function parseTemplateText(text: string): ParsedTemplate | null {
       parsed.sections.push(current);
       continue;
     }
-    if (line.trim() === '') continue;
+    if (line.trim() === '') {
+      // Blank lines inside notes are kept; the ones closing a section are trimmed below.
+      if (current && current.notes.length > 0) current.notes.push('');
+      continue;
+    }
     if (!current) return null;
     const field = /^- (.+?)( ?:)(?: (.*))?$/.exec(line);
-    if (field?.[1] && field[2]) current.fields.push({ label: field[1], separator: field[2], value: field[3] ?? '' });
+    if (field?.[1] && field[2] && current.notes.length === 0) current.fields.push({ label: field[1], separator: field[2], value: field[3] ?? '' });
     else current.notes.push(line);
+  }
+  for (const section of parsed.sections) {
+    while (section.notes.at(-1) === '') section.notes.pop();
   }
   if (parsed.sections.length === 0) return null;
   // Form and field views only for texts they can write back unchanged (§6.1.1, §6.2): notes
