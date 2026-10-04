@@ -14,12 +14,12 @@ export function buildTemplateForm(template: ParsedTemplate, onChange: (text: str
   let hidden = true;
   const emit = () => onChange(serializeTemplate(template));
 
-  const toggle = el('button', { type: 'button', class: 'button button-tertiary', 'aria-pressed': 'true' }, t('editor.sensitive.show'));
+  // The label says the action ("Show"/"Hide"): no aria-pressed, which would contradict it.
+  const toggle = el('button', { type: 'button', class: 'button button-tertiary' }, t('editor.sensitive.show'));
   const applyMask = () => {
     // Real password inputs (ADR-0009): CSS masking would leave values readable by screen readers.
     for (const input of sensitiveInputs) input.type = hidden ? 'password' : 'text';
     toggle.textContent = t(hidden ? 'editor.sensitive.show' : 'editor.sensitive.hide');
-    toggle.setAttribute('aria-pressed', String(hidden));
   };
   toggle.addEventListener('click', () => {
     hidden = !hidden;

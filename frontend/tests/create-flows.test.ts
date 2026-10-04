@@ -259,4 +259,26 @@ describe('creation flow', () => {
     expect(retry.disabled).toBe(true);
     expect(retry.textContent).toBe(t('action.retryIn', { seconds: 30 }));
   });
+
+  it('announces each state once and never contradicts a toggle label (4.1.2, 4.1.3)', async () => {
+    const format = main.querySelector('select') as HTMLSelectElement;
+    format.value = 'markdown';
+    format.dispatchEvent(new Event('change'));
+    expect(button(t('preview.show')).hasAttribute('aria-pressed')).toBe(false);
+    (main.querySelector('details.options') as HTMLDetailsElement).open = true;
+    const use = [...main.querySelectorAll('.options input[type=checkbox]')].at(-1) as HTMLInputElement;
+    use.checked = true;
+    use.dispatchEvent(new Event('change'));
+    expect(button(t('passphrase.show')).hasAttribute('aria-pressed')).toBe(false);
+
+    // The size line is only rewritten when its text changes.
+    type('x'.repeat(900 * 1024));
+    const size = main.querySelector('.size') as HTMLElement;
+    let writes = 0;
+    new MutationObserver((records) => (writes += records.length)).observe(size, { childList: true, characterData: true, subtree: true });
+    editor().dispatchEvent(new Event('input'));
+    editor().dispatchEvent(new Event('input'));
+    await settle();
+    expect(writes).toBe(0);
+  });
 });

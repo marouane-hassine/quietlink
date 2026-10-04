@@ -117,8 +117,8 @@ describe('templates on the creation page', () => {
     editor().dispatchEvent(new Event('input'));
     const preview = [...main.querySelectorAll('button')].find((b) => b.textContent === 'Preview') as HTMLButtonElement;
     preview.click();
-    await until(() => main.querySelector('.preview h1') !== null);
-    expect(main.querySelector('.preview h1')?.textContent).toBe('Dummy heading');
+    await until(() => main.querySelector('.preview h3') !== null);
+    expect(main.querySelector('.preview h3')?.textContent).toBe('Dummy heading');
   });
 
   it('shows the size gauge near the limit and refuses dropped files', () => {

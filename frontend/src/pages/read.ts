@@ -65,7 +65,6 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
       holdRetry(retryButton, retryAfter);
     }
     showScreen(main, el('h1', { class: 'page-title' }, t('page.read.title')), el('p', { class: 'error', role: 'alert' }, message), el('div', { class: 'action-bar' }, ...[retryButton, newLink()].filter((n): n is NonNullable<typeof n> => n !== null)));
-    announce(message, true);
   };
 
   const newLink = () => el('a', { href: '/', class: 'button button-secondary' }, t('action.new'));
@@ -155,7 +154,6 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
           const kdf = aad.object.kdf;
           if (!kdf || !aad.salt) throw new DecryptionError('kdf');
           statusLine.textContent = t('state.deriving');
-          announce(t('state.deriving'));
           kPass = await deriveInWorker(input.value, aad.salt, kdf.m, kdf.t);
         }
         // Passphrase verified locally before any reservation (§6.3.1 step 0).
@@ -202,7 +200,6 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
     );
     if (errorKey !== null) {
       error.textContent = t(errorKey);
-      announce(error.textContent, true);
     }
     if (needsPassphrase) focusUnlessRedrawing(input);
   }
@@ -276,15 +273,17 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
     const { container, controls } = buildContentView(envelope, { wifiQr: config.enableQrCode });
 
     const hiddenNotice = el('p', { class: 'hint', hidden: true }, t('read.hidden'));
-    const hideButton = el('button', { type: 'button', class: 'button button-secondary', 'aria-pressed': 'false' }, t('read.hide'));
+    const hideButton = el('button', { type: 'button', class: 'button button-secondary' }, t('read.hide'));
     const setHidden = (hidden: boolean) => {
+      // Focus inside content becoming inert would fall back to the page: move it to the button.
+      if (hidden && !view.hidden && container.contains(document.activeElement)) hideButton.focus();
+      if (hidden && !view.hidden) announce(t('read.hidden'));
       view.hidden = hidden;
       container.classList.toggle('is-hidden', hidden);
       container.setAttribute('aria-hidden', String(hidden));
       container.toggleAttribute('inert', hidden);
       hiddenNotice.hidden = !hidden;
       hideButton.textContent = hidden ? t('read.show') : t('read.hide');
-      hideButton.setAttribute('aria-pressed', String(hidden));
       if (hidden) window.getSelection()?.removeAllRanges();
     };
     hideButton.addEventListener('click', () => setHidden(!container.classList.contains('is-hidden')));
@@ -326,7 +325,8 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
       controls,
       container,
       hiddenNotice,
-      el('p', { class: 'hint' }, t('read.autoHide'), ' ', keep, el('label', { for: keep.id }, t('read.keepVisible'))),
+      el('p', { class: 'hint' }, t('read.autoHide')),
+      el('div', { class: 'field-check' }, keep, el('label', { for: keep.id }, t('read.keepVisible'))),
       el('div', { class: 'action-bar' }, copyAll, hideButton, ...(config.allowExport ? [exportButton(() => envelope.text)] : []), ...(config.allowPrint ? [printButton()] : []), newLink()),
     );
     if (view.hidden) setHidden(true);

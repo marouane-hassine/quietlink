@@ -58,6 +58,12 @@ export function showScreen(main: HTMLElement, ...nodes: (Node | null)[]): void {
   clearAlerts();
   main.replaceChildren(...nodes.filter((n): n is Node => n !== null));
   const heading = main.querySelector('h1, h2');
+  // The window title names the current screen (WCAG 2.4.2); screen titles never hold secrets.
+  const title = main.querySelector('h1')?.textContent?.trim();
+  if (title) {
+    const separator = document.title.lastIndexOf(' · ');
+    document.title = title + (separator >= 0 ? document.title.slice(separator) : '');
+  }
   if (heading instanceof HTMLElement) {
     heading.tabIndex = -1;
     focusUnlessRedrawing(heading);

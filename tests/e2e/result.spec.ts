@@ -47,7 +47,7 @@ test('result screen: hidden QR code, message and native share carry only the sha
 test('three-state theme selector and a warning before leaving unpublished text', async ({ page }) => {
   await page.goto('/');
   const theme = page.getByLabel('Theme');
-  await expect(theme.locator('option')).toHaveText(['System', 'Light', 'Dark']);
+  await expect(theme.locator('option')).toHaveText(['Theme: System', 'Theme: Light', 'Theme: Dark']);
   await theme.selectOption('dark');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await theme.selectOption('auto');

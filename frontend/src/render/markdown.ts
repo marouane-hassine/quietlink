@@ -77,6 +77,13 @@ export function renderMarkdown(source: string): DocumentFragment {
     FORBID_ATTR: ['style'],
     RETURN_DOM_FRAGMENT: true,
   });
+  // Content headings start at h3: the page keeps a single h1 and its h2 level (WCAG 1.3.1).
+  for (const heading of [...fragment.querySelectorAll('h1, h2, h3, h4, h5, h6')]) {
+    const level = Math.min(6, Number(heading.tagName.slice(1)) + 2);
+    const shifted = document.createElement(`h${level}`);
+    shifted.append(...heading.childNodes);
+    heading.replaceWith(shifted);
+  }
   // Applied after sanitisation so that the allowlist cannot drop them (§6.9).
   for (const link of fragment.querySelectorAll('a')) {
     if (!isAllowedUrl(link.getAttribute('href') ?? '')) {

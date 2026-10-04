@@ -404,6 +404,10 @@ summary {
   .action-bar {
     position: static;
   }
+
+  html {
+    scroll-padding-block-end: 1rem;
+  }
 }
 
 .action-bar .button-primary {
@@ -593,6 +597,8 @@ summary {
 }
 
 .qr-box:fullscreen {
+  /* Light background whatever the theme: a focus ring readable on white (WCAG 1.4.11). */
+  --ql-color-focus: #8f2f16;
   display: grid;
   place-items: center;
   align-content: center;
@@ -744,3 +750,28 @@ summary {
     filter: none;
   }
 }
+
+/* Default placeholder grey falls below 4.5:1 on the dark background (WCAG 1.4.3). */
+::placeholder {
+  color: var(--ql-color-text-muted);
+  opacity: 1;
+}
+
+.site-footer a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 44px;
+}
+
+.reader table {
+  border-collapse: collapse;
+  margin-block: 0.75rem;
+}
+
+.reader th,
+.reader td {
+  border: 1px solid var(--ql-color-border);
+  padding: 0.35rem 0.6rem;
+  text-align: start;
+}
+

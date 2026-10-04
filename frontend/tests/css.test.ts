@@ -42,4 +42,13 @@ describe('stylesheet', () => {
     expect(css).toMatch(/\.qr-box:fullscreen \.qr\s*\{[^}]*90vmin/);
     expect(css).toMatch(/\.qr-box:fullscreen \.button\s*\{[^}]*color:\s*#1a1a1a/);
   });
+  it('styles tables, placeholders and the full-screen QR focus ring for contrast (1.4.3, 1.4.11)', () => {
+    expect(css).toMatch(/\.reader (table|th)[^{]*\{[^}]*border/);
+    expect(css).toMatch(/::placeholder\s*\{[^}]*color:\s*var\(--ql-color-text-muted\)[^}]*opacity:\s*1/);
+    expect(css).toMatch(/\.qr-box:fullscreen\s*\{[^}]*--ql-color-focus:\s*#8f2f16/);
+  });
+  it('drops the bar scroll padding when the bar no longer sticks, and sizes footer links (2.4.11, §6.4)', () => {
+    expect(css).toMatch(/@media \(max-height: 30rem\)\s*\{[^@]*html\s*\{\s*scroll-padding-block-end:\s*1rem/);
+    expect(css).toMatch(/\.site-footer a\s*\{[^}]*min-block-size:\s*44px/);
+  });
 });

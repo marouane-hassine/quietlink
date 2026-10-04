@@ -55,7 +55,9 @@ export function buildContentView(envelope: Envelope, options: { wifiQr?: boolean
     } else {
       container.replaceChildren(el('pre', { class: 'plain' }, envelope.text));
     }
-    for (const pre of container.querySelectorAll('pre')) {
+    // Block copy only for blocks inside a larger text: a lone plain block is the whole text,
+    // already copied by the main Copy action.
+    for (const pre of container.querySelectorAll('pre:not(.plain)')) {
       const blockText = pre.textContent ?? '';
       const copyBlock = el('button', { type: 'button', class: 'button button-tertiary copy-block' }, t('read.copyBlock'));
       copyBlock.addEventListener('click', () => void copyText(blockText, t('read.copied')));

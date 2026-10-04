@@ -170,7 +170,9 @@ describe('publication states', () => {
     submit().click();
     await until(() => argon2.calls > 0);
     expect(statusLine().textContent).toBe(t('state.deriving'));
-    expect(announced).toContain(t('state.deriving'));
+    // Announced once, through the role="status" line itself (no duplicate announcement).
+    expect(statusLine().getAttribute('role')).toBe('status');
+    expect(announced).not.toContain(t('state.deriving'));
     expect(submit().disabled).toBe(true);
     expect(spy).not.toHaveBeenCalled();
     derivation.resolve(new Uint8Array(32).fill(3));

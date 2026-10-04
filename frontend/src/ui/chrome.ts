@@ -41,7 +41,7 @@ export function renderChrome(config: PublicConfig, theme: string, rerender: () =
   if (!slot) return;
   const languageSelect = el('select', { id: 'ql-language', class: 'control-select' });
   for (const option of availableLocales(config.enabledLocales)) {
-    languageSelect.append(el('option', { value: option.code, selected: option.code === locale() }, option.name));
+    languageSelect.append(el('option', { value: option.code, selected: option.code === locale(), lang: option.code }, option.name));
   }
   languageSelect.addEventListener('change', () => {
     setLocale(languageSelect.value, true);
@@ -54,7 +54,8 @@ export function renderChrome(config: PublicConfig, theme: string, rerender: () =
 
   const themeSelect = el('select', { id: 'ql-theme', class: 'control-select' });
   for (const value of ['auto', 'light', 'dark']) {
-    themeSelect.append(el('option', { value, selected: value === theme }, t(`theme.${value}`)));
+    // The option says what it is about: the "Theme" label is visually hidden (WCAG 3.3.2).
+    themeSelect.append(el('option', { value, selected: value === theme }, t('nav.themeOption', { theme: t(`theme.${value}`) })));
   }
   themeSelect.addEventListener('change', () => {
     applyTheme(themeSelect.value);

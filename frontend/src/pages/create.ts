@@ -131,7 +131,8 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
 
     // Instant Markdown preview, rendered locally with the reading sanitiser (§6.1.1).
     let previewOpen = ui.previewOpen;
-    const previewButton = el('button', { type: 'button', class: 'chip', 'aria-pressed': 'false', 'aria-controls': nextId('preview') }, t('preview.show'));
+    // The label names the action ("Preview"/"Hide preview"): no aria-pressed contradicting it.
+    const previewButton = el('button', { type: 'button', class: 'chip', 'aria-controls': nextId('preview') }, t('preview.show'));
     const previewPanel = el('section', { class: 'reader markdown preview', id: previewButton.getAttribute('aria-controls') ?? '', hidden: true, 'aria-label': t('preview.title') });
     let previewTimer = 0;
     const renderPreview = async () => {
@@ -147,7 +148,6 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       previewOpen = !previewOpen;
       ui.previewOpen = previewOpen;
       previewPanel.hidden = !previewOpen;
-      previewButton.setAttribute('aria-pressed', String(previewOpen));
       previewButton.textContent = previewOpen ? t('preview.hide') : t('preview.show');
       void renderPreview();
     });
@@ -171,7 +171,9 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       const visible = ratio >= 0.8;
       sizeLine.hidden = !visible;
       gauge.hidden = !visible;
-      sizeLine.textContent = t(ratio > 1 ? 'size.tooLarge' : 'size.label', { used: formatBytes(used), limit: formatBytes(config.maxEnvelopeBytes) });
+      // Live region: rewritten only when its text changes, not on every keystroke (WCAG 4.1.3).
+      const sizeText = t(ratio > 1 ? 'size.tooLarge' : 'size.label', { used: formatBytes(used), limit: formatBytes(config.maxEnvelopeBytes) });
+      if (sizeLine.textContent !== sizeText) sizeLine.textContent = sizeText;
       gauge.dataset.level = ratio > 1 ? 'over' : ratio > 0.95 ? 'high' : 'near';
       const bar = gauge.firstElementChild as HTMLElement | null;
       bar?.style.setProperty('inline-size', `${Math.min(100, Math.round(ratio * 100))}%`);
@@ -419,7 +421,6 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
         if (!retry || pending === null) {
           const phase = state.usePassphrase ? t('state.deriving') : t('state.encrypting');
           status.textContent = phase;
-          announce(phase);
           const envelope = serialize({ format: state.format, language: state.format === 'code' && state.language ? state.language : null, template: state.template || null, text: state.text });
           pending = await prepare({
             envelope,
@@ -437,7 +438,6 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
           pendingFor = { key: settingsKey(), readOnce: state.readOnce, usePassphrase: state.usePassphrase };
         }
         status.textContent = t('state.sending');
-        announce(t('state.sending'));
         const response = await api.create(pending.json, pending.idempotencyKey);
         const id = decode(response.data.id, 24);
         if (!(await matchesAccessKey(id, pending.accessPk)) || !(await matchesDeletionToken(id, pending.deletionToken))) throw new ApiError('server');
@@ -518,7 +518,6 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     }
     if (previewOpen) {
       previewPanel.hidden = false;
-      previewButton.setAttribute('aria-pressed', 'true');
       previewButton.textContent = t('preview.hide');
     }
     refresh();
@@ -536,7 +535,6 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       for (const field of [input, confirmInput]) field.type = state.passphraseVisible ? 'text' : 'password';
       confirmField.hidden = state.passphraseVisible || state.generated;
       toggle.textContent = state.passphraseVisible ? t('passphrase.hide') : t('passphrase.show');
-      toggle.setAttribute('aria-pressed', String(state.passphraseVisible));
     };
     const strengthLine = el('p', { class: 'hint', 'aria-live': 'polite' });
     const mismatch = el('p', { class: 'field-error', id: nextId('mismatch') });
@@ -544,7 +542,8 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     const updateStrength = () => {
       state.passphrase = input.value;
       state.confirmation = confirmInput.value;
-      strengthLine.textContent = state.passphrase === '' ? '' : t(`passphrase.strength.${state.generated ? 'strong' : strength(state.passphrase)}`);
+      const strengthText = state.passphrase === '' ? '' : t(`passphrase.strength.${state.generated ? 'strong' : strength(state.passphrase)}`);
+      if (strengthLine.textContent !== strengthText) strengthLine.textContent = strengthText;
       mismatch.textContent = !state.passphraseVisible && !state.generated && state.confirmation !== '' && state.confirmation !== state.passphrase ? t('passphrase.mismatch') : '';
       refresh();
     };
@@ -730,7 +729,6 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       runCountdown(expiry, expiresAt, sync);
     };
     draw();
-    announce(t('result.title'));
   }
 
   render();

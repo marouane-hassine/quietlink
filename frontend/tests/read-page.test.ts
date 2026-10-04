@@ -176,7 +176,7 @@ describe('nothing is rendered before decryption and integrity checks', () => {
     expect(announced).toContain(t('state.decrypting'));
     expect(views.built).toHaveLength(1);
     expect(views.built[0]?.envelope).toEqual({ format: 'markdown', language: null, template: null, text: PLAINTEXT, v: 1 });
-    expect(main.querySelector('.reader h1')?.textContent).toBe('DUMMY-HEADING-51c2');
+    expect(main.querySelector('.reader h3')?.textContent).toBe('DUMMY-HEADING-51c2');
   });
 
   it('shows an integrity error and no content for a tampered ciphertext', async () => {
@@ -532,6 +532,32 @@ describe('language change while retrying', () => {
     expect(main.textContent).not.toContain(t('error.networkRead'));
     setLocale('en');
     gate.resolve();
+  });
+});
+
+describe('hiding the content (WCAG 2.4.3, 4.1.2)', () => {
+  it('moves focus to the Show button when the focused content is hidden, and announces it', async () => {
+    const paste = await makePaste({ format: 'code' });
+    serve(paste);
+    mount();
+    await onContent();
+    const reader = main.querySelector('.reader') as HTMLElement;
+    reader.focus();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+
+    const show = [...main.querySelectorAll('.action-bar button')].find((b) => b.textContent === t('read.show')) as HTMLButtonElement;
+    expect(document.activeElement).toBe(show);
+    expect(show.hasAttribute('aria-pressed')).toBe(false);
+    expect(announced).toContain(t('read.hidden'));
+  });
+
+  it('gives the keep-visible checkbox the styled checkbox row', async () => {
+    const paste = await makePaste();
+    serve(paste);
+    mount();
+    await onContent();
+    const keep = [...main.querySelectorAll('input[type=checkbox]')].find((input) => main.querySelector(`label[for="${input.id}"]`)?.textContent === t('read.keepVisible')) as HTMLInputElement;
+    expect(keep.closest('.field-check')).not.toBeNull();
   });
 });
 
