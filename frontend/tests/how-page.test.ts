@@ -10,7 +10,7 @@ import es from '../../translations/es.json';
 import fr from '../../translations/fr.json';
 import it from '../../translations/it.json';
 import { mountHow } from '../src/pages/how';
-import { catalogKeys, setLocale } from '../src/i18n';
+import { catalogKeys, loadLocale, setLocale } from '../src/i18n';
 
 const catalogs = [en, fr, es, it, ar] as Record<string, unknown>[];
 const howKeys = [
@@ -48,6 +48,7 @@ const howKeys = [
   'how.readOnce.step2',
   'how.readOnce.step3',
   'how.readOnce.step4',
+  'how.readOnce.limit',
   'how.trust.title',
   'how.limits',
   'how.faq.title',
@@ -79,7 +80,7 @@ describe('how-it-works page', () => {
     expect(main.querySelector('h1')?.textContent).toBe('How it works');
     expect(main.querySelector('.how-flow')?.children).toHaveLength(3);
     expect(main.querySelectorAll('.how-data-card')).toHaveLength(2);
-    expect(main.querySelector('.how-link-fragment')?.textContent).toBe('#key');
+    expect(main.querySelector('.how-link-fragment')?.textContent).toMatch(/^#[A-Za-z0-9_-]+…$/);
     expect(main.querySelectorAll('.how-options li')).toHaveLength(6);
     expect(main.querySelectorAll('.how-read-once li')).toHaveLength(4);
     expect(main.textContent).toContain('The server never receives');
@@ -103,5 +104,23 @@ describe('how-it-works page', () => {
 
   test('keeps the existing catalogue parity check aware of the new keys', () => {
     expect(catalogKeys('en')).toEqual(expect.arrayContaining(howKeys));
+  });
+  test('names the real reveal button and the documented read-once limit, in every language', async () => {
+    const main = document.getElementById('main') as HTMLElement;
+    for (const code of ['en', 'fr', 'es', 'it', 'ar']) {
+      expect(await loadLocale(code)).toBe(true);
+      expect(setLocale(code)).toBe(true);
+      mountHow(main);
+      const catalog = catalogs[['en', 'fr', 'es', 'it', 'ar'].indexOf(code)] as Record<string, string>;
+      expect(catalog['how.readOnce.step1']).toContain('{action}');
+      expect(main.querySelector('.how-read-once li')?.textContent).toContain(catalog['read.reveal']);
+      expect(main.querySelector('.how-read-once-limit')?.textContent).toBe(catalog['how.readOnce.limit']);
+    }
+  });
+
+  test('shows no untranslated word in the fictional link', () => {
+    const main = document.getElementById('main') as HTMLElement;
+    mountHow(main);
+    expect(main.querySelector('.how-link-example')?.textContent).not.toMatch(/key|identifier/i);
   });
 });

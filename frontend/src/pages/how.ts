@@ -45,8 +45,9 @@ export function mountHow(main: HTMLElement): () => void {
     const linkExample = el(
       'div',
       { class: 'how-link-example', role: 'group', 'aria-label': t('how.link.exampleLabel') },
-      el('code', { class: 'how-link-path' }, 'https://example.invalid/p/identifier'),
-      el('code', { class: 'how-link-fragment' }, '#key'),
+      // Fictional, untranslatable sample values (no real identifier or key).
+      el('code', { class: 'how-link-path' }, 'https://example.invalid/p/7Hq2xLwP'),
+      el('code', { class: 'how-link-fragment' }, '#Zk9vR3tY…'),
     );
 
     const faq = el(
@@ -66,7 +67,20 @@ export function mountHow(main: HTMLElement): () => void {
       section('how-server-title', t('how.server.title'), dataCards),
       section('how-link-title', t('how.link.title'), el('div', { class: 'how-link-content' }, linkExample, el('p', { class: 'how-caption' }, t('how.link.exampleExplanation')))),
       section('how-options-title', t('how.options.title'), translatedList('how.options.item', 6, 'how-options')),
-      section('how-read-once-title', t('how.readOnce.title'), el('ol', { class: 'how-read-once' }, ...Array.from({ length: 4 }, (_, index) => el('li', {}, t(`how.readOnce.step${index + 1}`))))),
+      section(
+        'how-read-once-title',
+        t('how.readOnce.title'),
+        el(
+          'div',
+          {},
+          el(
+            'ol',
+            { class: 'how-read-once' },
+            ...[1, 2, 3, 4].map((n) => el('li', {}, t(`how.readOnce.step${n}`, { action: t('read.reveal') }))),
+          ),
+          el('p', { class: 'how-caption how-read-once-limit' }, t('how.readOnce.limit')),
+        ),
+      ),
       section('how-trust-title', t('how.trust.title'), el('p', { class: 'warning' }, t('how.limits'))),
       section('how-faq-title', t('how.faq.title'), faq),
       el('p', { class: 'how-actions' }, el('a', { href: '/', class: 'button button-primary' }, t('action.new'))),
