@@ -23,6 +23,14 @@ describe('stylesheet', () => {
     expect(css).not.toMatch(/@import|url\(\s*['"]?https?:/);
     expect(css).toContain('system-ui');
   });
+  it('keeps arabic letters joined in monospace text and shows placeholders in the ui font', () => {
+    // Monospace fonts lack arabic glyphs; the generic fallback draws them unjoined (EXG-I18N-018).
+    const mono = /--ql-font-mono:([^;]*);/.exec(css)?.[1] ?? '';
+    expect(mono.indexOf('"Noto Sans Arabic"')).toBeGreaterThan(-1);
+    expect(mono.indexOf('"Noto Sans Arabic"')).toBeLessThan(mono.lastIndexOf('monospace'));
+    expect(mono).toContain('"Geeza Pro"');
+    expect(css).toMatch(/\.editor::placeholder\s*\{[^}]*font-family:\s*var\(--ql-font-sans\)/);
+  });
   it('uses logical properties instead of physical left/right', () => {
     expect(css).not.toMatch(/(margin|padding)-(left|right)\s*:/);
     expect(css).not.toMatch(/text-align:\s*(left|right)/);
