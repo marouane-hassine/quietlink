@@ -15,7 +15,9 @@ export function watchConnectivity(): () => void {
       if (notify) toast(t('net.online'));
     } else {
       banner.textContent = t('net.offline');
-      document.querySelector('main')?.prepend(banner);
+      // Before <main>, not inside: screen changes replace the content of <main>.
+      const main = document.querySelector('main');
+      main?.parentElement?.insertBefore(banner, main);
       announce(t('net.offline'), true);
     }
   };

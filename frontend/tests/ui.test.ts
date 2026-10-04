@@ -71,6 +71,14 @@ describe('passphrase generator', () => {
     expect(entropyBits(words.length)).toBeGreaterThanOrEqual(66);
     expect(generate(words)).not.toBe(passphrase);
   });
+  it('never draws words containing the separator, so the word count stays readable', () => {
+    const list = [...Array.from({ length: 2048 }, (_, i) => `word${i}`), 'felt-tip'];
+    for (let i = 0; i < 200; i++) expect(generate(list)).not.toContain('felt-tip');
+  });
+  it('explains unconfirmed openings as §5.1 requires, in both languages', () => {
+    expect(en['read.priorOpens']).toMatch(/interception.*reload.*connection.*compromised/s);
+    expect(fr['read.priorOpens']).toMatch(/interception.*rechargement.*coupure réseau.*compromis/s);
+  });
   it('estimates strength without blocking', () => {
     expect(strength('password')).toBe('weak');
     expect(strength('correct-horse-battery-staple-orbit-lantern')).not.toBe('weak');

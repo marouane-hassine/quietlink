@@ -469,6 +469,14 @@ summary {
   border-inline-start: 4px solid currentColor;
 }
 
+/* Placed before <main> (it survives screen changes): aligned on the content column. */
+.offline-banner {
+  box-sizing: border-box;
+  inline-size: calc(100% - 2 * var(--ql-space));
+  max-inline-size: calc(var(--ql-content-width) - 2 * var(--ql-space));
+  margin: var(--ql-space) auto 0;
+}
+
 .warning::before {
   content: "⚠ ";
 }

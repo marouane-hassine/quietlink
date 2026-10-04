@@ -21,6 +21,7 @@ import { confirmInline } from '../ui/confirm';
 import { synchronise, type Sync } from '../ui/countdown';
 import { runCountdown } from '../ui/expiry-view';
 import { el, focusUnlessRedrawing, nextId, showScreen } from '../ui/dom';
+import { holdRetry } from '../ui/retry-delay';
 import { formatBytes, formatDate, formatRelative } from '../ui/format';
 import { generate, strength, wordlist } from '../ui/passphrase';
 import { locale } from '../i18n';
@@ -456,6 +457,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
         const message = t(({ argon2: 'error.argon2', network: 'error.network', rate: 'error.rateLimited', quota: 'error.quota', refused: 'error.refused', tooLarge: 'error.tooLarge' } as Record<string, string>)[kind] ?? 'error.server');
         const retryButton = el('button', { type: 'button', class: 'button button-secondary' }, t('action.retry'));
         retryButton.addEventListener('click', () => void doSubmit(true));
+        holdRetry(retryButton, error instanceof ApiError ? error.retryAfter : null);
         const cancelButton = el('button', { type: 'button', class: 'button button-tertiary' }, t('action.cancel'));
         cancelButton.addEventListener('click', () => {
           // A new attempt must use a new key and a new link (§10).

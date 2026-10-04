@@ -10,6 +10,7 @@ import { until } from './support/fake-api';
 const prepared: { envelope: string; readOnce: boolean }[] = [];
 const createCalls: number[] = [];
 let failNext = 0;
+let failKind: 'network' | 'rate' = 'network';
 let prepareError: Error | null = null;
 
 vi.mock('../src/crypto/protocol', () => ({
@@ -30,7 +31,7 @@ vi.mock('../src/api', async (original) => {
         createCalls.push(prepared.length);
         if (failNext > 0) {
           failNext--;
-          throw new actual.ApiError('network');
+          throw new actual.ApiError(failKind, failKind === 'rate' ? 30 : null);
         }
         return { data: { id: 'A'.repeat(32), expires_at: null, server_time: new Date().toISOString() }, t0: 0, t1: 1 };
       },
@@ -67,6 +68,7 @@ describe('creation flow', () => {
     prepared.length = 0;
     createCalls.length = 0;
     failNext = 0;
+    failKind = 'network';
     prepareError = null;
     setLocale('en');
     Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true });
@@ -244,5 +246,17 @@ describe('creation flow', () => {
     await settle();
     expect(exit).toHaveBeenCalledOnce();
     expect(button(t('result.qrFullscreen'))).toBeDefined();
+  });
+
+  it('waits for Retry-After before offering to retry a rate-limited creation', async () => {
+    failNext = 1;
+    failKind = 'rate';
+    type('dummy text');
+    (main.querySelector('.action-bar .button-primary') as HTMLButtonElement).click();
+    await settle();
+    const retry = main.querySelector('.error-box .button-secondary') as HTMLButtonElement;
+
+    expect(retry.disabled).toBe(true);
+    expect(retry.textContent).toBe(t('action.retryIn', { seconds: 30 }));
   });
 });

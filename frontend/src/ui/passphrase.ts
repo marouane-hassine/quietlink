@@ -24,9 +24,13 @@ export function randomIndex(n: number): number {
   }
 }
 
+const SEPARATOR = '-';
+
 export function generate(words: string[], count = WORDS): string {
-  if (words.length < 2048) throw new Error('Word list too small');
-  return Array.from({ length: count }, () => words[randomIndex(words.length)]).join('-');
+  // Words containing the separator (EFF "felt-tip") would blur the word boundaries.
+  const usable = words.filter((word) => !word.includes(SEPARATOR));
+  if (usable.length < 2048) throw new Error('Word list too small');
+  return Array.from({ length: count }, () => usable[randomIndex(usable.length)]).join(SEPARATOR);
 }
 
 export function entropyBits(listSize: number, count = WORDS): number {

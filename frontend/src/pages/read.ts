@@ -23,6 +23,7 @@ import { copyText } from '../ui/clipboard';
 import { synchronise, type Sync } from '../ui/countdown';
 import { runCountdown } from '../ui/expiry-view';
 import { el, focusUnlessRedrawing, nextId, showScreen } from '../ui/dom';
+import { holdRetry } from '../ui/retry-delay';
 import { formatDate, formatRelative } from '../ui/format';
 import { cryptoAvailable } from '../ui/capabilities';
 
@@ -54,13 +55,14 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
   /** Redraws the current screen in a new language; null while busy or once content is shown. */
   let redraw: (() => void) | null = null;
 
-  const fail = (messageKey: string, values: Record<string, string | number> = {}, retry: (() => void) | null = null) => {
-    redraw = () => fail(messageKey, values, retry);
+  const fail = (messageKey: string, values: Record<string, string | number> = {}, retry: (() => void) | null = null, retryAfter: number | null = null) => {
+    redraw = () => fail(messageKey, values, retry, retryAfter);
     const message = t(messageKey, values);
     let retryButton: HTMLButtonElement | null = null;
     if (retry) {
       retryButton = el('button', { type: 'button', class: 'button button-primary' }, t('action.retry'));
       retryButton.addEventListener('click', retry);
+      holdRetry(retryButton, retryAfter);
     }
     showScreen(main, el('h1', { class: 'page-title' }, t('page.read.title')), el('p', { class: 'error', role: 'alert' }, message), el('div', { class: 'action-bar' }, ...[retryButton, newLink()].filter((n): n is NonNullable<typeof n> => n !== null)));
     announce(message, true);
@@ -98,9 +100,9 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
     if (error instanceof LinkError) return fail(error.message === 'altered' ? 'error.alteredLink' : 'error.incompleteLink');
     if (error instanceof ApiError) {
       // Recoverable states offer a retry; unavailability is final (§5.1).
-      if (error.kind === 'reserved') return fail('error.reserved', { seconds: error.retryAfter ?? 60 }, () => void start());
+      if (error.kind === 'reserved') return fail('error.reserved', { seconds: error.retryAfter ?? 60 }, () => void start(), error.retryAfter ?? 60);
       const recoverable = error.kind === 'network' || error.kind === 'rate' || error.kind === 'server' || error.kind === 'quota';
-      return fail(({ network: 'error.networkRead', rate: 'error.rateLimited', unavailable: 'error.unavailable' } as Record<string, string>)[error.kind] ?? 'error.server', {}, recoverable ? () => void start() : null);
+      return fail(({ network: 'error.networkRead', rate: 'error.rateLimited', unavailable: 'error.unavailable' } as Record<string, string>)[error.kind] ?? 'error.server', {}, recoverable ? () => void start() : null, error.retryAfter);
     }
     if (error instanceof DecryptionError) return fail('error.integrity');
     return fail('error.server');

@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import { setLocale } from '../src/i18n';
 import { watchConnectivity } from '../src/ui/connectivity';
+import { showScreen } from '../src/ui/dom';
 
 describe('connectivity', () => {
   it('shows a banner while offline and removes it when the connection returns, keeping the page content', () => {
@@ -18,6 +19,17 @@ describe('connectivity', () => {
 
     window.dispatchEvent(new Event('online'));
     expect(document.querySelector('.offline-banner')).toBeNull();
+    stop();
+  });
+
+  it('keeps the banner across screen changes while still offline', () => {
+    document.body.innerHTML = '<main id="main"><h1>First</h1></main>';
+    const stop = watchConnectivity();
+    window.dispatchEvent(new Event('offline'));
+    showScreen(document.getElementById('main') as HTMLElement, Object.assign(document.createElement('h1'), { textContent: 'Second' }));
+
+    expect(document.querySelector('.offline-banner')).not.toBeNull();
+    window.dispatchEvent(new Event('online'));
     stop();
   });
 });
