@@ -9,6 +9,8 @@ namespace QuietLink\Cli;
 use QuietLink\Maintenance\Booter;
 use QuietLink\Version;
 use Symfony\Component\Console\Application;
+use Symfony\Component\Console\Exception\CommandNotFoundException;
+use Symfony\Component\Console\Exception\ExceptionInterface;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\ConsoleOutputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -64,8 +66,14 @@ final class CliApplication extends Application
             $errors->writeln('<error>' . $e->getMessage() . '</error>');
 
             return 1;
+        } catch (ExceptionInterface $e) {
+            // Console parsing messages quote argv values verbatim (links, keys, passphrases typed
+            // by mistake): only a generic, value-free usage message is ever printed.
+            $errors->writeln('<error>' . self::usageError($e) . '</error>');
+
+            return 2;
         } catch (Throwable $e) {
-            $errors->writeln('<error>' . ($e instanceof \Symfony\Component\Console\Exception\ExceptionInterface ? $e->getMessage() : 'Unexpected error.') . '</error>');
+            $errors->writeln('<error>Unexpected error.</error>');
             if ($output->isVerbose()) {
                 // Class and location only: messages of third-party exceptions may contain input data.
                 $errors->writeln(sprintf('%s at %s:%d', $e::class, basename($e->getFile()), $e->getLine()));
@@ -73,5 +81,21 @@ final class CliApplication extends Application
 
             return 1;
         }
+    }
+
+    /**
+     * Maps a Symfony Console exception to a message that never contains user input.
+     */
+    private static function usageError(ExceptionInterface $e): string
+    {
+        $message = $e->getMessage();
+        if ($e instanceof CommandNotFoundException) {
+            return 'Unknown command; see --help for the available commands.';
+        }
+        if (str_starts_with($message, 'No arguments expected') || str_starts_with($message, 'Too many arguments')) {
+            return 'Unexpected argument: pass links on standard input with --url-stdin, never as arguments.';
+        }
+
+        return 'Invalid option or argument; see --help.';
     }
 }

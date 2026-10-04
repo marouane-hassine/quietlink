@@ -7,6 +7,7 @@ declare(strict_types=1);
 namespace QuietLink\Tests\Cli;
 
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
 use QuietLink\Cli\ApiClient;
 use QuietLink\Cli\CliApplication;
@@ -18,6 +19,7 @@ use QuietLink\Cli\Transport;
 use QuietLink\Tests\Support\BufferedConsoleOutput;
 use QuietLink\Tests\Support\FakePrompt;
 use QuietLink\Tests\Support\KernelTestCase;
+use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\ArrayInput;
 
 #[CoversClass(CliApplication::class)]
@@ -403,5 +405,53 @@ final class CliTest extends KernelTestCase
 
         [, $metadata] = $this->cli(['metadata', '--url-stdin'], $share);
         self::assertStringContainsString('state: reserved', $metadata, 'an invalid envelope must not consume the paste');
+    }
+
+    /**
+     * @return iterable<string, array{list<string>, string, string}>
+     */
+    public static function argvEchoingInputProvider(): iterable
+    {
+        $link = 'https://paste.example.test/p/dummyIdentifier0123456789abcdef#dummyFragmentKey0123456789';
+
+        yield 'link as an argument' => [['decrypt', $link], $link, '--url-stdin'];
+        yield 'link as a metadata argument' => [['metadata', $link], $link, '--url-stdin'];
+        yield 'value after a flag option' => [['create', '--passphrase', 'dummy-pass'], 'dummy-pass', '--url-stdin'];
+        yield 'link instead of a command' => [[$link], $link, '--help'];
+        yield 'unknown long option' => [['create', '--dummy-pass-option'], 'dummy-pass-option', '--help'];
+        yield 'unknown short option' => [['decrypt', '-Zdummypass'], 'dummypass', '--help'];
+        yield 'value given to a flag option' => [['decrypt', '--url-stdin=' . $link], $link, '--help'];
+    }
+
+    /**
+     * Console parsing errors quote argv values verbatim: they must never be echoed (links, keys
+     * or passphrases typed on the command line by mistake).
+     *
+     * @param list<string> $argv
+     */
+    #[DataProvider('argvEchoingInputProvider')]
+    #[Group('EXG-CLI-013')]
+    #[Group('EXG-SEC-012')]
+    #[Group('EXG-URL-003')]
+    #[Group('EXG-URL-016')]
+    public function testCommandLineValuesAreNeverEchoedInParsingErrors(array $argv, string $secret, string $hint): void
+    {
+        $application = new CliApplication(new CliContext(new ApiClient(new class () implements Transport {
+            public function send(string $method, string $url, array $headers, ?string $body): HttpResponse
+            {
+                throw new \LogicException('No request is expected.');
+            }
+        }), new FakePrompt(), STDIN));
+        $application->setAutoExit(false);
+        $output = new BufferedConsoleOutput();
+
+        $code = $application->doRun(new ArgvInput(['quietlink', ...$argv]), $output);
+
+        $out = $output->fetch();
+        $err = $output->errors();
+        self::assertSame(2, $code);
+        self::assertStringNotContainsString($secret, $out . $err);
+        self::assertStringNotContainsString('dummyFragmentKey', $out . $err);
+        self::assertStringContainsString($hint, $err);
     }
 }

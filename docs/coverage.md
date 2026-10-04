@@ -113,7 +113,7 @@ None.
 | EXG-UX-043 | `frontend/tests/template-view.test.ts` |
 | EXG-UX-044 | `frontend/tests/template-view.test.ts`, `frontend/tests/templates.test.ts` |
 | EXG-SEC-010 | `tests/e2e/ux.spec.ts` |
-| EXG-SEC-012 | `frontend/tests/create-page.test.ts` |
+| EXG-SEC-012 | `frontend/tests/create-page.test.ts`, `tests/Cli/CliTest.php` |
 | EXG-UX-046 | `frontend/tests/confirm.test.ts` |
 | EXG-UX-047 | `frontend/tests/announcer.test.ts`, `frontend/tests/create-security.test.ts` |
 | EXG-UX-048 | `frontend/tests/create-security.test.ts`, `frontend/tests/read-page.test.ts` |
@@ -417,7 +417,7 @@ None.
 | EXG-CONF-003 | `tests/Config/ConfigLoaderTest.php`, `tests/Http/ApiTest.php` |
 | EXG-CONF-004 | `tests/Config/ConfigLoaderTest.php` |
 | EXG-SEC-086 | `tests/Http/ApiTest.php` |
-| EXG-URL-003 | `tests/Log/JsonLoggerTest.php`, `tests/e2e/secrets.spec.ts` |
+| EXG-URL-003 | `tests/Cli/CliTest.php`, `tests/Log/JsonLoggerTest.php`, `tests/e2e/secrets.spec.ts` |
 | EXG-CRYPTO-054 | `tests/Http/HardeningTest.php` |
 | EXG-CRYPTO-055 | `tests/Crypto/SpProtoV1VectorsTest.php`, `tests/vectors/sp-proto-v1.json` |
 | EXG-SEC-087 | `tests/Deploy/DeploymentConfigTest.php`, `tests/Http/ApiTest.php` |
@@ -449,7 +449,7 @@ None.
 | EXG-URL-013 | `tests/Http/HardeningTest.php`, `tests/e2e/flows.spec.ts` |
 | EXG-URL-014 | `tests/Http/ApiTest.php` |
 | EXG-URL-015 | `tests/e2e/result.spec.ts` |
-| EXG-URL-016 | `tests/Log/JsonLoggerTest.php` |
+| EXG-URL-016 | `tests/Cli/CliTest.php`, `tests/Log/JsonLoggerTest.php` |
 | EXG-TEST-008 | `tests/Cli/CliTest.php`, `tests/e2e/flows.spec.ts` |
 | EXG-SEC-088 | `tests/Web/PageTest.php` |
 | EXG-SEC-089 | `tests/Web/PageTest.php` |
