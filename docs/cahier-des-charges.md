@@ -1,6 +1,6 @@
 # Cahier des charges — QuietLink, outil de partage de textes confidentiels
 
-**Statut :** version 0.19 — projet de cahier des charges produit et technique  
+**Statut :** version 0.20 — projet de cahier des charges produit et technique  
 **Périmètre :** V1  
 **Technologie obligatoire :** PHP avec Symfony pour le backend, l’API et la CLI ; TypeScript avec Vite pour le frontend  
 **Licence :** GNU Affero General Public License v3.0 (AGPL-3.0)  
@@ -9,6 +9,7 @@
 
 **Historique :**
 
+- 0.20 — langues : l’application doit accepter les langues écrites de droite à gauche (RTL) en plus des langues LTR ; langues fournies en V1 : anglais (référence et fallback), français, espagnol, italien et arabe (RTL) ; catalogues découverts automatiquement et chargés à la demande ; contenu utilisateur avec direction automatique, liens et code toujours LTR.
 - 0.19 — répertoire de données configurable par `storage.data_dir`, par défaut `datas/` à la racine du projet (hors de `public/`) ; les répertoires de contenus, d’idempotence, de rate limiting et d’état en dérivent par défaut et restent configurables individuellement ; en Docker, le volume de données est monté sur ce répertoire.
 - 0.18 — décisions de cadrage (licence AGPL-3.0, TypeScript + Vite, markdown-it + DOMPurify, @noble/ed25519 + hash-wasm, Argon2id 64 Mio / t = 3, listes de mots EFF et Lexique, Sigstore, audit externe ciblé, palette validée) ; retrait des honeypots ; identifiant de 192 bits liant aussi le jeton de suppression, pour une pré-vérification de `DELETE` sans stockage ; idempotence : contrôle d’empreinte en cas de course, purge des contenus orphelins, rate limiting des rejeux, détails de `link()` ; consommation idempotente après `consumed` ; quotas sous verrou.
 - 0.17 — idempotence sans état intermédiaire (enregistrement écrit une seule fois, après création, par `link()` atomique) : aucune reprise ne réutilise un identifiant ; identifiant retiré du corps de création ; pré-vérification sans stockage de `consume` ; limites de l’AAD documentées ; définition de `tronc64` ; contrôles client de l’identifiant et de l’AAD.
@@ -307,7 +308,7 @@ Le QR code doit être généré localement, uniquement à partir du lien de part
 - utiliser un système de design basé sur des tokens ;
 - appliquer les mêmes composants, espacements, libellés et états partout ;
 - ne pas modifier la hiérarchie visuelle des alertes de sécurité avec un thème personnalisé ;
-- conserver une interface lisible avec toutes les langues LTR activées ;
+- conserver une interface lisible avec toutes les langues activées, qu’elles s’écrivent de gauche à droite (LTR) ou de droite à gauche (RTL) ;
 - respecter le mode clair, sombre et le thème système, avec un sélecteur à trois états (Système, Clair, Sombre) ;
 - respecter `prefers-reduced-motion` ;
 - ne pas utiliser d’animation pour retarder une action critique.
@@ -670,9 +671,9 @@ Règles de sélection de la langue :
 3. utiliser cette langue si elle est supportée par l’instance ;
 4. sinon utiliser l’anglais.
 
-L’anglais (`en`) est la langue par défaut et le fallback obligatoire. Le français (`fr`) doit être fourni en V1. L’ajout de nouvelles langues doit être possible en ajoutant un catalogue de traductions, sans modifier le code métier.
+L’anglais (`en`) est la langue par défaut et le fallback obligatoire. La V1 fournit les langues suivantes : anglais (`en`), français (`fr`), espagnol (`es`), italien (`it`) et arabe (`ar`). L’ajout de nouvelles langues doit être possible en ajoutant un catalogue de traductions, sans modifier le code métier : les catalogues présents sont découverts automatiquement, activés par défaut et restreints au besoin par `app.enabled_locales` ; les catalogues autres que l’anglais et le français sont chargés à la demande, sans alourdir le premier affichage.
 
-La V1 doit être compatible avec les langues écrites de gauche à droite (LTR). Chaque catalogue de traduction doit déclarer sa direction (`ltr`) et l’interface doit appliquer cette direction au document HTML et aux composants concernés.
+L’application doit accepter les langues écrites de gauche à droite (LTR) **et** de droite à gauche (RTL). Chaque catalogue de traduction doit déclarer sa direction (`ltr` ou `rtl`) et l’interface doit appliquer cette direction au document HTML (pages servies par le serveur, pages d’erreur, changement de langue côté client) et aux composants concernés. En RTL, toute la mise en page est miroir ; le contenu saisi ou déchiffré prend sa propre direction (`dir="auto"`), tandis que les liens, identifiants et blocs de code restent LTR.
 
 Exigences :
 
@@ -684,11 +685,12 @@ Exigences :
 - ne pas envoyer le contenu du paste pour déterminer la langue ;
 - permettre à l’utilisateur de changer la langue depuis l’interface ;
 - mémoriser uniquement la préférence de langue, jamais le contenu en clair ;
-- utiliser `dir="ltr"` et `lang` correctement sur le document HTML ;
+- utiliser `dir` (`ltr` ou `rtl`, selon le catalogue) et `lang` correctement sur le document HTML ;
 - utiliser les propriétés CSS logiques comme `margin-inline`, `padding-inline` et `text-align: start` ;
 - ne pas coder en dur des positions gauche/droite dans les composants réutilisables ;
-- conserver l’alignement, les boutons et les raccourcis cohérents avec une interface LTR ;
-- tester l’interface avec une langue longue et une langue utilisant des caractères non latins.
+- conserver l’alignement, les boutons et les raccourcis cohérents avec la direction de la langue (LTR ou RTL) ; les éléments graphiques directionnels (flèches, icônes, jauges) sont mis en miroir en RTL ;
+- tester l’interface avec une langue longue, une langue utilisant des caractères non latins et une langue RTL ;
+- faire relire chaque catalogue par un locuteur natif avant une publication publique.
 
 ### 6.7 API et CLI
 
@@ -1795,8 +1797,8 @@ Règles obligatoires :
 - fallback anglais pour une langue non supportée ;
 - fallback anglais conservé même si aucune langue de navigateur n’est supportée ;
 - changement manuel de langue sans stockage de contenu en clair ;
-- direction `ltr` et attributs `lang` corrects ;
-- affichage correct des langues LTR sur mobile et desktop ;
+- direction (`ltr` ou `rtl`) et attributs `lang` corrects ;
+- affichage correct des langues LTR et RTL sur mobile et desktop, sans débordement ni texte tronqué ;
 - parcours de création utilisable sans compte en quelques étapes ;
 - prévention des doubles clics et doubles créations ;
 - conservation de la saisie après une erreur réseau ;
@@ -2062,7 +2064,7 @@ La V1 est considérée comme livrable si :
 - matrice de traçabilité exigences ↔ tests ;
 - tests unitaires, intégration, E2E et sécurité ;
 - tests PHPUnit et analyse statique PHP ;
-- catalogues de traduction anglais et français ;
+- catalogues de traduction anglais, français, espagnol, italien et arabe ;
 - image Docker et Compose ;
 - documentation de la stratégie de cache et commande de purge contrôlée ;
 - commandes `app:boot`, `app:config:check`, `app:secret:generate` et `app:purge-expired` ; commande `app:theme:preview` (priorité Could) ;
@@ -2124,7 +2126,7 @@ Il doit couvrir :
 - format des enregistrements de fichiers et stratégie de lecture unique ;
 - configuration locale sans secrets ;
 - génération et gestion des thèmes ;
-- gestion des catalogues de traduction et des langues LTR ;
+- gestion des catalogues de traduction et des langues LTR et RTL ;
 - exécution des tests PHPUnit, intégration, E2E et sécurité ;
 - PHPStan, linters, audits de dépendances et génération du SBOM ;
 - règles interdisant le plaintext dans les logs, caches et API ;
@@ -2236,7 +2238,7 @@ Il doit préciser :
 | Markdown | markdown-it (`html: false`) + DOMPurify |
 | Cryptographie navigateur | Web Crypto ; repli Ed25519 @noble/ed25519 (JavaScript pur) ; Argon2id hash-wasm dans un worker dédié |
 | Argon2id par défaut | `m = 64 Mio`, `t = 3`, `p = 1`, à confirmer par la calibration de Phase 0 |
-| Listes de mots | EFF « large » (`en`) ; liste `fr` construite en Phase 0 à partir de Lexique, filtrée, d’au moins 2 048 mots, avec scripts de génération versionnés |
+| Listes de mots | EFF « large » (`en`) ; liste `fr` construite en Phase 0 à partir de Lexique, filtrée, d’au moins 2 048 mots, avec scripts de génération versionnés ; liste anglaise utilisée pour les autres langues tant qu’une liste dédiée n’existe pas |
 | Signature des releases | Sigstore (`cosign`) + attestations de provenance GitHub |
 | Audit | audit externe ciblé (crypto, protocole, code client de chiffrement) avant la première version publique |
 | Identité visuelle | palette de départ inspirée d’Agillia.shop validée ; logo à créer |
