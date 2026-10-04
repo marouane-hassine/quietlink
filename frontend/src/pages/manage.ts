@@ -11,7 +11,7 @@ import { matchesDeletionToken } from '../crypto/protocol';
 import { t } from '../i18n';
 import { announce } from '../ui/announcer';
 import { confirmInline } from '../ui/confirm';
-import { el, showScreen } from '../ui/dom';
+import { el, forgetFragment, showScreen } from '../ui/dom';
 import { cryptoAvailable } from '../ui/capabilities';
 
 export function mountManage(main: HTMLElement): () => void {
@@ -59,6 +59,7 @@ export function mountManage(main: HTMLElement): () => void {
       }
       // One message whether deleted, expired or invalid (§8.5).
       done = true;
+      forgetFragment();
       message('manage.done');
     });
     showScreen(main, el('h1', { class: 'page-title' }, t('page.manage.title')), el('p', {}, t('manage.intro')), el('p', { class: 'warning' }, t('manage.warning')), failure, el('div', { class: 'action-bar' }, button, status));

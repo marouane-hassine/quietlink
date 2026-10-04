@@ -22,7 +22,7 @@ import { announce } from '../ui/announcer';
 import { copyText } from '../ui/clipboard';
 import { synchronise, type Sync } from '../ui/countdown';
 import { runCountdown } from '../ui/expiry-view';
-import { el, focusUnlessRedrawing, nextId, showScreen } from '../ui/dom';
+import { el, focusUnlessRedrawing, forgetFragment, nextId, showScreen } from '../ui/dom';
 import { holdRetry } from '../ui/retry-delay';
 import { formatDate, formatRelative } from '../ui/format';
 import { cryptoAvailable } from '../ui/capabilities';
@@ -101,6 +101,7 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
     if (error instanceof ApiError) {
       // Recoverable states offer a retry; unavailability is final (§5.1).
       if (error.kind === 'reserved') return fail('error.reserved', { seconds: error.retryAfter ?? 60 }, () => void start(), error.retryAfter ?? 60);
+      if (error.kind === 'unavailable') forgetFragment();
       const recoverable = error.kind === 'network' || error.kind === 'rate' || error.kind === 'server' || error.kind === 'quota';
       return fail(({ network: 'error.networkRead', rate: 'error.rateLimited', unavailable: 'error.unavailable' } as Record<string, string>)[error.kind] ?? 'error.server', {}, recoverable ? () => void start() : null, error.retryAfter);
     }
@@ -131,8 +132,8 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
     void import('../render/content-view').catch(() => undefined);
     const needsPassphrase = aad.object.kdf !== null;
     const inputId = nextId('passphrase');
-    const input = el('input', { id: inputId, class: 'passphrase is-masked', type: 'text', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false' });
-    if (!(typeof CSS !== 'undefined' && CSS.supports('-webkit-text-security', 'disc'))) input.type = 'password';
+    // A real password input (ADR-0009): CSS masking would leave the value readable by screen readers.
+    const input = el('input', { id: inputId, class: 'passphrase', type: 'password', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false' });
     input.addEventListener('focus', preloadArgon2, { once: true });
     const error = el('p', { class: 'field-error', role: 'alert', id: nextId('error') });
     input.setAttribute('aria-describedby', error.id);
@@ -168,7 +169,8 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
         button.disabled = false;
         statusLine.textContent = '';
         if (e instanceof WrongPassphraseError) {
-          showReveal(link, aad, status, sync, 'error.wrongPassphrase');
+          // Read-once: checked locally against consume_pk, certain. Multi-read: ambiguous.
+          showReveal(link, aad, status, sync, e.message === 'ambiguous' ? 'error.wrongPassphraseOrAltered' : 'error.wrongPassphrase');
           return;
         }
         if (e instanceof Argon2UnavailableError || (e instanceof Error && e.message === 'argon2')) return fail('error.argon2');
@@ -216,14 +218,21 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
     // The AAD returned by open must be byte-identical to the one returned by status (§8.3).
     if (!equal(decode(data.aad), aad.bytes)) throw new DecryptionError('integrity');
     announce(t('state.decrypting'));
+    let plaintext: string;
+    try {
+      plaintext = await decrypt(link.urlKey, kPass, aad, decode(data.nonce, 12), decode(data.ciphertext));
+    } catch (error) {
+      // Multi-read with a passphrase: an AES-GCM failure cannot tell a wrong passphrase from
+      // altered content (no local check exists), the message covers both (ADR-0009).
+      if (aad.object.kdf !== null && !aad.object.read_once) throw new WrongPassphraseError('ambiguous');
+      throw error instanceof DecryptionError ? error : new DecryptionError('integrity');
+    }
     let envelope: Envelope;
     try {
-      envelope = parseEnvelope(await decrypt(link.urlKey, kPass, aad, decode(data.nonce, 12), decode(data.ciphertext)));
-    } catch (error) {
-      if (aad.object.kdf !== null && !aad.object.read_once) {
-        throw new WrongPassphraseError();
-      }
-      throw error instanceof DecryptionError ? error : new DecryptionError('integrity');
+      envelope = parseEnvelope(plaintext);
+    } catch {
+      // Decrypted but not a valid envelope: the content was altered, whatever the passphrase.
+      throw new DecryptionError('integrity');
     }
 
     let consumedKey: string | null = null;
@@ -235,6 +244,7 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
         await retrying(() => api.consume(link.id, body));
         consumedKey = 'read.destroyed';
         clearReservation(link.id);
+        forgetFragment();
       } catch (error) {
         consumedKey = 'read.consumeFailed';
         // Only a final 404 ends the reservation: after a transient failure (network, 429, 5xx)

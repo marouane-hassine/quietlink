@@ -122,6 +122,7 @@
   "error.incompleteLink": "Ce lien est incomplet : la clé après le # est absente ou abîmée. Demandez le lien complet à l’expéditeur.",
   "error.alteredLink": "Ce lien a été modifié et n’est pas fiable.",
   "error.wrongPassphrase": "Phrase secrète incorrecte. Réessayez.",
+  "error.wrongPassphraseOrAltered": "Phrase secrète incorrecte, ou contenu altéré. Vérifiez la phrase secrète et réessayez ; si elle est juste, ne faites pas confiance à ce lien.",
   "error.integrity": "Le contenu n’a pas passé le contrôle d’intégrité : il a peut-être été modifié. Il n’est pas affiché.",
   "error.reserved": "Ce contenu est en cours d’ouverture ailleurs. Réessayez dans {seconds} secondes.",
   "error.argon2": "Ce navigateur ne peut pas traiter les phrases secrètes.",

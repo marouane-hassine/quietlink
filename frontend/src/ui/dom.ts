@@ -63,3 +63,12 @@ export function showScreen(main: HTMLElement, ...nodes: (Node | null)[]): void {
     focusUnlessRedrawing(heading);
   }
 }
+
+/**
+ * Removes the key fragment from the address bar and the current history entry once it has no
+ * further use (paste destroyed, deleted or unavailable): it no longer lingers in history,
+ * bookmarks or screenshots (ADR-0009). Multi-read links keep it so they can be read again.
+ */
+export function forgetFragment(): void {
+  if (location.hash !== '') history.replaceState(history.state, '', location.pathname + location.search);
+}

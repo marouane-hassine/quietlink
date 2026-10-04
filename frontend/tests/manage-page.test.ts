@@ -33,6 +33,8 @@ describe('management page', () => {
     await until(() => main.querySelector('[role=alertdialog] .button-danger, [role=alertdialog] .button-primary') !== null);
     (main.querySelector('[role=alertdialog] .button-danger, [role=alertdialog] .button-primary') as HTMLButtonElement).click();
     await until(() => main.textContent?.includes(t('manage.done')) === true);
+    // The deletion token has no further use: it leaves the address bar and history (ADR-0009).
+    expect(location.hash).toBe('');
 
     setLocale('fr');
     rerender();

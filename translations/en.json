@@ -122,6 +122,7 @@
   "error.incompleteLink": "This link is incomplete: the key after the # is missing or damaged. Ask the sender for the complete link.",
   "error.alteredLink": "This link has been altered and cannot be trusted.",
   "error.wrongPassphrase": "Incorrect passphrase. Try again.",
+  "error.wrongPassphraseOrAltered": "Incorrect passphrase, or the content was altered. Check the passphrase and try again; if it is right, do not trust this link.",
   "error.integrity": "The content failed the integrity check: it may have been altered. It is not displayed.",
   "error.reserved": "This content is being opened elsewhere. Try again in {seconds} seconds.",
   "error.argon2": "This browser cannot process passphrases.",

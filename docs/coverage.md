@@ -88,7 +88,7 @@ None.
 | EXG-UX-022 | `frontend/tests/create-page.test.ts` |
 | EXG-UX-023 | `frontend/tests/create-page.test.ts` |
 | EXG-UX-024 | `frontend/tests/create-page.test.ts` |
-| EXG-SEC-007 | `frontend/tests/create-page.test.ts` |
+| EXG-SEC-007 | `frontend/tests/create-page.test.ts`, `frontend/tests/passphrase-fields.test.ts` |
 | EXG-UX-025 | `tests/e2e/result.spec.ts` |
 | EXG-SEC-008 | `frontend/tests/create-page.test.ts` |
 | EXG-UX-026 | `tests/e2e/result.spec.ts` |
@@ -126,7 +126,7 @@ None.
 | EXG-UX-051 | `frontend/tests/chrome.test.ts`, `frontend/tests/create-flows.test.ts` |
 | EXG-UX-052 | `tests/e2e/rate-limit.spec.ts`, `tests/e2e/resilience.spec.ts` |
 | EXG-UX-055 | `frontend/tests/connectivity.test.ts` |
-| EXG-A11Y-004 | `frontend/tests/create-page.test.ts` |
+| EXG-A11Y-004 | `frontend/tests/create-page.test.ts`, `frontend/tests/passphrase-fields.test.ts` |
 | EXG-A11Y-005 | `frontend/tests/announcer.test.ts` |
 | EXG-UX-056 | `tests/e2e/resilience.spec.ts` |
 | EXG-UX-057 | `frontend/tests/connectivity.test.ts`, `tests/e2e/resilience.spec.ts` |

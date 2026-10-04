@@ -347,6 +347,19 @@ describe('passphrase', () => {
     expect(location.href).not.toContain(wrong);
   });
 
+  it('cannot tell a wrong passphrase from altered content on a multi-read paste, and says so', async () => {
+    const paste = await makePaste({ passphrase: PASSPHRASE });
+    serve(paste);
+    mount();
+    await until(() => main.querySelector('input.passphrase') !== null);
+    typePassphrase('dummy-wrong-passphrase-8812');
+    revealButton().click();
+
+    // AES-GCM fails the same way for both: the message covers both (ADR-0009, §8.4).
+    await until(() => errorText() === t('error.wrongPassphraseOrAltered'));
+    expect(views.built).toHaveLength(0);
+  });
+
   it('shows an explicit message, without open nor any fallback derivation, when Argon2id is unsupported', async () => {
     const paste = await makePaste({ passphrase: PASSPHRASE });
     const importKey = vi.spyOn(crypto.subtle, 'importKey');
@@ -462,6 +475,38 @@ describe('read-once reservation in degraded conditions', () => {
     await until(() => main.textContent?.includes(t('error.networkRead')) === true);
 
     expect(main.textContent).not.toContain(t('error.network'));
+  });
+});
+
+describe('key in the address bar (ADR-0009)', () => {
+  it('removes the key once a read-once paste is destroyed', async () => {
+    const paste = await makePaste({ readOnce: true });
+    serve(paste);
+    mount();
+    await until(() => revealButton()?.textContent === t('read.reveal'));
+    revealButton().click();
+    await onContent();
+    await until(() => main.textContent?.includes(t('read.destroyed')) === true);
+
+    expect(location.hash).toBe('');
+  });
+
+  it('keeps the link of a multi-read paste, which can be read again', async () => {
+    const paste = await makePaste();
+    serve(paste);
+    mount();
+    await onContent();
+
+    expect(location.hash).not.toBe('');
+  });
+
+  it('removes the key when the content is unavailable', async () => {
+    const paste = await makePaste();
+    serve(paste, {}, (request) => (request.path.endsWith('/status') ? response(404) : null));
+    mount();
+    await until(() => main.textContent?.includes(t('error.unavailable')) === true);
+
+    expect(location.hash).toBe('');
   });
 });
 
