@@ -66,4 +66,18 @@ final class UsageCounterTest extends TestCase
         self::assertSame(['bytes' => 7, 'items' => 1], $this->usage->read());
         self::assertSame(0, $this->usage->snapshot()['generation']);
     }
+
+    /**
+     * A deferred recomputation is retried after a pause rather than at every purge run, so a
+     * busy instance does not rescan the whole store each minute (§9.7).
+     */
+    #[Group('EXG-STORE-043')]
+    public function testDeferredRecomputationIsRetriedAfterAPause(): void
+    {
+        $this->usage->reserve(10);
+        $this->usage->postponeRecomputation(1790000000, 600, 3600);
+
+        self::assertSame(1790000000 + 600 - 3600, $this->usage->recomputedAt());
+        self::assertSame(['bytes' => 10, 'items' => 1], $this->usage->read());
+    }
 }

@@ -316,7 +316,7 @@ Consistency:
 
 - Check and increment happen in one `usage.lock` critical section, so concurrent creations cannot exceed the quotas.
 - Decrements are applied under `usage.lock` by whoever performs the unlink/rmdir, after the filesystem operation succeeded (never before), and never go below zero (clamp + log).
-- Drift sources (crash between filesystem operation and counter update, orphan staging dirs) are corrected by the purge's full recompute, **at most once per hour** (l. 1521), in its own read-only pass after the removals: read the counters and their `generation`, scan `pastes/` without `usage.lock`, then under `usage.lock` replace the counters with the observed totals **only if** `generation` is unchanged. Every reservation, release and completed creation (after its rename) increments `generation`, so any concurrent change, even one that leaves the totals unchanged, defers the recomputation to the next purge run (OQ-09, resolved).
+- Drift sources (crash between filesystem operation and counter update, orphan staging dirs) are corrected by the purge's full recompute, **at most once per hour** (l. 1521), in its own read-only pass after the removals: read the counters and their `generation`, scan `pastes/` without `usage.lock`, then under `usage.lock` replace the counters with the observed totals **only if** `generation` is unchanged. Every reservation, release and completed creation (after its rename) increments `generation`, so any concurrent change, even one that leaves the totals unchanged, defers the recomputation, which is retried 10 minutes later rather than at every purge run (OQ-09, resolved).
 
 ## 10. Purge (`app:purge-expired`, §9.7)
 

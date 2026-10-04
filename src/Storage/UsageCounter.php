@@ -127,6 +127,21 @@ final class UsageCounter
         }
     }
 
+    /**
+     * Records a deferred recomputation so that the next attempt happens in $retryAfter seconds
+     * instead of at the next purge run ($interval is the normal recomputation interval).
+     */
+    public function postponeRecomputation(int $now, int $retryAfter, int $interval): void
+    {
+        $lock = $this->lock(true);
+        try {
+            $usage = $this->load();
+            $this->save($usage['bytes'], $usage['items'], $now + $retryAfter - $interval);
+        } finally {
+            $lock->release();
+        }
+    }
+
     public function recomputedAt(): ?int
     {
         $data = $this->decode();

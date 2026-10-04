@@ -37,6 +37,8 @@ final class Purger
     public const ORPHAN_MAX_AGE = 3600;
     public const TEMP_MIN_AGE = 3600;
     public const RECOMPUTE_INTERVAL = 3600;
+    /** Delay before retrying a recomputation deferred by concurrent changes. */
+    public const RECOMPUTE_RETRY = 600;
 
     public function __construct(
         private readonly InstanceConfig $config,
@@ -136,7 +138,11 @@ final class Purger
                 $observed['items']++;
             }
         }
-        $this->usage->applyRecomputation($start['generation'], $observed['bytes'], $observed['items'], $now);
+        if (!$this->usage->applyRecomputation($start['generation'], $observed['bytes'], $observed['items'], $now)) {
+            // Changed meanwhile: retried after a pause, not at every run (a full scan each minute
+            // on a busy instance).
+            $this->usage->postponeRecomputation($now, self::RECOMPUTE_RETRY, self::RECOMPUTE_INTERVAL);
+        }
     }
 
     /**
