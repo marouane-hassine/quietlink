@@ -51,8 +51,8 @@ describe('accessibility fixes', () => {
     renderChrome({ enabledLocales: ['en', 'fr'], darkMode: 'auto', page: 'create' } as PublicConfig, 'auto', () => undefined);
     const options = [...(document.getElementById('ql-language') as HTMLSelectElement).options];
     expect(options.map((o) => o.lang)).toEqual(['en', 'fr']);
-    const theme = document.getElementById('ql-theme') as HTMLSelectElement;
-    expect(theme.options[0]?.textContent).toBe(t('nav.themeOption', { theme: t('theme.auto') }));
+    // The theme choices sit in a fieldset whose legend names them (see chrome.test.ts).
+    expect(document.querySelector('#ql-theme legend')?.textContent).toBe(t('nav.theme'));
   });
 
   it('does not contradict a toggle label with aria-pressed (4.1.2)', () => {

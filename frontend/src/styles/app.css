@@ -288,6 +288,64 @@ select {
   min-block-size: 44px;
 }
 
+/* Theme: segmented group of three icon buttons (native radios kept for keyboard and AT). */
+.theme-switch {
+  display: inline-flex;
+  margin: 0;
+  padding: 2px;
+  border: 1px solid var(--ql-color-border);
+  border-radius: 999px;
+  background: var(--ql-color-surface);
+}
+
+.theme-switch input {
+  position: absolute;
+  opacity: 0;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: 0;
+}
+
+.theme-switch label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 40px;
+  min-block-size: 40px;
+  border-radius: 999px;
+  color: var(--ql-color-text-muted);
+  cursor: pointer;
+}
+
+.theme-switch label:hover {
+  color: var(--ql-color-text);
+}
+
+.theme-switch input:checked + label {
+  color: var(--ql-color-primary-contrast);
+  background: var(--ql-color-primary);
+}
+
+.theme-switch input:focus-visible + label {
+  outline: 3px solid var(--ql-color-focus);
+  outline-offset: 2px;
+}
+
+.icon {
+  inline-size: 20px;
+  block-size: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.icon .icon-fill {
+  fill: currentColor;
+  stroke: none;
+}
+
 .button {
   display: inline-flex;
   align-items: center;

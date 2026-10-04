@@ -46,11 +46,16 @@ test('result screen: hidden QR code, message and native share carry only the sha
 
 test('three-state theme selector and a warning before leaving unpublished text', async ({ page }) => {
   await page.goto('/');
-  const theme = page.getByLabel('Theme');
-  await expect(theme.locator('option')).toHaveText(['Theme: System', 'Theme: Light', 'Theme: Dark']);
-  await theme.selectOption('dark');
+  const theme = page.getByRole('group', { name: 'Theme' });
+  await expect(theme.getByRole('radio')).toHaveCount(3);
+  await expect(theme.getByRole('radio', { name: 'System' })).toBeChecked();
+  await theme.getByText('Dark').locator('..').click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  await theme.selectOption('auto');
+  await expect(theme.getByRole('radio', { name: 'Dark' })).toBeChecked();
+  await theme.getByRole('radio', { name: 'System' }).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await theme.getByText('System').locator('..').click();
   await expect(page.locator('html')).not.toHaveAttribute('data-theme', /.+/);
 
   await page.getByRole('textbox', { name: /Text to protect/ }).fill('unpublished draft');

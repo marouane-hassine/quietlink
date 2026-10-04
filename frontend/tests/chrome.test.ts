@@ -40,4 +40,31 @@ describe('header controls', () => {
     expect(main.querySelector('h1')?.textContent).toBe('Confidential text');
     expect(document.title).toBe('Confidential text · QuietLink');
   });
+
+  it('offers the theme as a labelled group of three choices, with icons, applied and remembered', () => {
+    setLocale('en');
+    localStorage.clear();
+    document.body.innerHTML = '<div id="ql-controls"></div>';
+    renderChrome(config, 'auto', () => undefined);
+    const group = document.getElementById('ql-theme') as HTMLFieldSetElement;
+
+    expect(group.tagName).toBe('FIELDSET');
+    expect(group.querySelector('legend')?.textContent).toBe(t('nav.theme'));
+    const radios = [...group.querySelectorAll('input[type=radio]')] as HTMLInputElement[];
+    expect(radios.map((radio) => radio.value)).toEqual(['auto', 'light', 'dark']);
+    expect(radios.map((radio) => group.querySelector(`label[for="${radio.id}"]`)?.textContent)).toEqual([t('theme.auto'), t('theme.light'), t('theme.dark')]);
+    // Icons only on screen; the name stays available to assistive technologies and as a tooltip.
+    for (const radio of radios) {
+      const label = group.querySelector(`label[for="${radio.id}"]`) as HTMLLabelElement;
+      expect(label.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
+      expect(label.querySelector('span')?.classList.contains('visually-hidden')).toBe(true);
+      expect(label.title).toBe(label.textContent);
+    }
+    expect(radios.find((radio) => radio.checked)?.value).toBe('auto');
+
+    radios[2]!.checked = true;
+    radios[2]!.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(document.documentElement.dataset.theme).toBe('dark');
+    expect(localStorage.getItem('ql-theme')).toBe('dark');
+  });
 });

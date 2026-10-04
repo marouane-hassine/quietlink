@@ -11,7 +11,6 @@
   "nav.language": "Language",
   "nav.languageChanged": "Language: {language}",
   "nav.theme": "Theme",
-  "nav.themeOption": "Theme: {theme}",
   "theme.auto": "System",
   "theme.light": "Light",
   "theme.dark": "Dark",

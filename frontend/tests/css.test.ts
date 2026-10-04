@@ -51,4 +51,11 @@ describe('stylesheet', () => {
     expect(css).toMatch(/@media \(max-height: 30rem\)\s*\{[^@]*html\s*\{\s*scroll-padding-block-end:\s*1rem/);
     expect(css).toMatch(/\.site-footer a\s*\{[^}]*min-block-size:\s*44px/);
   });
+  it('uses only theme variables that are defined', () => {
+    const defined = new Set([...css.matchAll(/(--ql-[a-z0-9-]+)\s*:/g)].map((m) => m[1]));
+    const used = [...css.matchAll(/var\((--ql-[a-z0-9-]+)\s*[,)]/g)].map((m) => m[1]);
+    // Variables set at runtime by the scripts (viewport helpers) are provided with a fallback.
+    const runtime = new Set(['--ql-keyboard-offset', '--ql-bar-height']);
+    expect(used.filter((name) => name !== undefined && !defined.has(name) && !runtime.has(name))).toEqual([]);
+  });
 });
