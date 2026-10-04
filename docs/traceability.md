@@ -312,6 +312,7 @@ Decisions already recorded in §19.1 are applied: Playwright for E2E tests, JSON
 | EXG-SEC-037 | 6.5 | Themes never alter, hide or blur security alerts | Must | MUST | Vitest: alert tokens locked |
 | EXG-SEC-038 | 6.5 | Active theme not stored in encrypted content; theme switch exposes no plaintext | Must | MUST | Vitest: envelope has no theme |
 | EXG-THEME-020 | 6.5 | UI separates instance theme, user light/dark choice, reserved security colours | Should | MUST | Manual review: design review |
+| EXG-THEME-021 | 6.5 | QuietLink logo: vector mark served by the instance, coloured by theme tokens (light and dark), decorative next to the instance name | Should | MUST | PHPUnit integration: page shell and favicon |
 | EXG-A11Y-016 | 6.6 | WCAG 2.2 AA for main flows | Must | MUST | Playwright E2E: axe scan + Manual audit |
 | EXG-A11Y-017 | 6.6 | Full keyboard navigation | Must | MUST | Playwright E2E: keyboard-only flows |
 | EXG-A11Y-018 | 6.6 | Accessible labels on controls | Must | MUST | Playwright E2E: axe scan |

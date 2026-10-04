@@ -1,6 +1,6 @@
 # Cahier des charges — QuietLink, outil de partage de textes confidentiels
 
-**Statut :** version 0.20 — projet de cahier des charges produit et technique  
+**Statut :** version 0.21 — projet de cahier des charges produit et technique  
 **Périmètre :** V1  
 **Technologie obligatoire :** PHP avec Symfony pour le backend, l’API et la CLI ; TypeScript avec Vite pour le frontend  
 **Licence :** GNU Affero General Public License v3.0 (AGPL-3.0)  
@@ -9,6 +9,7 @@
 
 **Historique :**
 
+- 0.21 — logo QuietLink : symbole bouclier et maillons, mot-symbole, versions claire et sombre en SVG, intégration en ligne colorée par les tokens et favicon.
 - 0.20 — langues : l’application doit accepter les langues écrites de droite à gauche (RTL) en plus des langues LTR ; langues fournies en V1 : anglais (référence et fallback), français, espagnol, italien et arabe (RTL) ; catalogues découverts automatiquement et chargés à la demande ; contenu utilisateur avec direction automatique, liens et code toujours LTR.
 - 0.19 — répertoire de données configurable par `storage.data_dir`, par défaut `datas/` à la racine du projet (hors de `public/`) ; les répertoires de contenus, d’idempotence, de rate limiting et d’état en dérivent par défaut et restent configurables individuellement ; en Docker, le volume de données est monté sur ce répertoire.
 - 0.18 — décisions de cadrage (licence AGPL-3.0, TypeScript + Vite, markdown-it + DOMPurify, @noble/ed25519 + hash-wasm, Argon2id 64 Mio / t = 3, listes de mots EFF et Lexique, Sigstore, audit externe ciblé, palette validée) ; retrait des honeypots ; identifiant de 192 bits liant aussi le jeton de suppression, pour une pré-vérification de `DELETE` sans stockage ; idempotence : contrôle d’empreinte en cas de course, purge des contenus orphelins, rate limiting des rejeux, détails de `link()` ; consommation idempotente après `consumed` ; quotas sous verrou.
@@ -626,6 +627,8 @@ Règles d’utilisation :
 Le thème sombre doit conserver l’accent terracotta avec une luminosité adaptée, sans utiliser l’orange clair comme couleur de texte courant. Il doit notamment prévoir un fond charbon, une surface sombre distincte, un texte clair, un texte secondaire lisible et des bordures visibles. Les tokens du thème sombre doivent être testés séparément ; ils ne doivent pas être déduits automatiquement par simple inversion des couleurs.
 
 La typographie doit privilégier une pile système locale sans appel à une police distante. Une police sans empattement est utilisée pour l’interface et une pile monospace pour le contenu de type code, les secrets structurés et les logs. La palette ne doit jamais prendre le pas sur la hiérarchie des actions, la lisibilité ou la visibilité des alertes.
+
+Le logo QuietLink associe un bouclier terracotta et deux maillons entrelacés, suivi du mot-symbole « Quiet » en couleur de texte et « Link » en couleur d’accent. Il est fourni en SVG (`docs/brand/logo.svg` et `docs/brand/logo-dark.svg`) dans une version claire et une version sombre ; dans l’interface, le symbole est intégré en SVG en ligne coloré par les tokens du thème (`--ql-color-primary` pour le bouclier), ce qui fournit la version sombre sans fichier supplémentaire et respecte les thèmes personnalisés. Le symbole est décoratif (`aria-hidden`) : le nom accessible du lien d’accueil reste le nom de l’instance (`app.name`). Le même symbole sert d’icône de favori (`/favicon.svg`), servi par l’instance.
 
 Exigences de sécurité :
 
@@ -2241,7 +2244,7 @@ Il doit préciser :
 | Listes de mots | EFF « large » (`en`) ; liste `fr` construite en Phase 0 à partir de Lexique, filtrée, d’au moins 2 048 mots, avec scripts de génération versionnés ; liste anglaise utilisée pour les autres langues tant qu’une liste dédiée n’existe pas |
 | Signature des releases | Sigstore (`cosign`) + attestations de provenance GitHub |
 | Audit | audit externe ciblé (crypto, protocole, code client de chiffrement) avant la première version publique |
-| Identité visuelle | palette de départ inspirée d’Agillia.shop validée ; logo à créer |
+| Identité visuelle | palette de départ inspirée d’Agillia.shop validée ; logo QuietLink (bouclier et maillons) en SVG, versions claire et sombre |
 | Valeurs par défaut | celles de §9.5 (conservation maximale 30 jours, option « jamais » désactivée, quotas 10 Gio / 100 000 contenus, 3 ouvertures non confirmées, réservation 60 s, idempotence 24 h, masquage après 2 minutes, seuil de coloration 200 Kio) et objectifs de charge de §13 |
 | Priorités | classement Must / Should / Could de §0.3 validé |
 | Honeypots | retirés de la V1 (§6.1.2) |
