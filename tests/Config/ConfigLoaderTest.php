@@ -28,10 +28,13 @@ final class ConfigLoaderTest extends TestCase
 
     protected function tearDown(): void
     {
-        $files = glob($this->dir . '/{,themes/}*', GLOB_BRACE);
-        foreach ($files === false ? [] : $files as $file) {
-            if (is_file($file)) {
-                unlink($file);
+        // Two patterns: GLOB_BRACE does not exist on musl (Alpine images).
+        foreach ([$this->dir . '/*', $this->dir . '/themes/*'] as $pattern) {
+            $files = glob($pattern);
+            foreach ($files === false ? [] : $files as $file) {
+                if (is_file($file)) {
+                    unlink($file);
+                }
             }
         }
         rmdir($this->dir . '/themes');
