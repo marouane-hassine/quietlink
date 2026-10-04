@@ -417,3 +417,50 @@ describe('copy feedback', () => {
     expect(document.getElementById('ql-toast')?.textContent).toBe(t('read.copied'));
   });
 });
+
+describe('read-once reservation in degraded conditions', () => {
+  const reservationKeys = () => Object.keys(sessionStorage).filter((key) => key.startsWith('ql-reservation-'));
+
+  it('keeps the reservation when the destruction cannot be confirmed for a transient reason', async () => {
+    const paste = await makePaste({ readOnce: true });
+    serve(paste, {}, (request) => (request.path.endsWith('/consume') ? response(500) : null));
+    mount();
+    await until(() => revealButton()?.textContent === t('read.reveal'));
+    revealButton().click();
+    await until(() => main.textContent?.includes(t('read.consumeFailed')) === true, 10_000);
+
+    // A reload of the same tab resumes the reservation instead of being locked out.
+    expect(reservationKeys()).toHaveLength(1);
+  }, 15_000);
+
+  it('forgets the reservation when the paste turned out to be unavailable', async () => {
+    const paste = await makePaste({ readOnce: true });
+    serve(paste, {}, (request) => (request.path.endsWith('/open') ? response(404) : null));
+    mount();
+    await until(() => revealButton()?.textContent === t('read.reveal'));
+    revealButton().click();
+    await until(() => main.textContent?.includes(t('error.unavailable')) === true);
+
+    expect(reservationKeys()).toHaveLength(0);
+  });
+
+  it('drops expired reservations of any paste when a page loads', async () => {
+    sessionStorage.setItem('ql-reservation-OTHER', JSON.stringify({ id: 'dummy', until: Date.now() - 1 }));
+    const paste = await makePaste();
+    serve(paste);
+    mount();
+    await onContent();
+
+    expect(reservationKeys()).toHaveLength(0);
+  });
+
+  it('words a lost connection for the reader, not for an author', async () => {
+    const paste = await makePaste();
+    serve(paste, {}, (request) => (request.path.endsWith('/status') ? Promise.reject(new TypeError('offline')) : null));
+    mount();
+    await until(() => main.textContent?.includes(t('error.networkRead')) === true);
+
+    expect(main.textContent).not.toContain(t('error.network'));
+  });
+});
+

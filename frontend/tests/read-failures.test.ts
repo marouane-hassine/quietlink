@@ -78,10 +78,12 @@ describe('reading page failures', () => {
     mount();
     await until(() => revealButton() !== null);
     revealButton()!.click();
-    await until(() => main.textContent?.includes(t('error.server')) === true);
+    await until(() => main.textContent?.includes(t('error.networkRead')) === true);
 
     expect(paths(requests)).not.toContain('consume');
     expect(paths(requests)).not.toContain('open');
+    // A chunk that failed to load is a recoverable network failure (§12 journey C).
+    expect([...main.querySelectorAll('button')].some((b) => b.textContent === t('action.retry'))).toBe(true);
   });
 
   it('reports an unavailable Argon2id worker explicitly, without opening', async () => {

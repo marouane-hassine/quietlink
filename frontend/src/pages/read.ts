@@ -3,7 +3,7 @@
 /** Reading page (§5.1 "Écran de lecture", §6.2, §6.3.1, parcours B). */
 
 import { api, ApiError, retrying, type OpenResponse, type StatusResponse } from '../api';
-import { clearReservation, loadReservation, saveReservation } from '../reservation';
+import { clearExpiredReservations, clearReservation, loadReservation, saveReservation } from '../reservation';
 import { parse, type ParsedAad } from '../crypto/aad';
 import { decode, EncodingError } from '../crypto/base64url';
 import { equal, randomBytes, wipe } from '../crypto/bytes';
@@ -100,13 +100,14 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
       // Recoverable states offer a retry; unavailability is final (§5.1).
       if (error.kind === 'reserved') return fail('error.reserved', { seconds: error.retryAfter ?? 60 }, () => void start());
       const recoverable = error.kind === 'network' || error.kind === 'rate' || error.kind === 'server' || error.kind === 'quota';
-      return fail(({ network: 'error.network', rate: 'error.rateLimited', unavailable: 'error.unavailable' } as Record<string, string>)[error.kind] ?? 'error.server', {}, recoverable ? () => void start() : null);
+      return fail(({ network: 'error.networkRead', rate: 'error.rateLimited', unavailable: 'error.unavailable' } as Record<string, string>)[error.kind] ?? 'error.server', {}, recoverable ? () => void start() : null);
     }
     if (error instanceof DecryptionError) return fail('error.integrity');
     return fail('error.server');
   };
 
   async function start(): Promise<void> {
+    clearExpiredReservations(Date.now());
     if (!cryptoAvailable()) return fail('app.unsupported');
     showScreen(main, el('h1', { class: 'page-title' }, t('page.read.title')), el('p', { class: 'status', role: 'status' }, t('state.checking')));
     try {
@@ -124,6 +125,8 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
 
   function showReveal(link: Awaited<ReturnType<typeof parseLink>>, aad: ParsedAad, status: StatusResponse, sync: Sync | null, errorKey: string | null = null): void {
     redraw = () => showReveal(link, aad, status, sync, errorKey);
+    // Loaded while the reader decides, so a connection lost before Reveal does not block it.
+    void import('../render/content-view').catch(() => undefined);
     const needsPassphrase = aad.object.kdf !== null;
     const inputId = nextId('passphrase');
     const input = el('input', { id: inputId, class: 'passphrase is-masked', type: 'text', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false' });
@@ -167,6 +170,8 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
           return;
         }
         if (e instanceof Argon2UnavailableError || (e instanceof Error && e.message === 'argon2')) return fail('error.argon2');
+        // A final answer ends the reservation; transient failures keep it for resumption.
+        if ((e instanceof ApiError && e.kind === 'unavailable') || e instanceof DecryptionError) clearReservation(link.id);
         handleError(e);
       } finally {
         wipe(kPass, consumeSeed);
@@ -200,7 +205,10 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
     showScreen(main, el('h1', { class: 'page-title' }, t('page.read.title')), el('p', { class: 'status', role: 'status' }, t('state.opening')));
     // The rendering code is loaded before open: a read-once paste is never consumed without
     // the means to display it (stale chunk after a redeploy, network failure) (§6.3.1).
-    const view = await import('../render/content-view');
+    const view = await import('../render/content-view').catch(() => {
+      // A chunk that failed to load (offline, stale page after a redeploy) is recoverable.
+      throw new ApiError('network');
+    });
     const opened = await withRetry(async () => api.open(link.id, await proofBody(link, 'open', reservationId ? { reservation_id: reservationId } : {})));
     const data: OpenResponse = opened.data;
     // The AAD returned by open must be byte-identical to the one returned by status (§8.3).
@@ -227,7 +235,9 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
         clearReservation(link.id);
       } catch (error) {
         consumedKey = 'read.consumeFailed';
-        if (!(error instanceof ApiError && error.kind === 'network')) clearReservation(link.id);
+        // Only a final 404 ends the reservation: after a transient failure (network, 429, 5xx)
+        // a reload of this tab resumes it instead of being locked out (§6.3.1).
+        if (error instanceof ApiError && error.kind === 'unavailable') clearReservation(link.id);
       }
       window.addEventListener('beforeunload', (event) => {
         event.preventDefault();

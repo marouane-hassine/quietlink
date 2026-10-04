@@ -46,3 +46,15 @@ export function clearReservation(pasteId: string): void {
     // Nothing to clean.
   }
 }
+
+/** Erases every expired entry (any paste), so identifiers never outlive their reservation. */
+export function clearExpiredReservations(now: number): void {
+  try {
+    for (const key of Object.keys(sessionStorage)) {
+      if (key.startsWith(PREFIX)) loadReservation(key.slice(PREFIX.length), now);
+    }
+  } catch {
+    // Storage blocked: nothing was stored either.
+  }
+}
+

@@ -106,6 +106,7 @@
   "state.decrypting": "Decrypting in your browser…",
   "state.deleting": "Deleting…",
   "error.network": "Connection lost. Your text is still here: retry when the connection is back.",
+  "error.networkRead": "Connection lost. Nothing was lost: retry when the connection is back.",
   "error.rateLimited": "Too many attempts. Try again in a moment.",
   "error.quota": "This instance is temporarily full. Try again later.",
   "error.unavailable": "This content is unavailable. It may have expired, been deleted or already been read, or the link may be incorrect.",

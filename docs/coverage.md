@@ -435,7 +435,7 @@ None.
 | EXG-CRYPTO-068 | `tests/Crypto/SpProtoV1VectorsTest.php`, `tests/vectors/sp-proto-v1.json` |
 | EXG-CRYPTO-069 | `tests/Crypto/SpProtoV1VectorsTest.php`, `tests/vectors/sp-proto-v1.json` |
 | EXG-CRYPTO-070 | `frontend/tests/vectors.test.ts`, `tests/vectors/sp-proto-v1.json` |
-| EXG-CRYPTO-071 | `frontend/tests/vectors.test.ts` |
+| EXG-CRYPTO-071 | `frontend/tests/ed25519-selection.test.ts`, `frontend/tests/vectors.test.ts` |
 | EXG-CRYPTO-073 | `frontend/tests/vectors.test.ts`, `tests/Crypto/SpProtoV1VectorsTest.php`, `tests/vectors/sp-proto-v1.json` |
 | EXG-CRYPTO-074 | `frontend/tests/reservation.test.ts` |
 | EXG-URL-004 | `tests/e2e/flows.spec.ts` |
@@ -661,7 +661,7 @@ None.
 | EXG-TEST-085 | `frontend/tests/vectors.test.ts`, `tests/Crypto/SpProtoV1VectorsTest.php` |
 | EXG-TEST-086 | `frontend/tests/vectors.test.ts`, `tests/Crypto/SpProtoV1VectorsTest.php` |
 | EXG-TEST-087 | `frontend/tests/vectors.test.ts`, `tests/Crypto/SpProtoV1VectorsTest.php` |
-| EXG-TEST-088 | `frontend/tests/vectors.test.ts` |
+| EXG-TEST-088 | `frontend/tests/ed25519-selection.test.ts`, `frontend/tests/vectors.test.ts` |
 | EXG-TEST-089 | `tests/Crypto/SpProtoV1VectorsTest.php` |
 | EXG-TEST-090 | `frontend/tests/vectors.test.ts`, `tests/Crypto/SpProtoV1VectorsTest.php` |
 | EXG-TEST-091 | `frontend/tests/vectors.test.ts`, `tests/Crypto/SpProtoV1VectorsTest.php` |

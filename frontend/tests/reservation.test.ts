@@ -7,6 +7,7 @@ import { clearReservation, loadReservation, saveReservation } from '../src/reser
 import { retrying } from '../src/api';
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   sessionStorage.clear();
   localStorage.clear();
@@ -41,7 +42,24 @@ describe('reservation identifier', () => {
 });
 
 describe('idempotent resend', () => {
-  it('retries the exact same call after network errors only', async () => {
+  it('also resends after a transient refusal (429, 5xx), waiting for Retry-After, capped', async () => {
+    const { ApiError } = await import('../src/api');
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const call = vi.fn().mockRejectedValueOnce(new ApiError('rate', 4)).mockRejectedValueOnce(new ApiError('server')).mockResolvedValueOnce('ok');
+      const result = retrying(call, 3, 0);
+      await vi.advanceTimersByTimeAsync(3_999);
+      expect(call).toHaveBeenCalledTimes(1);
+      await vi.runAllTimersAsync();
+      await expect(result).resolves.toBe('ok');
+      expect(call).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+
+  it('retries the exact same call, never after a final answer', async () => {
     const { ApiError } = await import('../src/api');
     const call = vi.fn().mockRejectedValueOnce(new ApiError('network')).mockResolvedValueOnce('ok');
     await expect(retrying(call, 3, 0)).resolves.toBe('ok');

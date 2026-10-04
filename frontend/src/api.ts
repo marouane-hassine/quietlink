@@ -81,17 +81,24 @@ export const api = {
   remove: (id: string, token: string) => request<undefined>('DELETE', paste(id), null, { 'X-Deletion-Token': token }),
 };
 
+/** Transient answers after which the exact same request may be sent again. */
+const TRANSIENT: readonly ApiErrorKind[] = ['network', 'rate', 'server', 'quota'];
+/** Longest Retry-After honoured before resending (seconds). */
+const MAX_RETRY_AFTER = 10;
+
 /**
- * Resends the exact same request after network errors only (idempotent operations such as a
- * consume with the same signature, §12.3); any HTTP answer stops the retries.
+ * Resends the exact same request (idempotent operations such as a consume with the same
+ * signature, §12.3) after network errors and transient refusals (429, 5xx), waiting for
+ * Retry-After when given (capped); a final answer (404, 409, 400...) stops the retries.
  */
 export async function retrying<T>(call: () => Promise<T>, attempts = 3, delayMs = 500): Promise<T> {
   for (let attempt = 1; ; attempt++) {
     try {
       return await call();
     } catch (error) {
-      if (!(error instanceof ApiError) || error.kind !== 'network' || attempt >= attempts) throw error;
-      await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
+      if (!(error instanceof ApiError) || !TRANSIENT.includes(error.kind) || attempt >= attempts) throw error;
+      const wait = error.retryAfter !== null ? Math.min(error.retryAfter, MAX_RETRY_AFTER) * 1000 : delayMs * attempt;
+      await new Promise((resolve) => setTimeout(resolve, wait));
     }
   }
 }

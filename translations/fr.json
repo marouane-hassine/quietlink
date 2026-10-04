@@ -106,6 +106,7 @@
   "state.decrypting": "Déchiffrement dans votre navigateur…",
   "state.deleting": "Suppression…",
   "error.network": "Connexion perdue. Votre texte est toujours là : réessayez quand la connexion sera rétablie.",
+  "error.networkRead": "Connexion perdue. Rien n’est perdu : réessayez quand la connexion sera rétablie.",
   "error.rateLimited": "Trop de tentatives. Réessayez dans un instant.",
   "error.quota": "Cette instance est temporairement pleine. Réessayez plus tard.",
   "error.unavailable": "Ce contenu est indisponible. Il a peut-être expiré, été supprimé ou déjà lu, ou le lien est incorrect.",
