@@ -158,6 +158,9 @@ jobs:
             - `${{ steps.images.outputs.web }}`
             - `${{ steps.images.outputs.cli }}`
           generate_release_notes: true
+          # A version with a suffix (1.0.0-beta.1) is a pre-release, never the latest release.
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: ${{ !contains(github.ref_name, '-') }}
           files: |
             quietlink.phar
             quietlink.phar.sha256

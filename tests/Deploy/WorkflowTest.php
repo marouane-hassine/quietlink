@@ -62,4 +62,16 @@ final class WorkflowTest extends TestCase
     {
         self::assertMatchesRegularExpression('#zricethezav/gitleaks:v[\d.]+@sha256:[0-9a-f]{64}#', self::file('.github/workflows/ci.yml'));
     }
+
+    /**
+     * A version with a pre-release suffix (1.0.0-beta.1) is published as a GitHub pre-release
+     * and never marked as the latest release.
+     */
+    #[Group('EXG-DEPLOY-001')]
+    public function testPreReleaseTagsArePublishedAsPreReleases(): void
+    {
+        $release = self::file('.github/workflows/release.yml');
+        self::assertStringContainsString("prerelease: \${{ contains(github.ref_name, '-') }}", $release);
+        self::assertStringContainsString("make_latest: \${{ !contains(github.ref_name, '-') }}", $release);
+    }
 }
