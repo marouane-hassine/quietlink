@@ -30,4 +30,22 @@ describe('API client', () => {
 
     expect((error as ApiError).kind).toBe('refused');
   });
+
+  it('gives a large creation time to upload on a slow connection before giving up', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    let aborted = false;
+    vi.stubGlobal('fetch', (_url: string, init: RequestInit) => new Promise((_resolve, reject) => {
+      init.signal?.addEventListener('abort', () => {
+        aborted = true;
+        reject(new DOMException('timeout', 'TimeoutError'));
+      });
+    }));
+    const body = 'x'.repeat(1_400_000);
+    const pending = api.create(body, 'dummy-key').catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(31_000);
+    expect(aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(aborted).toBe(true);
+    expect(((await pending) as ApiError).kind).toBe('network');
+  });
 });

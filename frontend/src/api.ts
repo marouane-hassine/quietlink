@@ -19,11 +19,14 @@ export interface Timed<T> {
 /** A request still unanswered after this delay is abandoned as a network error, which offers
  * the usual Retry (same idempotency key or reservation) instead of waiting forever (§5.1). */
 const REQUEST_TIMEOUT_MS = 30_000;
+/** Slowest upload still accepted (bytes per millisecond, ~256 kbit/s): fetch only resolves once
+ * the body is sent, so the delay grows with the body (a 1.4 MB creation gets ~74 s). */
+const MIN_UPLOAD_BYTES_PER_MS = 32;
 
 async function request<T>(method: string, path: string, body: string | null, headers: Record<string, string> = {}): Promise<Timed<T>> {
   const t0 = performance.now();
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS + (body === null ? 0 : body.length / MIN_UPLOAD_BYTES_PER_MS));
   let response: Response;
   try {
     response = await fetch(path, {
