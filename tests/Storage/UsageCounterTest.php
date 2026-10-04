@@ -80,4 +80,37 @@ final class UsageCounterTest extends TestCase
         self::assertSame(1790000000 + 600 - 3600, $this->usage->recomputedAt());
         self::assertSame(['bytes' => 10, 'items' => 1], $this->usage->read());
     }
+
+    /**
+     * A decrement happens after its filesystem operation succeeded: a busy usage.lock delays it
+     * instead of losing it (a lost decrement makes the instance look full for good).
+     */
+    #[Group('EXG-STORE-006')]
+    public function testReleaseWaitsForABusyLockInsteadOfLosingTheDecrement(): void
+    {
+        $this->usage->reserve(100);
+        $holder = proc_open([PHP_BINARY, '-r', '$h = fopen($argv[1], "r+"); flock($h, LOCK_EX); echo "locked\n"; usleep(3000000);', $this->layout->usageLock()], [1 => ['pipe', 'w']], $pipes);
+        self::assertIsResource($holder);
+        self::assertSame("locked\n", fgets($pipes[1]));
+        $started = microtime(true);
+
+        $this->usage->release(100, 1);
+
+        self::assertGreaterThan(2.0, microtime(true) - $started);
+        self::assertSame(['bytes' => 0, 'items' => 0], $this->usage->read());
+        proc_close($holder);
+    }
+
+    #[Group('EXG-STORE-043')]
+    public function testRecentCreationMarkersDeferTheRecomputationAndOldOnesDoNot(): void
+    {
+        $marker = $this->usage->beginCreation();
+        $start = $this->usage->snapshot();
+        self::assertFalse($this->usage->applyRecomputation($start['generation'], 0, 0, time(), 3600));
+
+        touch($marker, time() - 7200);
+        self::assertTrue($this->usage->applyRecomputation($start['generation'], 0, 0, time(), 3600));
+        $this->usage->endCreation($marker);
+        self::assertFileDoesNotExist($marker);
+    }
 }

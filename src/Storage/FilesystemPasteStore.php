@@ -41,6 +41,20 @@ final class FilesystemPasteStore implements PasteStore
     public function create(Closure $meta, Closure $drawId, string $payload): PasteId
     {
         $size = strlen($payload);
+        $marker = $this->usage->beginCreation();
+        try {
+            return $this->createMarked($meta, $drawId, $payload, $size);
+        } finally {
+            $this->usage->endCreation($marker);
+        }
+    }
+
+    /**
+     * @param Closure(PasteId): PasteMeta $meta
+     * @param Closure(): PasteId          $drawId
+     */
+    private function createMarked(Closure $meta, Closure $drawId, string $payload, int $size): PasteId
+    {
         $this->usage->reserve($size);
 
         try {

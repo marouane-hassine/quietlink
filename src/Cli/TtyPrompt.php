@@ -11,11 +11,17 @@ namespace QuietLink\Cli;
  */
 final class TtyPrompt implements Prompt
 {
-    private const TTY = '/dev/tty';
+    /**
+     * @param string $tty  terminal device (a test may pass a regular file)
+     * @param string $stty stty executable
+     */
+    public function __construct(private readonly string $tty = '/dev/tty', private readonly string $stty = 'stty')
+    {
+    }
 
     public function isAvailable(): bool
     {
-        $tty = @fopen(self::TTY, 'r+');
+        $tty = @fopen($this->tty, 'r+');
         if ($tty === false) {
             return false;
         }
@@ -28,7 +34,11 @@ final class TtyPrompt implements Prompt
     {
         $tty = $this->open();
         fwrite($tty, $question);
-        $this->stty('-echo');
+        if (!$this->stty('-echo')) {
+            fwrite($tty, "\n");
+            fclose($tty);
+            throw new CliException('Cannot hide the passphrase while typing (stty failed); use --passphrase-file or --passphrase-stdin.');
+        }
         // PHP skips `finally` when a signal kills the process: restore echo on Ctrl-C as well.
         $restore = function (int $signal): never {
             $this->stty('echo');
@@ -71,16 +81,15 @@ final class TtyPrompt implements Prompt
      */
     private function open()
     {
-        $tty = @fopen(self::TTY, 'r+');
+        $tty = @fopen($this->tty, 'r+');
 
         return $tty === false ? throw new CliException('No controlling terminal is available.') : $tty;
     }
 
-    private function stty(string $mode): void
+    private function stty(string $mode): bool
     {
-        $process = @proc_open(['stty', $mode], [0 => ['file', self::TTY, 'r'], 1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes);
-        if (is_resource($process)) {
-            proc_close($process);
-        }
+        $process = @proc_open([$this->stty, $mode], [0 => ['file', $this->tty, 'r'], 1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes);
+
+        return is_resource($process) && proc_close($process) === 0;
     }
 }

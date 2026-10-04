@@ -34,14 +34,17 @@ services:
     <<: *app
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "php", "-r", "exit(@fsockopen('127.0.0.1', 9000) ? 0 : 1);"]
+      # Healthy when PHP-FPM listens and app:boot has run for this configuration (exit 0).
+      test: ["CMD-SHELL", "php -r \"exit(@fsockopen('127.0.0.1', 9000) ? 0 : 1);\" && php /app/bin/console app:config:check --format=json --no-interaction > /dev/null"]
       interval: 30s
-      timeout: 3s
+      timeout: 10s
       retries: 3
 
   purge:
     <<: *app
     restart: unless-stopped
+    # The loop traps TERM; the image's SIGQUIT (meant for PHP-FPM) would kill it mid-run.
+    stop_signal: SIGTERM
     depends_on:
       app:
         condition: service_healthy
@@ -57,7 +60,8 @@ services:
     depends_on:
       app:
         condition: service_healthy
-    tmpfs: ["/tmp:size=16m,mode=1777", "/var/cache/nginx:size=16m"]
+    # /tmp holds spooled request bodies (up to 1408k each) and large responses.
+    tmpfs: ["/tmp:size=128m,mode=1777", "/var/cache/nginx:size=16m"]
     ports: ["127.0.0.1:${QUIETLINK_HTTP_PORT:-8080}:8080"]
     volumes:
       - generated:/var/lib/quietlink-generated:ro

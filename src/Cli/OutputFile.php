@@ -15,7 +15,13 @@ final class OutputFile
 {
     public static function write(string $path, string $text): void
     {
-        $handle = @fopen($path, 'x');
+        // Created without access for others from the first instant, whatever the umask.
+        $previous = umask(0077);
+        try {
+            $handle = @fopen($path, 'x');
+        } finally {
+            umask($previous);
+        }
         if ($handle === false) {
             throw new CliException('The output file cannot be created.');
         }

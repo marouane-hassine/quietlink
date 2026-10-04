@@ -11,6 +11,9 @@ namespace QuietLink\Storage;
  */
 final class UsageCounter
 {
+    /** Decrements and commits wait this many times for usage.lock (bounded waits of ~2 s each). */
+    private const PATIENT_ATTEMPTS = 10;
+
     public function __construct(
         private readonly StorageLayout $layout,
         private readonly int $maxTotalBytes,
@@ -63,7 +66,7 @@ final class UsageCounter
         if ($bytes === 0 && $items === 0) {
             return;
         }
-        $lock = $this->lock(true);
+        $lock = $this->patientLock();
         try {
             $usage = $this->load();
             $this->save(max(0, $usage['bytes'] + $bytes), max(0, $usage['items'] + $items));
@@ -95,7 +98,7 @@ final class UsageCounter
      */
     public function committed(): void
     {
-        $lock = $this->lock(true);
+        $lock = $this->patientLock();
         try {
             $usage = $this->load();
             $this->save($usage['bytes'], $usage['items']);
@@ -112,11 +115,11 @@ final class UsageCounter
      *
      * @return bool whether the recomputation was applied
      */
-    public function applyRecomputation(int $generation, int $observedBytes, int $observedItems, int $now): bool
+    public function applyRecomputation(int $generation, int $observedBytes, int $observedItems, int $now, int $markerMaxAge = 3600): bool
     {
         $lock = $this->lock(true);
         try {
-            if (($this->decode()['generation'] ?? 0) !== $generation) {
+            if (($this->decode()['generation'] ?? 0) !== $generation || $this->creationsInProgress($now - $markerMaxAge)) {
                 return false;
             }
             $this->save($observedBytes, $observedItems, $now);
@@ -142,6 +145,66 @@ final class UsageCounter
         }
     }
 
+    /**
+     * Marks a creation in progress, before its reservation and until after its commit: the
+     * paste is not on disk yet, so a recomputation must not apply meanwhile. A marker left by a
+     * crash stops counting once older than the recomputation's marker age, and the purge
+     * removes it. Marker files are empty and named randomly (no identifier).
+     */
+    public function beginCreation(): string
+    {
+        $dir = $this->layout->stateDir . '/creating';
+        if (!is_dir($dir) && !@mkdir($dir, 0700) && !is_dir($dir)) {
+            throw new StorageException('Unable to create the creation marker directory.');
+        }
+        $marker = $dir . '/' . bin2hex(random_bytes(8));
+        AtomicFile::createExclusive($marker, '', false);
+
+        return $marker;
+    }
+
+    public function endCreation(string $marker): void
+    {
+        @unlink($marker);
+    }
+
+    /** Removes markers older than $before (left by a crash); returns how many. */
+    public function purgeCreationMarkers(int $before): int
+    {
+        $removed = 0;
+        foreach (self::files($this->layout->stateDir . '/creating/*') as $marker) {
+            $mtime = @filemtime($marker);
+            if ($mtime !== false && $mtime < $before && @unlink($marker)) {
+                ++$removed;
+            }
+        }
+
+        return $removed;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function files(string $pattern): array
+    {
+        $files = glob($pattern);
+
+        return $files === false ? [] : $files;
+    }
+
+    private function creationsInProgress(int $since): bool
+    {
+        clearstatcache();
+        foreach (self::files($this->layout->stateDir . '/creating/*') as $marker) {
+            $mtime = @filemtime($marker);
+            if ($mtime !== false && $mtime >= $since) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function recomputedAt(): ?int
     {
         $data = $this->decode();
@@ -157,6 +220,20 @@ final class UsageCounter
     public function maxItems(): int
     {
         return $this->maxItems;
+    }
+
+    /** Exclusive lock for updates that follow a completed filesystem operation: never dropped. */
+    private function patientLock(): FileLock
+    {
+        for ($attempt = 1; ; ++$attempt) {
+            try {
+                return $this->lock(true);
+            } catch (StorageException $e) {
+                if ($attempt >= self::PATIENT_ATTEMPTS || $e->getMessage() !== 'Lock wait timeout.') {
+                    throw $e;
+                }
+            }
+        }
     }
 
     private function lock(bool $exclusive): FileLock

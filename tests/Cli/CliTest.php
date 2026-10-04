@@ -204,6 +204,21 @@ final class CliTest extends KernelTestCase
         self::assertSame(0, $this->requests);
     }
 
+    /**
+     * Local plain-HTTP servers are accepted on every loopback spelling the share links accept.
+     */
+    #[Group('EXG-CLI-013')]
+    public function testLoopbackServersAreAcceptedIncludingIpv6(): void
+    {
+        foreach (['http://localhost:8080', 'http://127.0.0.1:8080', 'http://[::1]:8080'] as $server) {
+            [, $out, $err] = $this->cli(['create', '--server=' . $server], 'x');
+            self::assertStringNotContainsString('Use --server', $out . $err, $server);
+        }
+        [$code, , $err] = $this->cli(['create', '--server=http://paste.example.test'], 'x');
+        self::assertNotSame(0, $code);
+        self::assertStringContainsString('Use --server', $err);
+    }
+
     #[Group('EXG-CLI-009')]
     #[Group('EXG-TEST-065')]
     public function testPassphraseFromProtectedFileAndLocalCheck(): void

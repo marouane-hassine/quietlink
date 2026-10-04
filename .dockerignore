@@ -9,3 +9,9 @@ config/config.local.php
 config/reference.php
 secrets
 docs/cahier-des-charges.md
+datas
+test-results
+playwright-report
+quietlink.phar
+coverage
+.claude

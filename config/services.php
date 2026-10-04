@@ -58,4 +58,5 @@ return static function (ContainerConfigurator $container): void {
     $services->set('quietlink.logger', LoggerInterface::class)->factory([ServiceFactory::class, 'logger']);
     $services->alias(LoggerInterface::class, 'quietlink.logger');
     $services->alias('logger', 'quietlink.logger')->public();
+    $services->set(QuietLink\Log\OperationsLog::class);
 };

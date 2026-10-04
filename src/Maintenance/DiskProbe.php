@@ -35,13 +35,43 @@ class DiskProbe
         if (proc_close($process) !== 0) {
             return null;
         }
-        $lines = array_values(array_filter(explode("\n", trim($output)), static fn (string $line): bool => $line !== ''));
-        $columns = preg_split('/\s+/', $lines[count($lines) - 1] ?? '');
-        if ($columns === false || count($columns) < 5 || !ctype_digit($columns[1]) || !ctype_digit($columns[3]) || (int) $columns[1] === 0) {
+        return self::parseInodes($output);
+    }
+
+    /**
+     * Free inode percentage from `df -P -i` output, read by column name: GNU and BusyBox print
+     * Inodes/IFree (or Inodes/Available), BSD and macOS print iused/ifree after block columns.
+     */
+    public static function parseInodes(string $output): ?int
+    {
+        $lines = array_values(array_filter(explode("\n", trim($output)), static fn (string $line): bool => trim($line) !== ''));
+        if (count($lines) < 2) {
+            return null;
+        }
+        $headerColumns = preg_split('/\s+/', trim($lines[0]));
+        $values = preg_split('/\s+/', trim($lines[count($lines) - 1]));
+        if ($headerColumns === false || $values === false) {
+            return null;
+        }
+        $header = array_map('strtolower', $headerColumns);
+        $column = static function (string $name) use ($header, $values): ?int {
+            $index = array_search($name, $header, true);
+            $value = $index === false ? null : ($values[$index] ?? null);
+
+            return is_string($value) && ctype_digit($value) ? (int) $value : null;
+        };
+        if (in_array('ifree', $header, true) && in_array('iused', $header, true)) {
+            $free = $column('ifree');
+            $used = $column('iused');
+            $total = $free === null || $used === null ? null : $free + $used;
+        } elseif (($header[1] ?? null) === 'inodes') {
+            $total = $column('inodes');
+            $free = $column('ifree') ?? $column('available');
+        } else {
             return null;
         }
 
-        return intdiv((int) $columns[3] * 100, (int) $columns[1]);
+        return $total === null || $free === null || $total === 0 ? null : intdiv($free * 100, $total);
     }
 
     /**

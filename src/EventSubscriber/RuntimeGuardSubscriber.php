@@ -6,7 +6,9 @@ declare(strict_types=1);
 
 namespace QuietLink\EventSubscriber;
 
+use QuietLink\Clock\Clock;
 use QuietLink\Http\Problem;
+use QuietLink\Log\OperationsLog;
 use QuietLink\Runtime\RuntimeStatus;
 use QuietLink\Web\ErrorPage;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
@@ -24,8 +26,12 @@ final class RuntimeGuardSubscriber implements EventSubscriberInterface
 {
     private const RETRY_AFTER = 30;
 
-    public function __construct(private readonly RuntimeStatus $status, private readonly ErrorPage $errorPage)
-    {
+    public function __construct(
+        private readonly RuntimeStatus $status,
+        private readonly ErrorPage $errorPage,
+        private readonly OperationsLog $operations,
+        private readonly Clock $clock,
+    ) {
     }
 
     public static function getSubscribedEvents(): array
@@ -39,6 +45,8 @@ final class RuntimeGuardSubscriber implements EventSubscriberInterface
             return;
         }
         if (!$this->status->isReady()) {
+            // Only request lines with status 503 would show otherwise.
+            $this->operations->warnOnce('boot_marker_mismatch', 'Configuration invalid or different from the boot marker: run app:boot, then reload PHP-FPM.', $this->clock->now());
             $request = $event->getRequest();
             $event->setResponse(match (true) {
                 $request->getPathInfo() === '/healthz' => new JsonResponse(['status' => 'unavailable'], 503),
@@ -49,7 +57,8 @@ final class RuntimeGuardSubscriber implements EventSubscriberInterface
             return;
         }
         // Always applied (an empty list resets any previous value of this static setting).
-        Request::setTrustedProxies($this->status->config()->http->trustedProxies, Request::HEADER_X_FORWARDED_FOR
-            | Request::HEADER_X_FORWARDED_PROTO | Request::HEADER_X_FORWARDED_HOST | Request::HEADER_X_FORWARDED_PORT | Request::HEADER_FORWARDED);
+        // Only the client address and the scheme: links use app.public_url, never the Host header,
+        // and a client-sent Forwarded header must not conflict with X-Forwarded-For.
+        Request::setTrustedProxies($this->status->config()->http->trustedProxies, Request::HEADER_X_FORWARDED_FOR | Request::HEADER_X_FORWARDED_PROTO);
     }
 }

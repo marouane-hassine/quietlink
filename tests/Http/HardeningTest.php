@@ -136,6 +136,27 @@ final class HardeningTest extends KernelTestCase
         self::assertSame('available', $status['state']);
     }
 
+    /**
+     * A method-override header cannot turn a POST into a DELETE (or any other method):
+     * proxy rules filtering by method and the access log must see the real method.
+     */
+    #[Group('EXG-SEC-058')]
+    public function testMethodOverrideHeaderIsIgnored(): void
+    {
+        $this->boot();
+        $prepared = $this->createPaste('{"format":"plain","language":null,"template":null,"text":"x","v":1}', true);
+        $id = self::json($this->request('POST', '/api/v1/pastes', $prepared->json(), ['Idempotency-Key' => $prepared->idempotencyKey]))['id'];
+        self::assertIsString($id);
+
+        $response = $this->request('POST', "/api/v1/pastes/$id", '', [
+            'X-HTTP-Method-Override' => 'DELETE',
+            'X-Deletion-Token' => \QuietLink\Encoding\Base64Url::encode($prepared->deletionToken),
+            'Content-Type' => 'text/plain',
+        ]);
+        self::assertSame(405, $response->getStatusCode());
+        self::assertNotSame(404, $this->request('POST', "/api/v1/pastes/$id/challenge", '{"usage":"status"}')->getStatusCode());
+    }
+
     #[Group('EXG-API-016')]
     #[Group('EXG-TEST-054')]
     public function testReplaySucceedsWhenCreationLimitsWouldRefuse(): void
@@ -237,5 +258,18 @@ final class HardeningTest extends KernelTestCase
         $spoofed = $this->request('GET', '/healthz', null, ['X-Forwarded-Proto' => 'https', 'X-Forwarded-For' => '198.51.100.9'], ['HTTPS' => '', 'REMOTE_ADDR' => '203.0.113.5']);
         self::assertNull($spoofed->headers->get('Strict-Transport-Security'));
         self::assertStringNotContainsString('upgrade-insecure-requests', (string) $spoofed->headers->get('Content-Security-Policy'));
+    }
+
+    /**
+     * Only X-Forwarded-For and X-Forwarded-Proto are read from trusted proxies: a client-sent
+     * Forwarded header that contradicts them is ignored instead of failing the request.
+     */
+    #[Group('EXG-SEC-044')]
+    public function testClientForwardedHeaderCannotBreakRequestsBehindAProxy(): void
+    {
+        $this->boot(['http' => ['trusted_proxies' => ['10.0.0.0/8']]]);
+        $response = $this->request('GET', '/healthz', null, ['X-Forwarded-For' => '198.51.100.1', 'Forwarded' => 'for=192.0.2.99', 'X-Forwarded-Host' => 'evil.example'], ['HTTPS' => '', 'REMOTE_ADDR' => '10.1.2.3']);
+
+        self::assertSame(200, $response->getStatusCode());
     }
 }

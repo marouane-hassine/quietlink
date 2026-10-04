@@ -77,31 +77,35 @@ final class Purger
         }
 
         try {
-            $stats = ['removed' => 0, 'released' => 0, 'orphans' => 0, 'idempotency' => 0, 'ratelimit' => 0];
+            $stats = ['removed' => 0, 'released' => 0, 'orphans' => 0, 'failed' => 0, 'idempotency' => 0, 'ratelimit' => 0];
             foreach ($this->store->ids() as $id) {
                 // A failure on one paste (busy lock, unwritable directory, full disk) never
                 // stops the run: the paste is retried by the next purge (§9.7).
                 try {
                     if ($this->store->isIncomplete($id)) {
-                        $stats['removed'] += $this->store->removeIncomplete($id) ? 1 : 0;
+                        $removed = $this->store->removeIncomplete($id);
+                        $stats[$removed ? 'removed' : 'failed'] += 1;
                     } elseif ($this->store->isPendingDeletion($id)) {
-                        $stats['removed'] += $this->store->remove($id) ? 1 : 0;
+                        $stats[$this->store->remove($id) ? 'removed' : 'failed'] += 1;
                     } else {
                         $action = $this->store->mutate($id, fn (PasteRecord $r): array => $this->decide($r));
-                        if (($action === 'remove' || $action === 'orphan') && $this->store->remove($id)) {
-                            ++$stats[$action === 'orphan' ? 'orphans' : 'removed'];
+                        if ($action === 'remove' || $action === 'orphan') {
+                            $stats[$this->store->remove($id) ? ($action === 'orphan' ? 'orphans' : 'removed') : 'failed'] += 1;
                         } elseif ($action === 'released') {
                             ++$stats['released'];
                         }
                     }
                 } catch (StorageException) {
-                    // Left for the next run.
+                    // Left for the next run, and counted so that a persistent problem shows.
+                    ++$stats['failed'];
                 }
             }
 
             foreach ($this->store->orphanStagingDirectories(self::TEMP_MIN_AGE) as $staging) {
                 $this->store->removeOrphan($staging);
             }
+            $this->usage->purgeCreationMarkers($this->clock->now() - self::TEMP_MIN_AGE);
+            $this->removeStaleTemporaryStateFiles($this->clock->now() - self::TEMP_MIN_AGE);
             $stats['idempotency'] = $this->idempotency->purgeExpired(self::TEMP_MIN_AGE);
             $stats['ratelimit'] = $this->limiter->purgeExpired();
 
@@ -114,10 +118,26 @@ final class Purger
             }
 
             $this->reportUsage();
+            if ($stats['failed'] > 0) {
+                $this->logger->warning('Purge left items for the next run: check storage permissions', ['event' => 'purge_failures', 'count' => $stats['failed']]);
+            }
 
             return $stats;
         } finally {
             $lock->release();
+        }
+    }
+
+    /** Temporary files of interrupted atomic writes of usage, health and boot state. */
+    private function removeStaleTemporaryStateFiles(int $before): void
+    {
+        $names = @scandir($this->layout->stateDir);
+        foreach ($names === false ? [] : $names as $name) {
+            $path = $this->layout->stateDir . '/' . $name;
+            $mtime = preg_match('/^\.(usage|health|boot)\.json\.tmp-[0-9a-f]{16}$/D', $name) === 1 ? @filemtime($path) : false;
+            if ($mtime !== false && $mtime < $before) {
+                @unlink($path);
+            }
         }
     }
 
@@ -138,7 +158,7 @@ final class Purger
                 $observed['items']++;
             }
         }
-        if (!$this->usage->applyRecomputation($start['generation'], $observed['bytes'], $observed['items'], $now)) {
+        if (!$this->usage->applyRecomputation($start['generation'], $observed['bytes'], $observed['items'], $now, self::TEMP_MIN_AGE)) {
             // Changed meanwhile: retried after a pause, not at every run (a full scan each minute
             // on a busy instance).
             $this->usage->postponeRecomputation($now, self::RECOMPUTE_RETRY, self::RECOMPUTE_INTERVAL);

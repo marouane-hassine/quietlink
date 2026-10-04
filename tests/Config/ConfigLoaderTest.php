@@ -383,6 +383,24 @@ final class ConfigLoaderTest extends TestCase
      * The web-root check compares normalised paths: dot segments, doubled slashes, letter case
      * (case-insensitive filesystems) and symbolic links cannot place storage under public/.
      */
+    /**
+     * A null language list enables every shipped catalogue, so instances configured from the
+     * example pick up languages added by later releases.
+     */
+    #[Group('EXG-I18N-007')]
+    public function testNullLocaleListEnablesEveryShippedLanguage(): void
+    {
+        $this->writeConfig(['app' => ['public_url' => 'https://paste.example.test', 'enabled_locales' => null]]);
+        $config = $this->load();
+
+        self::assertSame(ConfigLoader::availableLocales(), $config->app->enabledLocales);
+        self::assertContains('ar', $config->app->enabledLocales);
+
+        // An explicit list still restricts the languages (the default being null).
+        $this->writeConfig(['app' => ['public_url' => 'https://paste.example.test', 'enabled_locales' => ['en', 'fr']]]);
+        self::assertSame(['en', 'fr'], $this->load()->app->enabledLocales);
+    }
+
     #[Group('EXG-STORE-031')]
     #[Group('EXG-STORE-041')]
     public function testWebRootCheckCannotBeBypassed(): void

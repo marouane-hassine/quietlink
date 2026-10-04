@@ -57,9 +57,9 @@ jobs:
           fetch-depth: 0
       - run: tools/ci/forbidden-patterns.sh
       - name: No database service in compose
-        run: "! grep -Eiq 'image: *(postgres|mysql|mariadb|redis|valkey|mongo)' compose.yaml"
+        run: "! grep -Eiq '^\\s*image:.*(postgres|mysql|mariadb|redis|valkey|mongo)' compose.yaml"
       - name: Secret scan (whole history, .gitleaks.toml)
-        run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.28.0 detect --source /repo --config /repo/.gitleaks.toml --redact --no-banner
+        run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.28.0@sha256:cdbb7c955abce02001a9f6c9f602fb195b7fadc1e812065883f695d1eeaba854 detect --source /repo --config /repo/.gitleaks.toml --redact --no-banner
 
   phar:
     runs-on: ubuntu-latest

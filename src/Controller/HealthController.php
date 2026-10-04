@@ -9,6 +9,7 @@ namespace QuietLink\Controller;
 use QuietLink\Clock\Clock;
 use QuietLink\Config\InstanceConfig;
 use QuietLink\Http\ClientAddress;
+use QuietLink\Log\OperationsLog;
 use QuietLink\RateLimit\RateLimiter;
 use QuietLink\Storage\StateFiles;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -25,6 +26,7 @@ final class HealthController
         private readonly InstanceConfig $config,
         private readonly RateLimiter $limiter,
         private readonly Clock $clock,
+        private readonly OperationsLog $operations,
     ) {
     }
 
@@ -35,7 +37,13 @@ final class HealthController
         if (!$limit->isAccepted()) {
             throw new RateLimitedException(max(1, $limit->getRetryAfter()->getTimestamp() - $this->clock->now()));
         }
-        $healthy = $this->stateFiles->healthAllowsCreation($this->clock->now(), $this->config->storage->minFreeInodesPercent);
+        $now = $this->clock->now();
+        $healthy = $this->stateFiles->healthAllowsCreation($now, $this->config->storage->minFreeInodesPercent);
+        $health = $this->stateFiles->health();
+        if ($health === null || $now - $health['measured_at'] > StateFiles::HEALTH_MAX_AGE) {
+            // The purge refreshes health.json every minute; a stale file blocks creation (§7.5).
+            $this->operations->warnOnce('health_stale', 'Disk health measurement is missing or stale: is the purge running?', $now);
+        }
 
         return new JsonResponse(['status' => $healthy ? 'ok' : 'degraded'], $healthy ? 200 : 503);
     }

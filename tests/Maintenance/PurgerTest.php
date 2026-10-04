@@ -208,6 +208,7 @@ final class PurgerTest extends TestCase
      * the purge of the others nor the rest of the run (§9.7).
      */
     #[Group('EXG-STORE-006')]
+    #[Group('EXG-OPS-005')]
     public function testOneFailingRemovalDoesNotAbortTheRun(): void
     {
         if (function_exists('posix_getuid') && posix_getuid() === 0) {
@@ -226,7 +227,14 @@ final class PurgerTest extends TestCase
 
         self::assertNotNull($stats);
         self::assertSame(1, $stats['removed']);
+        self::assertSame(1, $stats['failed']);
         self::assertNull($this->store->find($other));
+        // Reported without the identifier or path of the item left behind.
+        $failures = array_values(array_filter($this->logger->records, static fn (array $r): bool => ($r[2]['event'] ?? null) === 'purge_failures'));
+        self::assertCount(1, $failures);
+        self::assertSame('warning', $failures[0][0]);
+        self::assertSame(1, $failures[0][2]['count']);
+        self::assertStringNotContainsString($stuck->encoded(), json_encode($failures, JSON_THROW_ON_ERROR));
     }
 
     /**
@@ -267,6 +275,30 @@ final class PurgerTest extends TestCase
         $usage = $this->usage->read();
         self::assertSame(1, $usage['items']);
         self::assertLessThan(999, $usage['bytes']);
+    }
+
+    /**
+     * A recomputation that scans and applies while a creation is between its reservation and
+     * its rename must not erase that creation from the counters (it is not on disk yet).
+     */
+    #[Group('EXG-STORE-043')]
+    #[Group('EXG-STORE-006')]
+    public function testRecomputationDuringACreationKeepsItsReservation(): void
+    {
+        $purger = $this->purger;
+        $id = $this->store->create(
+            static function (PasteId $id) use ($purger): \QuietLink\Storage\PasteMeta {
+                $purger->run();
+
+                return new \QuietLink\Storage\PasteMeta($id, '{}', 1, null, false, str_repeat("\0", 32), str_repeat("\0", 32));
+            },
+            static fn (): PasteId => PasteId::fromBytes(random_bytes(24)),
+            str_repeat('x', 5000),
+        );
+
+        self::assertNotNull($this->store->find($id));
+        self::assertSame(['bytes' => 5000, 'items' => 1], $this->usage->read());
+        self::assertSame([], glob($this->layout->stateDir . '/creating/*'));
     }
 
     /**
@@ -370,5 +402,36 @@ final class PurgerTest extends TestCase
         $this->purger->run();
 
         self::assertSame([], array_filter($this->logger->records, static fn (array $r): bool => $r[0] === 'warning'));
+    }
+
+    /**
+     * Temporary files left by a crash during an atomic write (state files, rate limiting
+     * counters) are removed once older than an hour; recent ones may belong to a write in
+     * progress and stay.
+     */
+    #[Group('EXG-STORE-043')]
+    #[Group('EXG-OPS-005')]
+    public function testOldTemporaryFilesLeftByACrashAreRemoved(): void
+    {
+        $state = $this->config->storage->stateDir;
+        $shard = $this->config->storage->ratelimitDir . '/ab';
+        @mkdir($shard, 0700, true);
+        $old = [$state . '/.usage.json.tmp-0123456789abcdef', $state . '/.health.json.tmp-0123456789abcdef', $shard . '/.' . str_repeat('ab', 32) . '.json.tmp-0123456789abcdef'];
+        $recent = $state . '/.boot.json.tmp-fedcba9876543210';
+        foreach ([...$old, $recent] as $file) {
+            file_put_contents($file, '{}');
+        }
+        foreach ($old as $file) {
+            touch($file, $this->clock->now() - 7200);
+        }
+        touch($recent, $this->clock->now());
+
+        $this->purger->run();
+
+        foreach ($old as $file) {
+            self::assertFileDoesNotExist($file);
+        }
+        self::assertFileExists($recent);
+        self::assertFileExists($state . '/usage.json');
     }
 }

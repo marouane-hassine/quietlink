@@ -122,7 +122,7 @@ final class ConfigLoader
                 'public_url' => null,
                 'source_url' => 'https://github.com/marouane-hassine/quietlink',
                 // Every shipped catalogue (translations/*.json) is enabled unless restricted.
-                'enabled_locales' => self::availableLocales(),
+                'enabled_locales' => null,
             ],
             'theme' => [
                 'name' => 'default',
@@ -197,7 +197,7 @@ final class ConfigLoader
     /**
      * Keys whose value may be null in addition to their default type.
      */
-    private const NULLABLE = ['app.public_url', 'theme.custom_tokens_file', 'paste.max_retention', 'storage.root_dir', 'storage.idempotency_dir', 'storage.ratelimit_dir', 'storage.state_dir'];
+    private const NULLABLE = ['app.public_url', 'app.enabled_locales', 'theme.custom_tokens_file', 'paste.max_retention', 'storage.root_dir', 'storage.idempotency_dir', 'storage.ratelimit_dir', 'storage.state_dir'];
 
     /** Storage directories derived from storage.data_dir when not set: key => sub-directory. */
     private const DATA_SUBDIRS = ['root_dir' => 'pastes', 'idempotency_dir' => 'idempotency', 'ratelimit_dir' => 'ratelimit', 'state_dir' => 'state'];
@@ -242,6 +242,10 @@ final class ConfigLoader
             $tree = self::merge($tree, $values, '', $errors);
         }
 
+        // null: every shipped catalogue, so new languages of later releases are enabled too.
+        if (is_array($tree['app'] ?? null) && array_key_exists('enabled_locales', $tree['app']) && $tree['app']['enabled_locales'] === null) {
+            $tree['app']['enabled_locales'] = self::availableLocales();
+        }
         $secret = self::secret($env, $errors);
         $config = $errors === [] ? self::build($tree, $configDir, $errors) : null;
 
@@ -276,7 +280,9 @@ final class ConfigLoader
                 $base[$key] = self::merge($default, $value, $path, $errors);
                 continue;
             }
-            if ($value === null ? !in_array($path, self::NULLABLE, true) : !self::sameType($default, $value)) {
+            // A list whose default is null (every shipped language) is still typed as a list.
+            $typed = $default === null && in_array($path, self::LISTS, true) ? [] : $default;
+            if ($value === null ? !in_array($path, self::NULLABLE, true) : !self::sameType($typed, $value)) {
                 $errors[] = sprintf('"%s" has an invalid type.', $path);
                 continue;
             }

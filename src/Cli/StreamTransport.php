@@ -34,6 +34,9 @@ final class StreamTransport implements Transport
             'ssl' => ['verify_peer' => true, 'verify_peer_name' => true],
         ]);
 
+        if (!filter_var(ini_get('allow_url_fopen'), FILTER_VALIDATE_BOOLEAN)) {
+            throw new TransportException('PHP allow_url_fopen is disabled: enable it for the CLI (php -d allow_url_fopen=1).');
+        }
         $handle = @fopen($url, 'r', false, $context);
         if ($handle === false) {
             throw new TransportException('Unable to reach the server.');

@@ -76,7 +76,24 @@ final class DeploymentConfigTest extends TestCase
     #[Group('EXG-OBS-005')]
     public function testNginxErrorLogCollectsNoClientRequest(): void
     {
-        self::assertMatchesRegularExpression('/^\s*error_log\s+\S+\s+crit;/m', self::file('docker/nginx/default.conf'));
+        // crit entries still carry "client: <address>, request: ..." (disk full while spooling a
+        // body, for example): only emerg, which concerns startup and the configuration, is kept.
+        self::assertMatchesRegularExpression('/^\s*error_log\s+\S+\s+emerg;/m', self::file('docker/nginx/default.conf'));
+    }
+
+    /**
+     * Request bodies above the in-memory buffer and large responses are spooled to /tmp: the web
+     * container's tmpfs must hold many concurrent maximum-size bodies, or creations fail.
+     */
+    #[Group('EXG-SEC-058')]
+    #[Group('EXG-OPS-007')]
+    public function testNginxSpoolSpaceHoldsManyConcurrentBodies(): void
+    {
+        $compose = self::file('compose.yaml');
+        $web = substr($compose, (int) strpos($compose, "  web:\n"));
+        self::assertSame(1, preg_match('#"/tmp:size=(\d+)m#', $web, $m));
+        self::assertGreaterThanOrEqual(128, (int) $m[1]);
+        self::assertStringContainsString('client_body_temp_path /tmp/client_temp', self::file('docker/nginx/default.conf'));
     }
 
     /**
@@ -113,7 +130,7 @@ final class DeploymentConfigTest extends TestCase
     {
         $compose = self::file('compose.yaml');
 
-        self::assertDoesNotMatchRegularExpression('/image:\s*(postgres|mysql|mariadb|redis|valkey|mongo)/i', $compose);
+        self::assertDoesNotMatchRegularExpression('/^\s*image:.*(postgres|mysql|mariadb|redis|valkey|mongo)/im', $compose);
         self::assertStringContainsString('read_only: true', $compose);
         self::assertStringContainsString('cap_drop: [ALL]', $compose);
         self::assertStringContainsString('no-new-privileges:true', $compose);
@@ -132,5 +149,44 @@ final class DeploymentConfigTest extends TestCase
         $gitignore = self::file('.gitignore');
         self::assertMatchesRegularExpression('#^/datas/\*$#m', $gitignore);
         self::assertMatchesRegularExpression('#^!/datas/\.gitkeep$#m', $gitignore);
+    }
+
+    /**
+     * The app container is healthy only when PHP-FPM listens and app:boot has run for the
+     * current configuration (app:config:check exits 0), not merely when the port is open.
+     */
+    #[Group('EXG-OPS-007')]
+    public function testAppHealthcheckRequiresAMatchingBootMarker(): void
+    {
+        $compose = self::file('compose.yaml');
+        $app = substr($compose, (int) strpos($compose, "  app:\n"), 600);
+
+        self::assertStringContainsString('app:config:check --format=json', $app);
+        self::assertStringContainsString("fsockopen('127.0.0.1', 9000)", $app);
+    }
+
+    /**
+     * Local state, test reports and build outputs never enter the Docker build context.
+     */
+    #[Group('EXG-OPS-007')]
+    public function testBuildContextExcludesDataReportsAndBuildOutputs(): void
+    {
+        $ignore = array_map('trim', explode("\n", self::file('.dockerignore')));
+        foreach (['datas', 'test-results', 'playwright-report', 'quietlink.phar', 'coverage'] as $entry) {
+            self::assertContains($entry, $ignore);
+        }
+    }
+
+    /**
+     * The purge loop traps TERM to stop between runs; the image's SIGQUIT stop signal (for
+     * PHP-FPM) would skip the trap and kill it.
+     */
+    #[Group('EXG-OPS-007')]
+    public function testPurgeServiceStopsOnTerm(): void
+    {
+        $compose = self::file('compose.yaml');
+        $purge = substr($compose, (int) strpos($compose, "  purge:\n"), 500);
+        self::assertStringContainsString('stop_signal: SIGTERM', $purge);
+        self::assertContains('.claude', array_map('trim', explode("\n", self::file('.dockerignore'))));
     }
 }

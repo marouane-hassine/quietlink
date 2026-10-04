@@ -43,10 +43,10 @@ jobs:
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: '24'
-      - run: composer install --no-interaction --prefer-dist
+      - run: composer install --no-interaction --prefer-dist --no-scripts
       - run: composer validate --strict
       - run: composer qa
-      - run: npm ci
+      - run: npm ci --ignore-scripts
       - run: npm run qa
       - name: Requirement coverage report is up to date
         run: node tools/traceability/coverage.mjs --check
@@ -86,12 +86,12 @@ jobs:
 
       - name: Frontend build and published hashes
         run: |
-          npm ci && npx vite build
+          npm ci --ignore-scripts && npx vite build
           (cd public/build && find . -type f -exec sha256sum {} + | sort) > frontend-sha256sums.txt
 
       - name: Reproducible PHAR of the CLI (fixed alias, timestamp of the tagged commit)
         run: |
-          composer install --no-dev --classmap-authoritative --no-interaction
+          composer install --no-dev --classmap-authoritative --no-interaction --no-scripts
           jq --arg ts "$(git log -1 --format=%cI)" '.timestamp = $ts' box.json > box.release.json
           box compile --config=box.release.json --no-interaction
           sha256sum quietlink.phar > quietlink.phar.sha256

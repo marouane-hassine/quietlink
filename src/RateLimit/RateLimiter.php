@@ -112,6 +112,14 @@ final class RateLimiter
             try {
                 $names = @scandir($dir);
                 foreach ($names === false ? [] : $names as $name) {
+                    // Temporary file of an interrupted write (AtomicFile), older than an hour.
+                    if (preg_match('/^\.[0-9a-f]{64}\.json\.tmp-[0-9a-f]{16}$/D', $name) === 1) {
+                        $mtime = @filemtime($dir . '/' . $name);
+                        if ($mtime !== false && $mtime < $now - 3600) {
+                            $removed += @unlink($dir . '/' . $name) ? 1 : 0;
+                        }
+                        continue;
+                    }
                     if (preg_match('/^[0-9a-f]{64}\.json$/D', $name) !== 1) {
                         continue;
                     }

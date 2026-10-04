@@ -17,6 +17,9 @@ use Throwable;
 
 /**
  * Checks performed by `app:boot` before PHP-FPM starts (§9.5). Writes boot.json on success.
+ * A dry run performs the same checks but creates, writes and deletes nothing: missing
+ * directories become warnings, and the atomic rename()/link() probe, which needs test files,
+ * is skipped.
  */
 final class Booter
 {
@@ -32,29 +35,34 @@ final class Booter
         private readonly Clock $clock,
         private readonly array $themeBuilders = [],
         private readonly string $configDir = '',
+        private readonly ?string $postMaxSize = null,
     ) {
     }
 
     /**
+     * @param string|null $secretFile value of QUIETLINK_APP_SECRET_FILE, checked for its mode only
+     *
      * @return list<string> errors (empty on success)
      */
-    public function boot(InstanceConfig $config, ?string $fpmPoolFile): array
+    public function boot(InstanceConfig $config, ?string $fpmPoolFile, bool $dryRun = false, ?string $secretFile = null): array
     {
         $this->warnings = [];
-        $errors = [...self::checkRuntime(), ...$this->checkDirectories($config)];
+        $errors = [...self::checkRuntime(), ...$this->checkDirectories($config, $dryRun)];
         if ($errors !== []) {
             return $errors;
         }
 
         $layout = RuntimeStatus::layout($config);
-        try {
-            $layout->ensureDirectories();
-            (new RateLimiter($config->storage->ratelimitDir, $config->http->rateLimits, $config->secret, $this->clock))->ensureLockFiles();
-            if (!is_file($layout->stateDir . '/purge.lock')) {
-                AtomicFile::createExclusive($layout->stateDir . '/purge.lock', '', false);
+        if (!$dryRun) {
+            try {
+                $layout->ensureDirectories();
+                (new RateLimiter($config->storage->ratelimitDir, $config->http->rateLimits, $config->secret, $this->clock))->ensureLockFiles();
+                if (!is_file($layout->stateDir . '/purge.lock')) {
+                    AtomicFile::createExclusive($layout->stateDir . '/purge.lock', '', false);
+                }
+            } catch (StorageException) {
+                return ['Unable to prepare the storage lock files.'];
             }
-        } catch (StorageException) {
-            return ['Unable to prepare the storage lock files.'];
         }
 
         if ($fpmPoolFile === null) {
@@ -66,7 +74,7 @@ final class Booter
             }
         }
 
-        foreach ($this->themeBuilders as $builder) {
+        foreach ($dryRun ? [] : $this->themeBuilders as $builder) {
             try {
                 $builder->build($config);
             } catch (Throwable $e) {
@@ -75,14 +83,23 @@ final class Booter
         }
 
         $now = $this->clock->now();
-        $freeBytes = $this->disk->freeBytes($config->storage->rootDir);
-        $inodes = $this->disk->freeInodesPercent($config->storage->rootDir);
-        (new StateFiles($layout))->writeHealth($now, $freeBytes, $inodes);
+        $measured = self::existingAncestor($config->storage->rootDir);
+        $freeBytes = $this->disk->freeBytes($measured);
+        $inodes = $this->disk->freeInodesPercent($measured);
+        if (!$dryRun) {
+            (new StateFiles($layout))->writeHealth($now, $freeBytes, $inodes);
+        }
         if ($freeBytes < $config->storage->minFreeBytes) {
             $this->warnings[] = 'Free disk space is below storage.min_free_bytes: creation is refused.';
         }
-        if ($inodes !== null && $inodes < $config->storage->minFreeInodesPercent) {
+        if ($inodes === null) {
+            $this->warnings[] = 'Free inodes could not be measured (df unavailable or not reported by the filesystem): storage.min_free_inodes_percent is not enforced.';
+        } elseif ($inodes < $config->storage->minFreeInodesPercent) {
             $this->warnings[] = 'Free inodes are below storage.min_free_inodes_percent: creation is refused.';
+        }
+        $secretMode = $secretFile !== null && is_file($secretFile) ? @fileperms($secretFile) : false;
+        if ($secretMode !== false && ($secretMode & 0004) !== 0) {
+            $this->warnings[] = 'The secret file (QUIETLINK_APP_SECRET_FILE) is readable by every account: restrict it to the account or group running PHP (chmod 640 or 600).';
         }
         foreach ([$this->configDir . '/config.php', $this->configDir . '/config.local.php'] as $file) {
             $mode = is_file($file) ? @fileperms($file) : false;
@@ -90,11 +107,17 @@ final class Booter
                 $this->warnings[] = sprintf('%s is readable by every account: restrict it to the account or group running PHP (for example chgrp to that group and chmod 640).', basename($file));
             }
         }
+        $postMax = $this->postMaxSize ?? (string) ini_get('post_max_size');
+        if (self::iniBytes($postMax) < $config->http->maxRequestBytes) {
+            $this->warnings[] = sprintf('PHP post_max_size (%s) is below http.max_request_bytes (%d): large creations will fail; raise it (and the web server body limit) together.', $postMax, $config->http->maxRequestBytes);
+        }
         if ($config->http->trustedProxies === [] && str_starts_with($config->app->publicUrl, 'https://')) {
             $this->warnings[] = 'http.trusted_proxies is empty: behind a reverse proxy all clients share one rate limiting key.';
         }
 
-        (new StateFiles($layout))->writeBoot($now, $config->fingerprint(), $config->secret->check());
+        if (!$dryRun) {
+            (new StateFiles($layout))->writeBoot($now, $config->fingerprint(), $config->secret->check());
+        }
 
         return [];
     }
@@ -138,7 +161,7 @@ final class Booter
     /**
      * @return list<string>
      */
-    private function checkDirectories(InstanceConfig $config): array
+    private function checkDirectories(InstanceConfig $config, bool $dryRun): array
     {
         $errors = [];
         $public = realpath($this->publicDir);
@@ -155,6 +178,20 @@ final class Booter
                 $errors[] = sprintf('%s must not be a symbolic link.', $name);
                 continue;
             }
+            if ($dryRun && !is_dir($dir)) {
+                // Checked through the closest existing parent, which app:boot would create it in.
+                $this->warnings[] = sprintf('%s does not exist yet: app:boot will create it.', $name);
+                $parent = self::existingAncestor($dir);
+                if (!is_writable($parent)) {
+                    $errors[] = sprintf('%s cannot be created.', $name);
+                    continue;
+                }
+                $error = $this->checkFilesystem($name, $parent, $storage->allowUnsupportedFs);
+                if ($error !== null) {
+                    $errors[] = $error;
+                }
+                continue;
+            }
             if (!is_dir($dir) && !@mkdir($dir, $mode, true) && !is_dir($dir)) {
                 $errors[] = sprintf('%s cannot be created.', $name);
                 continue;
@@ -168,22 +205,65 @@ final class Booter
                 $errors[] = sprintf('%s must belong to the application account.', $name);
                 continue;
             }
-            if (!self::supportsAtomicOperations($real)) {
+            // Ciphertexts, metadata, rate limiting and idempotency records stay private (§9.5).
+            $actual = @fileperms($real);
+            if ($mode === 0700 && $actual !== false && ($actual & 0077) !== 0) {
+                $errors[] = sprintf('%s is accessible to other accounts (mode %04o): restore mode 0700 (chmod 700).', $name, $actual & 0777);
+                continue;
+            }
+            if (!$dryRun && !self::supportsAtomicOperations($real)) {
                 $errors[] = sprintf('%s does not support atomic rename() and link().', $name);
             }
-            $type = $this->disk->filesystemType($real);
-            if ($type !== null && !in_array($type, DiskProbe::SUPPORTED_FILESYSTEMS, true)) {
-                if ($storage->allowUnsupportedFs) {
-                    $this->warnings[] = sprintf('%s is on an unsupported filesystem (%s), allowed by storage.allow_unsupported_fs.', $name, $type);
-                } else {
-                    $errors[] = sprintf('%s is on an unsupported filesystem (%s); set storage.allow_unsupported_fs only for development.', $name, $type);
-                }
-            } elseif ($type === null) {
-                $this->warnings[] = sprintf('The filesystem type of %s could not be determined.', $name);
+            $error = $this->checkFilesystem($name, $real, $storage->allowUnsupportedFs);
+            if ($error !== null) {
+                $errors[] = $error;
             }
         }
 
         return $errors;
+    }
+
+    /** Error for an unsupported filesystem; warnings when it is allowed or cannot be determined. */
+    private function checkFilesystem(string $name, string $path, bool $allowUnsupported): ?string
+    {
+        $type = $this->disk->filesystemType($path);
+        if ($type === null) {
+            $this->warnings[] = sprintf('The filesystem type of %s could not be determined.', $name);
+        } elseif (!in_array($type, DiskProbe::SUPPORTED_FILESYSTEMS, true)) {
+            if (!$allowUnsupported) {
+                return sprintf('%s is on an unsupported filesystem (%s); set storage.allow_unsupported_fs only for development.', $name, $type);
+            }
+            $this->warnings[] = sprintf('%s is on an unsupported filesystem (%s), allowed by storage.allow_unsupported_fs.', $name, $type);
+        }
+
+        return null;
+    }
+
+    /** Bytes of a php.ini size such as "2M"; "0" (no limit) gives PHP_INT_MAX. */
+    public static function iniBytes(string $value): int
+    {
+        $value = trim($value);
+        if (preg_match('/^(\d+)\s*([kmg]?)$/i', $value, $m) !== 1) {
+            return PHP_INT_MAX;
+        }
+        $bytes = (int) $m[1] * match (strtolower($m[2])) {
+            'k' => 1024,
+            'm' => 1024 ** 2,
+            'g' => 1024 ** 3,
+            default => 1,
+        };
+
+        return $bytes === 0 ? PHP_INT_MAX : $bytes;
+    }
+
+    /** The path itself or its closest existing parent, for disk measurements before creation. */
+    private static function existingAncestor(string $path): string
+    {
+        while (!file_exists($path) && dirname($path) !== $path) {
+            $path = dirname($path);
+        }
+
+        return $path;
     }
 
     private static function supportsAtomicOperations(string $dir): bool
