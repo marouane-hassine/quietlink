@@ -33,4 +33,28 @@ describe('Argon2id worker client', () => {
     await expect(deriveInWorker('dummy', new Uint8Array(16), 19456, 2)).resolves.toHaveLength(32);
     expect(FakeWorker.created).toHaveLength(1);
   });
+
+  it('drops a preloaded worker that failed to load instead of waiting on it forever', async () => {
+    vi.resetModules();
+    let failNext = true;
+    class FlakyWorker extends FakeWorker {
+      constructor(url: string) {
+        super(url);
+        if (failNext) {
+          failNext = false;
+          // Script fetch failed (offline, stale chunk after a redeploy): the error comes before
+          // anyone listens for messages, and the worker never answers.
+          setTimeout(() => this.onerror?.(), 0);
+          this.postMessage = () => undefined;
+        }
+      }
+    }
+    vi.stubGlobal('Worker', FlakyWorker);
+    const { deriveInWorker, preloadArgon2 } = await import('../src/crypto/argon2-client');
+    preloadArgon2();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    await expect(deriveInWorker('dummy', new Uint8Array(16), 19456, 2)).resolves.toHaveLength(32);
+    expect(FakeWorker.created).toHaveLength(2);
+  });
 });

@@ -38,7 +38,16 @@ function spawn(): Worker {
 
 /** Starts the worker ahead of time (passphrase field focus) so the module is loaded (§13). */
 export function preloadArgon2(): void {
-  if (warm === null && argon2Supported()) warm = spawn();
+  if (warm !== null || !argon2Supported()) return;
+  const worker = spawn();
+  // A worker whose script failed to load (offline, stale chunk after a redeploy) reports it once,
+  // possibly before anyone listens: it is dropped so the derivation starts a fresh one instead
+  // of waiting forever on a dead worker.
+  worker.onerror = () => {
+    worker.terminate();
+    if (warm === worker) warm = null;
+  };
+  warm = worker;
 }
 
 export function deriveInWorker(passphrase: string, salt: Uint8Array, m: number, t: number): Promise<Uint8Array> {

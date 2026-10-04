@@ -441,7 +441,8 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
         const id = decode(response.data.id, 24);
         if (!(await matchesAccessKey(id, pending.accessPk)) || !(await matchesDeletionToken(id, pending.deletionToken))) throw new ApiError('server');
         const prepared = pending;
-        const settings = pendingFor ?? { readOnce: state.readOnce, usePassphrase: state.usePassphrase };
+        // Only the two booleans: pendingFor.key holds the text and the passphrase.
+        const settings = { readOnce: (pendingFor ?? state).readOnce, usePassphrase: (pendingFor ?? state).usePassphrase };
         pending = null;
         pendingFor = null;
         setUnloadGuard(false, '');
@@ -604,10 +605,13 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     wipe(prepared.urlKey);
     const usedPassphrase = settings.usePassphrase;
     const readOnceMode = settings.readOnce;
+    // No reference to the text or the passphrase survives the result screen (§5.1).
     state.text = '';
     state.passphrase = '';
     state.confirmation = '';
     state.template = '';
+    ui.textBeforeTemplates = null;
+    ui.suggestSecret = false;
     let manageCopied = false;
 
     // Drawn again in the new language on a language change (links are kept in this closure).
