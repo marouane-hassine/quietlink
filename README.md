@@ -35,10 +35,12 @@ printf '%s' "$LINK" | quietlink metadata --url-stdin
 printf '%s' "$LINK" | quietlink decrypt --url-stdin
 ```
 
-Available as a PHAR (requires PHP 8.3 with intl, sodium, openssl, mbstring) or the
-`ghcr.io/marouane-hassine/quietlink-cli` Docker image published with each release
-(`docker run -it` for interactive passphrase prompts; build it locally with
-`docker build -f docker/cli/Dockerfile -t quietlink/cli .`).
+Available as a signed PHAR attached to each GitHub release (requires PHP 8.3 with intl,
+sodium, openssl, mbstring) or the `ghcr.io/marouane-hassine/quietlink-cli:vX.Y.Z` Docker image
+(linux/amd64; prefer the digest listed in the release notes; `docker run -it` for interactive
+passphrase prompts; build it locally with `docker build -f docker/cli/Dockerfile -t quietlink/cli .`).
+Published server images (immutable `vX.Y.Z` tags, deploy by digest) and their verification are
+described in [docs/README-admin.md](docs/README-admin.md) (§3 "Published images", §15).
 
 ## Documentation
 

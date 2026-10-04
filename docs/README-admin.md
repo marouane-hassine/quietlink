@@ -86,11 +86,44 @@ docker compose up -d
 docker compose exec app php bin/console app:config:check
 ```
 
-Base images should be pinned by digest for release builds.
+The Dockerfiles pin their base images by digest, so a local build of a given commit uses the
+same base layers.
+
+### Published images
+
+Each release publishes three signed images on GHCR, for **linux/amd64 only**, with one
+immutable tag per version (`vX.Y.Z`); there is no `latest` or floating `X.Y` tag:
+
+- `ghcr.io/marouane-hassine/quietlink-app:vX.Y.Z` (PHP-FPM application)
+- `ghcr.io/marouane-hassine/quietlink-web:vX.Y.Z` (Nginx, static assets)
+- `ghcr.io/marouane-hassine/quietlink-cli:vX.Y.Z` (command line client)
+
+The release notes list the digest of each image. Deploy **by digest**
+(`ghcr.io/marouane-hassine/quietlink-app@sha256:<digest>`) after verifying it (§15): a digest
+cannot be moved, a tag could be re-pushed by whoever controls the registry. To use them with
+the shipped Compose file, replace each `build:` block by the image reference, for example in a
+`compose.override.yaml`:
+
+```yaml
+services:
+  app:
+    image: ghcr.io/marouane-hassine/quietlink-app@sha256:<digest>
+  purge:
+    image: ghcr.io/marouane-hassine/quietlink-app@sha256:<digest>
+  web:
+    image: ghcr.io/marouane-hassine/quietlink-web@sha256:<digest>
+```
+
+Then run `docker compose pull` and `docker compose up -d --no-build` (the secret generation
+command of the first start works the same way). Other architectures (for example arm64) are not
+published: build the images locally from the tagged source as shown above.
 
 ## 4. Installation without Docker (PHP-FPM + Nginx or Apache)
 
-1. Build the release artefacts (or use a published release):
+No prebuilt archive is published for this mode: build from a checkout of a signed release tag
+(`git tag -v vX.Y.Z`, then check out the tag).
+
+1. Build the artefacts from the tagged source:
 
    ```sh
    composer install --no-dev --classmap-authoritative
@@ -586,8 +619,9 @@ filesystem, `cap_drop: ALL`, `no-new-privileges`, small `/tmp` tmpfs, prewarmed 
 Symfony cache, `expose_php = Off`, `display_errors = Off`, `file_uploads = Off`,
 `allow_url_fopen = Off`, `post_max_size = 2M`, `zend.exception_ignore_args = On`, OPcache without
 timestamp validation, `clear_env = yes`. Keep the data volume mounted with `nodev,nosuid,noexec`
-where possible, pin base images by digest, rebuild regularly for security updates, and never
-mount the Docker socket.
+where possible, deploy published images by digest (base images are pinned by digest in the
+Dockerfiles), rebuild or upgrade regularly for security updates, and never mount the Docker
+socket. The web image runs as the unprivileged `nginx` user (uid `101`) of its base image.
 
 ## 15. Upgrade and rollback
 
@@ -622,10 +656,26 @@ for f in quietlink.phar frontend-sha256sums.txt; do
     --certificate-oidc-issuer "$issuer" "$f"
 done
 sha256sum -c quietlink.phar.sha256
+# SLSA provenance of the PHAR and of each image (built by the release workflow from the tag).
 gh attestation verify quietlink.phar --repo marouane-hassine/quietlink
-# Served assets: compare with the published list.
+gh attestation verify oci://ghcr.io/marouane-hassine/quietlink-app@sha256:<digest> \
+  --repo marouane-hassine/quietlink
+# Served assets (installation without Docker): compare with the published list.
 (cd public/build && find . -type f -exec sha256sum {} + | sort) | diff - frontend-sha256sums.txt
 ```
+
+With Docker, the assets are inside the web image; compare the image you deploy (by digest)
+with the published list:
+
+```sh
+docker run --rm --entrypoint sh ghcr.io/marouane-hassine/quietlink-web@sha256:<digest> \
+  -c 'cd /usr/share/quietlink/public/build && find . -type f -exec sha256sum {} + | sort' \
+  | diff - frontend-sha256sums.txt
+```
+
+The list includes `.vite/manifest.json`, which is used at build time and is not served over
+HTTP (Nginx refuses hidden paths); to check what a running instance actually serves,
+download each listed file under `/build/` and compare its hash.
 
 ## 16. Incident response
 

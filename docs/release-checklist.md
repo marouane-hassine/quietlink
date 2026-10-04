@@ -7,10 +7,15 @@ signed-off review.
 
 ## 1. Automated gates (CI on the release commit)
 
-- [ ] `CI` workflow green on the release commit: `php` (`composer qa`, `composer audit`,
-      vectors), `frontend` (`npm run qa` with the bundle budget, `npm audit`), `security`
-      (gitleaks on the full history), `phar` (build and smoke test) and `docker` (images and
-      compose smoke test).
+- [ ] `CI` workflow green on the release commit: `php` (`composer validate`, `composer audit`,
+      `composer qa`), `frontend` (`npm run qa` with the bundle budget, `npm audit`, requirement
+      coverage check, shared vectors check, reproducible frontend build), `security`
+      (forbidden patterns, no database service, gitleaks on the full history), `phar`
+      (two identical builds and a smoke test) and `docker` (images, non-root users, Compose
+      smoke test up to `/healthz` `200`).
+- [ ] The release workflow repeats `composer qa`, `npm run qa`, the coverage and vectors checks
+      on the tagged commit, and publishes nothing if the tag differs from `v` + `Version::APP`
+      or the commit is not on `main`.
 - [ ] Playwright campaign green on the five projects (`npm run e2e`, run locally: not part of
       CI), twice in a row with no flaky retry.
 - [ ] `npm run coverage:requirements` regenerated; every Must requirement is either cited by a
@@ -51,16 +56,25 @@ signed-off review.
 
 ## 4. Release
 
-1. Open the pull request `develop` → `main` with this checklist; merge only when every box is
+1. In the release pull request, bump `Version::APP` in `src/Version.php` to the release version
+   without suffix (for example `1.0.0`) and rename the `CHANGELOG.md` `Unreleased` section
+   (section 3). The release workflow fails unless the tag is `v` + `Version::APP`.
+2. Open the pull request `develop` → `main` with this checklist; merge only when every box is
    ticked. Never push to `main` directly.
-2. Tag the merge commit on `main`: `git tag -s v1.0.0 -m "v1.0.0"` and push the tag. The tag
+3. Repository settings (once): protect `main` (required CI checks, no direct push) and add a
+   tag ruleset for `v*` so that only maintainers can create, move or delete release tags. The
+   release workflow also refuses a tag whose commit is not on `main`.
+4. Tag the merge commit on `main`: `git tag -s v1.0.0 -m "v1.0.0"` and push the tag. The tag
    triggers `.github/workflows/release.yml`.
-3. Check the workflow output: three signed images on GHCR (`quietlink-app`, `quietlink-web`,
-   `quietlink-cli`) with SBOM attestations, the signed PHAR, the signed frontend hash list, and
-   SLSA provenance.
-4. Run the verification procedure of README-admin ("Upgrade and rollback") against the
-   published artefacts from a machine that did not build them.
-5. Deploy a staging instance by digest, run `/healthz`, one create/read/delete journey with
+5. Check the workflow output: three signed linux/amd64 images on GHCR (`quietlink-app`,
+   `quietlink-web`, `quietlink-cli`, tag `v1.0.0` only) with SBOM and SLSA provenance
+   attestations, the signed PHAR with its provenance, the signed frontend hash list, and the
+   image digests in the release notes.
+6. Run the verification procedure of README-admin ("Upgrade and rollback") against the
+   published artefacts from a machine that did not build them, including a rebuild of the PHAR
+   from the tag with the same SHA-256 (README-developer, "Reproducible PHAR").
+7. Deploy a staging instance by digest, run `/healthz`, one create/read/delete journey with
    dummy text, and check the response headers (CSP, HSTS, `Referrer-Policy`, no third-party
    request).
-6. Merge `main` back into `develop` if the release pull request added commits.
+8. Merge `main` back into `develop` if the release pull request added commits, then set
+   `Version::APP` on `develop` to the next development version (for example `1.1.0-dev`).

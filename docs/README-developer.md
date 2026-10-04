@@ -323,7 +323,7 @@ bin/quietlink decrypt --url-stdin -o out.txt < share-link.txt
 # Delete with the management link
 bin/quietlink delete --url-stdin --yes < manage-link.txt
 
-# Docker (local build; releases publish ghcr.io/marouane-hassine/quietlink-cli)
+# Docker (local build; releases publish ghcr.io/marouane-hassine/quietlink-cli:vX.Y.Z)
 docker build -f docker/cli/Dockerfile -t quietlink/cli .
 docker run --rm -i quietlink/cli metadata --url-stdin < share-link.txt
 ```
@@ -334,7 +334,9 @@ Options: `create` accepts `--server` (or `QUIETLINK_SERVER`), `--expires` (`5m`,
 (requires `--input`), `--input`. `decrypt` accepts `--url-stdin` (required),
 `--passphrase-file`, `-o/--output` (new file, mode 600), `-y/--yes`. The text must be UTF-8; the
 1 MiB limit applies to the serialized envelope (sp-proto §4), JSON escaping included, and is
-checked before any prompt or request.
+checked before any prompt or request. Usage errors (unknown command or option, unexpected
+argument) exit with code `2` and never repeat the offending value, which may be a link or a
+passphrase typed by mistake.
 
 ## 16. Reviews and releases
 
@@ -342,5 +344,45 @@ checked before any prompt or request.
   `npm run qa`, and is reviewed. Changes touching `src/Crypto`, `frontend/src/crypto`, the
   storage format, headers/CSP or logging require a security-focused review.
 - Dependency audits (`composer audit`, `npm audit`), SBOM generation, reproducible builds and
-  release signing are part of the release procedure; image base layers are pinned by digest.
+  release signing are part of the release procedure (`docs/release-checklist.md`); image base
+  layers and GitHub Actions are pinned (see below).
 - Security issues are reported privately (`SECURITY.md`).
+
+### Updating pinned dependencies
+
+Base images and GitHub Actions are pinned so that a build is reproducible and a moved tag
+cannot change what CI runs (`EXG-DEPLOY-006`).
+
+- **Base images** (`docker/*/Dockerfile`) use `FROM image:tag@sha256:<digest>`, where the digest
+  is the **multi-arch index** digest (not the digest of one platform). To update one, resolve
+  the current digest and replace it in every Dockerfile using that image:
+
+  ```sh
+  docker buildx imagetools inspect php:8.3-fpm-alpine --format '{{json .Manifest.Digest}}'
+  ```
+
+  Images in use: `composer:2`, `node:24-alpine`, `php:8.3-fpm-alpine`, `php:8.3-cli-alpine`,
+  `nginxinc/nginx-unprivileged:1.29-alpine`. Rebuild and run the `docker` CI job (images and
+  Compose smoke test) before merging; update at least monthly for security fixes.
+- **GitHub Actions** (`.github/workflows/*.yml`) use the full commit SHA with the tag in a
+  trailing comment (`uses: owner/repo@<sha> # vX.Y.Z`). Resolve a tag with
+  `git ls-remote https://github.com/<owner>/<repo> refs/tags/<tag> 'refs/tags/<tag>^{}'`; for
+  an annotated tag, use the peeled `^{}` SHA (the commit), not the tag object.
+- **Box** (PHAR builder) is pinned in the workflows (`tools: box:4.7.0`); changing its version
+  changes the PHAR bytes, so do it in a dedicated commit.
+- Renovate or Dependabot may automate these updates (both understand digest and SHA pins); they
+  are optional and not configured in the repository.
+
+### Reproducible PHAR
+
+`box.json` sets a fixed `alias`; the release workflow adds the commit date of the tagged commit
+as Box `timestamp`, so two builds of the same commit with Box 4.7.0 give the same SHA-256 (the
+`phar` CI job builds twice and compares). To reproduce a published PHAR from a checkout of the
+tag:
+
+```sh
+composer install --no-dev --classmap-authoritative --no-interaction
+jq --arg ts "$(git log -1 --format=%cI)" '.timestamp = $ts' box.json > box.release.json
+box compile --config=box.release.json --no-interaction   # Box 4.7.0, phar.readonly=0
+sha256sum -c quietlink.phar.sha256
+```
