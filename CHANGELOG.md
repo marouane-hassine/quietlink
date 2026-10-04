@@ -34,6 +34,9 @@ a removed API version is announced at least one minor version in advance.
   about 33 KB of JavaScript, enforced by a bundle budget in `npm run qa`.
 - Capacity benchmarks (`npm run bench:purge`, `npm run bench:load`), a release checklist and a
   release verification procedure; release notes list the signed image digests.
+- Arabic (right to left), Spanish and Italian interfaces next to English and French; languages
+  are discovered from `translations/*.json` and loaded on demand (ADR-0010).
+- Theme choice shown as three icon buttons (system, light, dark).
 - Optional CORS for `/api/v1` (`http.cors_allowed_origins`, exact origins, no credentials) and an
   OpenAPI contract test.
 - Browser navigations to an unknown page or to an unavailable instance (invalid configuration,

@@ -41,6 +41,8 @@ signed-off review.
       CSP and logging, with ADR-0007 confirmed (§16.4).
 - [ ] Targeted external audit of the protocol and its implementation done, before the first
       public version (§7.5). Findings fixed or accepted in writing.
+- [ ] Native speaker review of the `ar`, `es` and `it` catalogues, including the Arabic
+      right-to-left layout on the main screens (ADR-0010).
 - [ ] French word list built from Lexique replaces the interim EFF list for `fr`
       (ADR-0008 decision 5), or the interim list is accepted for V1 in writing.
 
