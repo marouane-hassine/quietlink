@@ -126,6 +126,23 @@ export function showScreen(main: HTMLElement, ...nodes: (Node | null)[]): void {
   }
 }
 
+/** Page navigation, behind an object so that tests can replace it (jsdom cannot reload). */
+export const navigation = {
+  reload: (): void => location.reload(),
+};
+
+let reloadInstalled = false;
+
+/**
+ * A link whose fragment (key or token) is corrected in the same tab only fires hashchange: the
+ * page starts again from the new fragment instead of keeping the screen of the old one.
+ */
+export function reloadOnFragmentChange(): void {
+  if (reloadInstalled) return;
+  reloadInstalled = true;
+  window.addEventListener('hashchange', () => navigation.reload());
+}
+
 /**
  * Removes the key fragment from the address bar and the current history entry once it has no
  * further use (paste destroyed, deleted or unavailable): it no longer lingers in history,

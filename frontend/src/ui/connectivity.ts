@@ -2,7 +2,7 @@
 
 /** Connection loss detection (§5.1): persistent banner while offline, announcement on return. */
 
-import { t } from '../i18n';
+import { onLocaleChange, t } from '../i18n';
 import { announce, toast } from './announcer';
 
 export function watchConnectivity(): () => void {
@@ -25,10 +25,15 @@ export function watchConnectivity(): () => void {
   const onOffline = () => update(false, true);
   window.addEventListener('online', onOnline);
   window.addEventListener('offline', onOffline);
+  // Text outside <main>, which page redraws do not reach: translated on each language change.
+  const stopTranslating = onLocaleChange(() => {
+    if (banner.isConnected) banner.textContent = t('net.offline');
+  });
   if (!navigator.onLine) update(false, false);
   return () => {
     window.removeEventListener('online', onOnline);
     window.removeEventListener('offline', onOffline);
+    stopTranslating();
     banner.remove();
   };
 }

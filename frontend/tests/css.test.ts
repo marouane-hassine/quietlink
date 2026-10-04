@@ -50,6 +50,10 @@ describe('stylesheet', () => {
   it('lays out every checkbox row as a centred flex row', () => {
     expect(css).toMatch(/\.field-check\s*\{[^}]*display:\s*flex/);
   });
+  it('keeps checkboxes at 24x24 next to long labels on narrow screens (EXG-UX-102)', () => {
+    // A flex item shrinks by default: a two-line label at 320px squeezed the box.
+    expect(css).toMatch(/\.field-check input\s*\{[^}]*flex:\s*none/);
+  });
   it('keeps the focused field clear of the sticky action bar (WCAG 2.4.11, §5.1)', () => {
     expect(css).toMatch(/scroll-padding-block-end:\s*calc\(var\(--ql-bar-height/);
     expect(css).toMatch(/@media \(max-height: 30rem\)\s*\{[^}]*\.action-bar\s*\{[^}]*position:\s*static/);

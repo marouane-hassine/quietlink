@@ -18,7 +18,7 @@ export function confirmInline(trigger: HTMLElement, message: string, confirmLabe
     const cancel = el('button', { type: 'button', class: 'button button-secondary' }, t('action.cancel'));
     const text = el('p', { class: 'confirm-message' }, message);
     text.id = nextId('confirm');
-    const panel = el('div', { class: 'confirm-panel', role: 'alertdialog', 'aria-modal': 'false', 'aria-describedby': text.id }, text, el('div', { class: 'button-row' }, confirm, cancel));
+    const panel = el('div', { class: 'confirm-panel', role: 'alertdialog', 'aria-modal': 'false', 'aria-labelledby': text.id }, text, el('div', { class: 'button-row' }, confirm, cancel));
     const close = (result: boolean) => {
       const shown = panel.isConnected;
       panel.remove();

@@ -91,3 +91,41 @@ describe('catalogue loading failures', () => {
   });
 });
 
+describe('terminology of the how-it-works page', () => {
+  // The explanation page uses the words of the interface it explains (EXG-I18N-009, EXG-UX-002):
+  // the passphrase term of the creation option and "management link" (manage.title).
+  const terms: Record<string, { passphrase: string; others: string[]; deletionLink: string }> = {
+    en: { passphrase: 'passphrase', others: ['secret phrase', 'password'], deletionLink: 'deletion link' },
+    fr: { passphrase: 'phrase secrète', others: ['mot de passe'], deletionLink: 'lien de suppression' },
+    es: { passphrase: 'frase secreta', others: ['frase de contraseña', 'contraseña'], deletionLink: 'enlace de eliminación' },
+    it: { passphrase: 'passphrase', others: ['frase segreta', 'password'], deletionLink: 'link di eliminazione' },
+    ar: { passphrase: 'عبارة', others: ['كلمة المرور', 'كلمة السر'], deletionLink: 'رابط الحذف' },
+  };
+
+  it.each(Object.keys(terms))('%s uses the passphrase term of the creation option', (code) => {
+    const catalog = catalogs[code] as Record<string, string>;
+    const term = terms[code] as (typeof terms)[string];
+    expect((catalog['options.passphrase'] ?? '').toLowerCase()).toContain(term.passphrase);
+    for (const [key, value] of Object.entries(catalog)) {
+      if (!key.startsWith('how.')) continue;
+      for (const other of term.others) expect(value.toLowerCase(), `${code} ${key}`).not.toContain(other);
+    }
+  });
+
+  it.each(Object.keys(terms))('%s calls the deletion link the management link, as the result screen does', (code) => {
+    const catalog = catalogs[code] as Record<string, string>;
+    const term = terms[code] as (typeof terms)[string];
+    const management = (catalog['manage.title'] ?? '').toLowerCase();
+    for (const [key, value] of Object.entries(catalog)) {
+      if (key.startsWith('how.')) expect(value.toLowerCase(), `${code} ${key}`).not.toContain(term.deletionLink);
+    }
+    for (const key of ['how.options.item4', 'how.faq.q4', 'how.faq.a4']) expect((catalog[key] ?? '').toLowerCase(), `${code} ${key}`).toContain(management);
+  });
+
+  it('says code, not software, in Arabic, like the format selector', () => {
+    const ar = catalogs.ar as Record<string, string>;
+    expect(ar['how.options.item5']).not.toContain('البرمجيات');
+    expect(ar['how.options.item5']).toContain('الشيفرة البرمجية');
+  });
+});
+

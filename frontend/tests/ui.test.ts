@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // @vitest-environment jsdom
-// Requirements: EXG-UX-081, EXG-UX-082, EXG-UX-084, EXG-A11Y-007, EXG-I18N-002, EXG-I18N-006, EXG-I18N-007, EXG-CRYPTO-004, EXG-CRYPTO-003, EXG-I18N-008, EXG-I18N-012, EXG-TEST-026, EXG-TEST-063, EXG-TEST-064.
+// Requirements: EXG-UX-080, EXG-READ-033, EXG-UX-081, EXG-UX-082, EXG-UX-084, EXG-A11Y-007, EXG-I18N-002, EXG-I18N-006, EXG-I18N-007, EXG-CRYPTO-004, EXG-CRYPTO-003, EXG-I18N-008, EXG-I18N-012, EXG-TEST-026, EXG-TEST-063, EXG-TEST-064.
 
 import { describe, expect, it } from 'vitest';
 import { crossedThreshold, nextTickMs, remainingAt, synchronise } from '../src/ui/countdown';
 import { formatDate, formatRelative } from '../src/ui/format';
-import { catalogKeys, setLocale, t } from '../src/i18n';
+import { catalogKeys, loadLocale, setLocale, t, tn } from '../src/i18n';
 import { entropyBits, generate, strength } from '../src/ui/passphrase';
 import words from '../src/wordlists/en';
 import en from '../../translations/en.json';
@@ -45,6 +45,45 @@ describe('formatting', () => {
     setLocale('en');
     expect(formatRelative(-120)).toBe('2 minutes ago');
   });
+
+  it('rounds to the next unit instead of showing "24 hours" or "60 minutes"', () => {
+    setLocale('en');
+    // A one-day paste seen a moment after creation (round trip, clock correction).
+    expect(formatRelative(86_399)).toBe(formatRelative(86_400));
+    expect(formatRelative(23.6 * 3600)).toBe(formatRelative(86_400));
+    expect(formatRelative(23.4 * 3600)).toBe('in 23 hours');
+    expect(formatRelative(3590)).toBe('in 1 hour');
+    expect(formatRelative(59.7)).toBe('in 1 minute');
+    expect(formatRelative(-3590)).toBe('1 hour ago');
+  });
+});
+
+describe('plural messages', () => {
+  it('chooses the plural form of the active language (Intl.PluralRules), _other as fallback', async () => {
+    setLocale('en');
+    expect(tn('read.priorOpens', 1)).toContain('1 unconfirmed opening)');
+    expect(tn('read.priorOpens', 3)).toContain('3 unconfirmed openings)');
+    expect(tn('read.priorOpens', 1)).not.toContain('(s)');
+    setLocale('fr');
+    expect(tn('read.priorOpens', 1)).toContain('1 ouverture non confirmée');
+    expect(tn('read.priorOpens', 2)).toContain('2 ouvertures non confirmées');
+    // Arabic has zero/one/two/few/many/other categories: missing ones use _other.
+    expect(await loadLocale('ar')).toBe(true);
+    setLocale('ar');
+    expect(tn('read.priorOpens', 2)).toBe(t('read.priorOpens_other', { count: 2 }));
+    expect(tn('read.priorOpens', 2)).toContain('2');
+    setLocale('en');
+  });
+
+  it('ships every plural key with both _one and _other forms in all catalogues', () => {
+    for (const catalog of [en, fr] as unknown as Record<string, string>[]) {
+      const bases = Object.keys(catalog).filter((k) => /_(one|other)$/.test(k)).map((k) => k.replace(/_(one|other)$/, ''));
+      for (const base of new Set(bases)) {
+        expect(catalog[`${base}_one`], base).toBeDefined();
+        expect(catalog[`${base}_other`], base).toBeDefined();
+      }
+    }
+  });
 });
 
 describe('catalogs', () => {
@@ -76,8 +115,8 @@ describe('passphrase generator', () => {
     for (let i = 0; i < 200; i++) expect(generate(list)).not.toContain('felt-tip');
   });
   it('explains unconfirmed openings as §5.1 requires, in both languages', () => {
-    expect(en['read.priorOpens']).toMatch(/interception.*reload.*connection.*compromised/s);
-    expect(fr['read.priorOpens']).toMatch(/interception.*rechargement.*coupure réseau.*compromis/s);
+    expect(en['read.priorOpens_other']).toMatch(/interception.*reload.*connection.*compromised/s);
+    expect(fr['read.priorOpens_other']).toMatch(/interception.*rechargement.*coupure réseau.*compromis/s);
   });
   it('estimates strength without blocking', () => {
     expect(strength('password')).toBe('weak');

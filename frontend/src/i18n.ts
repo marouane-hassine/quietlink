@@ -64,6 +64,14 @@ export function selectLocale(enabled: string[]): string {
   return 'en';
 }
 
+const localeListeners = new Set<() => void>();
+
+/** Calls `listener` after each language change; returns a function removing it. */
+export function onLocaleChange(listener: () => void): () => void {
+  localeListeners.add(listener);
+  return () => localeListeners.delete(listener);
+}
+
 /** Applies a loaded catalogue; false (nothing changes) when it is not loaded. */
 export function setLocale(code: string, remember = false): boolean {
   const catalog = CATALOGS[code];
@@ -78,6 +86,7 @@ export function setLocale(code: string, remember = false): boolean {
       // Private mode: the preference is simply not remembered.
     }
   }
+  for (const listener of localeListeners) listener();
   return true;
 }
 
@@ -90,6 +99,18 @@ export function t(key: string, values: Record<string, string | number> = {}): st
   const raw = active[key] ?? (CATALOGS.en as Catalog)[key];
   const text = typeof raw === 'string' ? raw : key;
   return text.replace(/\{(\w+)\}/g, (match, name: string) => (name in values ? String(values[name]) : match));
+}
+
+/**
+ * Translates a counted message: picks <key>_<category> for the plural category of the active
+ * language (Intl.PluralRules: zero, one, two, few, many, other), falling back to <key>_other.
+ * {count} is replaced by the number.
+ */
+export function tn(key: string, count: number, values: Record<string, string | number> = {}): string {
+  const category = new Intl.PluralRules(active._meta.locale).select(count);
+  const specific = `${key}_${category}`;
+  const chosen = typeof active[specific] === 'string' ? specific : `${key}_other`;
+  return t(chosen, { ...values, count });
 }
 
 export function catalogKeys(code: string): string[] {

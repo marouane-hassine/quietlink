@@ -10,12 +10,27 @@ import { decode, encode, EncodingError } from '../crypto/base64url';
 import { matchesDeletionToken } from '../crypto/protocol';
 import { t } from '../i18n';
 import { confirmInline } from '../ui/confirm';
-import { el, forgetFragment, showScreen } from '../ui/dom';
+import { el, forgetFragment, reloadOnFragmentChange, showScreen } from '../ui/dom';
 import { cryptoAvailable } from '../ui/capabilities';
 
 export function mountManage(main: HTMLElement): () => void {
+  reloadOnFragmentChange();
   /** Set once the deletion request is answered: a redraw must not offer deletion again. */
   let done = false;
+  /** Deletion request in flight, and the last failure: drawn again by a redraw. */
+  let deleting = false;
+  let failureKey: string | null = null;
+  /** Controls of the screen currently shown (a redraw replaces them). */
+  let controls: { button: HTMLButtonElement; status: HTMLElement; failure: HTMLElement } | null = null;
+
+  const apply = () => {
+    if (!controls) return;
+    controls.button.disabled = deleting;
+    controls.status.textContent = deleting ? t('state.deleting') : '';
+    // Visible on the screen, not only announced (§5.1).
+    controls.failure.hidden = failureKey === null;
+    controls.failure.textContent = failureKey === null ? '' : t(failureKey);
+  };
   /** Result of the local link check, made once: redraws (language change) are synchronous. */
   let verdict: { messageKey: string } | { id: string; token: Uint8Array } | null = null;
 
@@ -48,28 +63,30 @@ export function mountManage(main: HTMLElement): () => void {
     const status = el('p', { class: 'status', role: 'status' });
     const failure = el('p', { class: 'error', role: 'alert', hidden: true });
     button.addEventListener('click', async () => {
-      if (!(await confirmInline(button, t('manage.confirm'), t('manage.delete'), true))) return;
-      button.disabled = true;
-      failure.hidden = true;
-      status.textContent = t('state.deleting');
+      if (deleting || !(await confirmInline(button, t('manage.confirm'), t('manage.delete'), true))) return;
+      deleting = true;
+      failureKey = null;
+      apply();
       try {
         await api.remove(id, encode(token));
       } catch (error) {
         if (error instanceof ApiError && error.kind !== 'unavailable') {
-          button.disabled = false;
-          status.textContent = '';
-          // Visible on the screen, not only announced (§5.1).
-          failure.textContent = t(error.kind === 'network' ? 'manage.deleteNetwork' : 'manage.deleteFailed');
-          failure.hidden = false;
+          deleting = false;
+          failureKey = error.kind === 'network' ? 'manage.deleteNetwork' : 'manage.deleteFailed';
+          apply();
           return;
         }
       }
       // One message whether deleted, expired or invalid (§8.5).
+      deleting = false;
       done = true;
+      controls = null;
       forgetFragment();
       message('manage.done');
     });
+    controls = { button, status, failure };
     showScreen(main, el('h1', { class: 'page-title' }, t('page.manage.title')), el('p', {}, t('manage.intro')), el('p', { class: 'warning' }, t('manage.warning')), failure, el('div', { class: 'action-bar' }, button, status));
+    apply();
   };
 
   void check().then((result) => {

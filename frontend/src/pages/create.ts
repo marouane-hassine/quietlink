@@ -14,7 +14,7 @@ import type { PublicConfig } from '../config';
 import { t } from '../i18n';
 import { HIGHLIGHT_LIMIT_BYTES, LANGUAGE_IDS } from '../render/languages';
 import { parseTemplateText, renderTemplate, SENSITIVE_FIELDS, TEMPLATES } from '../templates';
-import { buildTemplateForm } from '../ui/template-form';
+import { buildTemplateForm, type SensitiveMask } from '../ui/template-form';
 import { announce, toast } from '../ui/announcer';
 import { canReadClipboard, copyText } from '../ui/clipboard';
 import { confirmInline } from '../ui/confirm';
@@ -44,6 +44,9 @@ import { cryptoAvailable } from '../ui/capabilities';
 
 export { cryptoAvailable };
 
+/** Catalogue key of the message shown for each creation failure kind. */
+const ERROR_KEYS: Record<string, string> = { argon2: 'error.argon2', network: 'error.network', rate: 'error.rateLimited', quota: 'error.quota', refused: 'error.refused', tooLarge: 'error.tooLarge' };
+
 export function mountCreate(main: HTMLElement, config: PublicConfig): () => void {
   const state: State = {
     text: '',
@@ -67,6 +70,10 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     /** Text typed before the first applied template, restored by the single Undo action. */
     textBeforeTemplates: null as string | null,
     suggestSecret: false,
+    /** Mask of the sensitive template fields, shared with the form across redraws only. */
+    sensitiveMask: { hidden: true } as SensitiveMask,
+    /** Last failed creation, redrawn with its Retry box; retryAt is a Date.now() deadline. */
+    lastError: null as { kind: string; retryAt: number | null } | null,
   };
   /** Redraws the result or deletion screen in the current language; null on the form. */
   let redrawResult: (() => void) | null = null;
@@ -89,6 +96,14 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       };
       window.addEventListener('beforeunload', unloadGuard);
     }
+  };
+
+  /** Forgets the pending paste, wiping its keys as the success path does (§5.1). */
+  const dropPending = () => {
+    if (pending !== null) wipe(pending.urlKey, pending.deletionToken);
+    pending = null;
+    pendingFor = null;
+    ui.lastError = null;
   };
 
   const settingsKey = () => JSON.stringify([state.text, state.format, state.language, state.template, state.expiration, state.readOnce, state.usePassphrase, state.passphrase]);
@@ -157,10 +172,8 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       state.text = editor.value;
       if (pending !== null && !busy && pendingFor !== null && pendingFor.key !== settingsKey()) {
         // A retry resends the exact prepared request (§10); edited content needs a new paste.
-        pending = null;
-        pendingFor = null;
-        errorBox.hidden = true;
-        errorBox.replaceChildren();
+        dropPending();
+        drawError();
       }
       previewButton.hidden = state.format !== 'markdown';
       if (previewButton.hidden && previewOpen) previewButton.click();
@@ -251,16 +264,18 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       textMode.setAttribute('aria-pressed', 'true');
       formMode.setAttribute('aria-pressed', 'false');
     };
-    const showForm = (): boolean => {
+    /** `redraw`: the same form drawn again (language change) keeps its mask; a new one is masked. */
+    const showForm = (redraw = false): boolean => {
       const parsed = parseTemplateText(editor.value);
       if (!parsed) {
         toast(t('editor.mode.unavailable'));
         return false;
       }
+      if (!redraw) ui.sensitiveMask = { hidden: true };
       formHost.replaceChildren(buildTemplateForm(parsed, (text) => {
         editor.value = text;
         refresh();
-      }));
+      }, ui.sensitiveMask));
       ui.formMode = true;
       editorField.hidden = true;
       formHost.hidden = false;
@@ -412,14 +427,64 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     const status = el('p', { class: 'status', role: 'status' });
     const errorBox = el('div', { class: 'error-box', hidden: true });
 
+    /** Error box of ui.lastError, drawn again after a language change with the Retry-After left. */
+    const drawError = () => {
+      const error = ui.lastError;
+      errorBox.hidden = error === null;
+      if (error === null) {
+        errorBox.replaceChildren();
+        return;
+      }
+      const message = t(ERROR_KEYS[error.kind] ?? 'error.server');
+      const retryButton = el('button', { type: 'button', class: 'button button-secondary' }, t('action.retry'));
+      retryButton.addEventListener('click', () => void doSubmit(true));
+      holdRetry(retryButton, error.retryAt === null ? null : (error.retryAt - Date.now()) / 1000);
+      const cancelButton = el('button', { type: 'button', class: 'button button-tertiary' }, t('action.cancel'));
+      cancelButton.addEventListener('click', () => {
+        // A new attempt must use a new key and a new link (§10).
+        dropPending();
+        drawError();
+        refresh();
+      });
+      errorBox.replaceChildren(...[el('p', {}, message), pending !== null && error.kind !== 'refused' && error.kind !== 'tooLarge' ? retryButton : null, cancelButton].filter((n): n is NonNullable<typeof n> => n !== null));
+    };
+
+    /**
+     * Editing controls are inert while a creation is busy: a change made then would be silently
+     * left out of the paste being sent. Text fields become read-only (focus stays), the others
+     * disabled; only the controls disabled here are enabled again.
+     */
+    const setControlsBusy = (busyNow: boolean) => {
+      editor.readOnly = busyNow;
+      const controls = [templateRow, modeBar, formHost, options].flatMap((root) => [...root.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | HTMLButtonElement>('input, textarea, select, button')]);
+      controls.push(pasteButton, ...main.querySelectorAll<HTMLButtonElement>('.inline-notice button, .secret-suggestion button'));
+      for (const control of controls) {
+        if (busyNow && !control.disabled) {
+          control.disabled = true;
+          control.dataset.busy = '';
+        } else if (!busyNow && control.dataset.busy !== undefined) {
+          control.disabled = false;
+          delete control.dataset.busy;
+        }
+      }
+    };
+
     const doSubmit = async (retry = false) => {
-      if (busy || (!retry && disabledReason() !== null)) return;
+      // A retry resends the exact prepared request (same key and Idempotency-Key, §10), only
+      // while the settings it was prepared with are unchanged.
+      const reuse = retry && pending !== null && pendingFor !== null && pendingFor.key === settingsKey();
+      if (busy || (!reuse && disabledReason() !== null)) return;
       busy = true;
+      ui.lastError = null;
       submit.textContent = t('action.creating');
       errorBox.hidden = true;
+      setControlsBusy(true);
       refresh();
       try {
-        if (!retry || pending === null) {
+        if (!reuse || pending === null) {
+          dropPending();
+          // Settings snapshotted before the first await: they describe the paste being prepared.
+          const snapshot = { key: settingsKey(), readOnce: state.readOnce, usePassphrase: state.usePassphrase };
           const phase = state.usePassphrase ? t('state.deriving') : t('state.encrypting');
           status.textContent = phase;
           const envelope = serialize({ format: state.format, language: state.format === 'code' && state.language ? state.language : null, template: state.template || null, text: state.text });
@@ -436,7 +501,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
               return key;
             },
           });
-          pendingFor = { key: settingsKey(), readOnce: state.readOnce, usePassphrase: state.usePassphrase };
+          pendingFor = snapshot;
         }
         status.textContent = t('state.sending');
         const response = await api.create(pending.json, pending.idempotencyKey);
@@ -454,21 +519,15 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
         busy = false;
         submit.textContent = t('action.create');
         status.textContent = '';
+        setControlsBusy(false);
         const kind = error instanceof ApiError ? error.kind : error instanceof Argon2UnavailableError ? 'argon2' : 'server';
-        const message = t(({ argon2: 'error.argon2', network: 'error.network', rate: 'error.rateLimited', quota: 'error.quota', refused: 'error.refused', tooLarge: 'error.tooLarge' } as Record<string, string>)[kind] ?? 'error.server');
-        const retryButton = el('button', { type: 'button', class: 'button button-secondary' }, t('action.retry'));
-        retryButton.addEventListener('click', () => void doSubmit(true));
-        holdRetry(retryButton, error instanceof ApiError ? error.retryAfter : null);
-        const cancelButton = el('button', { type: 'button', class: 'button button-tertiary' }, t('action.cancel'));
-        cancelButton.addEventListener('click', () => {
-          // A new attempt must use a new key and a new link (§10).
-          pending = null;
-          pendingFor = null;
-          errorBox.hidden = true;
-          refresh();
-        });
-        errorBox.replaceChildren(...[el('p', {}, message), pending !== null && kind !== 'refused' && kind !== 'tooLarge' ? retryButton : null, cancelButton].filter((n): n is NonNullable<typeof n> => n !== null));
-        errorBox.hidden = false;
+        // Settings changed meanwhile (a racing event): the prepared paste no longer matches
+        // them and is never resent; the failure is still reported.
+        if (pending !== null && pendingFor !== null && pendingFor.key !== settingsKey()) dropPending();
+        const retryAfter = error instanceof ApiError ? error.retryAfter : null;
+        ui.lastError = { kind, retryAt: retryAfter !== null && retryAfter > 0 ? Date.now() + retryAfter * 1000 : null };
+        drawError();
+        const message = t(ERROR_KEYS[kind] ?? 'error.server');
         announce(message, true);
         refresh();
       }
@@ -514,13 +573,15 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     options.addEventListener('toggle', () => (ui.optionsOpen = options.open));
     sent.addEventListener('toggle', () => (ui.sentOpen = sent.open));
     if (state.template !== '') {
-      if (ui.formMode) showForm();
+      if (ui.formMode) showForm(true);
       decorateTemplate();
     }
     if (previewOpen) {
       previewPanel.hidden = false;
       previewButton.textContent = t('preview.hide');
     }
+    // A failure reported before the redraw keeps its message, Retry box and remaining delay.
+    drawError();
     refresh();
     if (window.matchMedia?.('(pointer: fine)').matches) focusUnlessRedrawing(editor);
   }
@@ -540,12 +601,16 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     const strengthLine = el('p', { class: 'hint', 'aria-live': 'polite' });
     const mismatch = el('p', { class: 'field-error', id: nextId('mismatch') });
     confirmInput.setAttribute('aria-describedby', mismatch.id);
-    const updateStrength = () => {
-      state.passphrase = input.value;
-      state.confirmation = confirmInput.value;
+    // Drawn from the state, also when the panel is rebuilt in another language.
+    const showStrength = () => {
       const strengthText = state.passphrase === '' ? '' : t(`passphrase.strength.${state.generated ? 'strong' : strength(state.passphrase)}`);
       if (strengthLine.textContent !== strengthText) strengthLine.textContent = strengthText;
       mismatch.textContent = !state.passphraseVisible && !state.generated && state.confirmation !== '' && state.confirmation !== state.passphrase ? t('passphrase.mismatch') : '';
+    };
+    const updateStrength = () => {
+      state.passphrase = input.value;
+      state.confirmation = confirmInput.value;
+      showStrength();
       refresh();
     };
     input.addEventListener('input', () => {
@@ -588,6 +653,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     input.value = state.passphrase;
     confirmInput.value = state.confirmation;
     applyMask();
+    showStrength();
     return panel;
   }
 
@@ -608,6 +674,9 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     ui.textBeforeTemplates = null;
     ui.suggestSecret = false;
     let manageCopied = false;
+    /** QR code and management link opened by the user, kept open by a redraw (language change). */
+    let qrOpen = false;
+    let dangerOpen = false;
 
     // Drawn again in the new language on a language change (links are kept in this closure).
     const draw = () => {
@@ -625,8 +694,8 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
         const qrBox = el('div', { class: 'qr-box', hidden: true });
         const qrButton = el('button', { type: 'button', class: 'button button-secondary', 'aria-expanded': 'false' }, t('result.qr'));
         let qrLoaded = false;
-        qrButton.addEventListener('click', async () => {
-          const open = qrBox.hidden;
+        const setQr = async (open: boolean) => {
+          qrOpen = open;
           qrBox.hidden = !open;
           qrButton.textContent = open ? t('result.qrHide') : t('result.qr');
           qrButton.setAttribute('aria-expanded', String(open));
@@ -646,8 +715,11 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
             const { qrSvg } = await import('../ui/qrcode');
             qrBox.append(qrSvg(shareLink, t('result.qrLabel')), full);
           }
-        });
+        };
+        qrButton.addEventListener('click', () => void setQr(!qrOpen));
         extras.append(qrButton, qrBox);
+        // Still open after a language change: the redraw keeps what the user opened.
+        if (qrOpen) void setQr(true);
       }
       const message = el('button', { type: 'button', class: 'button button-secondary' }, t('result.copyMessage'));
       message.addEventListener('click', () => {
@@ -665,10 +737,11 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       // Danger zone: management link behind an explicit action, never next to the share link.
       const dangerBody = el('div', { class: 'danger-body', hidden: true });
       const reveal = el('button', { type: 'button', class: 'button button-tertiary', 'aria-expanded': 'false' }, t('manage.reveal'));
-      reveal.addEventListener('click', () => {
-        dangerBody.hidden = !dangerBody.hidden;
-        reveal.setAttribute('aria-expanded', String(!dangerBody.hidden));
-        if (dangerBody.childElementCount === 0) {
+      const setDanger = (open: boolean) => {
+        dangerOpen = open;
+        dangerBody.hidden = !open;
+        reveal.setAttribute('aria-expanded', String(open));
+        if (open && dangerBody.childElementCount === 0) {
           const manageField = el('input', { class: 'link-field', type: 'text', dir: 'ltr', readonly: true, value: manageLink, 'aria-label': t('manage.title') });
           const copyManage = el('button', { type: 'button', class: 'button button-secondary' }, t('action.copy'));
           copyManage.addEventListener('click', async () => {
@@ -696,7 +769,8 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
           });
           dangerBody.append(el('p', { class: 'warning' }, t('manage.warning')), manageField, el('div', { class: 'button-row' }, copyManage, remove));
         }
-      });
+      };
+      reveal.addEventListener('click', () => setDanger(!dangerOpen));
 
       const newButton = () => {
         const button = el('button', { type: 'button', class: 'button button-secondary' }, t('action.new'));
@@ -707,12 +781,13 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
           redrawResult = null;
           state.usePassphrase = false;
           state.readOnce = false;
-          Object.assign(ui, { formMode: false, previewOpen: false, optionsOpen: false, sentOpen: false, textBeforeTemplates: null, suggestSecret: false });
+          Object.assign(ui, { formMode: false, previewOpen: false, optionsOpen: false, sentOpen: false, textBeforeTemplates: null, suggestSecret: false, sensitiveMask: { hidden: true }, lastError: null });
           render();
         });
         return button;
       };
 
+      if (dangerOpen) setDanger(true);
       showScreen(
         main,
         el('h1', { class: 'page-title' }, t('result.title')),

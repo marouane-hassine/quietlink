@@ -18,14 +18,22 @@ import { renderTemplateView } from './template-view';
 
 type Mode = 'fields' | 'rendered' | 'source';
 
+/** View mode and wrapping chosen by the reader, kept by the caller across redraws. */
+export interface ContentDisplay {
+  /** null: the initial mode (plain text first for large content). */
+  mode: Mode | null;
+  wrap: boolean;
+}
+
 export interface ContentView {
   container: HTMLElement;
   controls: HTMLElement;
 }
 
-export function buildContentView(envelope: Envelope, options: { wifiQr?: boolean } = {}): ContentView {
+export function buildContentView(envelope: Envelope, options: { wifiQr?: boolean; display?: ContentDisplay } = {}): ContentView {
+  const display = options.display ?? { mode: null, wrap: true };
   // The text takes its own direction, whatever the interface language (§6.6.1).
-  const container = el('div', { class: 'reader', tabindex: '0', dir: 'auto', 'aria-label': t('page.read.title') });
+  const container = el('div', { class: 'reader', role: 'region', tabindex: '0', dir: 'auto', 'aria-label': t('page.read.title') });
   const controls = el('div', { class: 'reader-controls' });
   const large = byteLength(envelope.text) > HIGHLIGHT_LIMIT_BYTES;
   const template = envelope.template !== null && envelope.format === 'markdown' ? parseTemplateText(envelope.text) : null;
@@ -43,7 +51,8 @@ export function buildContentView(envelope: Envelope, options: { wifiQr?: boolean
   if (envelope.format === 'markdown' || highlightable) modes.push('rendered');
   modes.push('source');
 
-  const render = (mode: Mode) => {
+  const render = (mode: Mode, chosen = true) => {
+    if (chosen) display.mode = mode;
     container.classList.toggle('markdown', mode === 'rendered' && envelope.format === 'markdown');
     if (mode === 'fields' && template) {
       container.replaceChildren(renderTemplateView(template, { wifiQr: options.wifiQr === true && envelope.template === 'wifi' }));
@@ -83,11 +92,18 @@ export function buildContentView(envelope: Envelope, options: { wifiQr?: boolean
   }
 
   const wrapId = nextId('wrap');
-  const wrap = el('input', { type: 'checkbox', id: wrapId, checked: true });
-  wrap.addEventListener('change', () => container.classList.toggle('no-wrap', !wrap.checked));
+  const wrap = el('input', { type: 'checkbox', id: wrapId, checked: display.wrap });
+  container.classList.toggle('no-wrap', !display.wrap);
+  wrap.addEventListener('change', () => {
+    display.wrap = wrap.checked;
+    container.classList.toggle('no-wrap', !wrap.checked);
+  });
   controls.append(el('p', { class: 'hint field-check' }, wrap, el('label', { for: wrapId }, t('read.wrap'))));
 
-  if (large && modes.length > 1) {
+  if (display.mode !== null && modes.includes(display.mode)) {
+    // Drawn again (language change): the mode the reader chose, formatted content included.
+    render(display.mode);
+  } else if (large && modes.length > 1) {
     // Above the documented threshold: plain text first, formatting on explicit action.
     const enable = el('button', { type: 'button', class: 'button button-secondary' }, t('read.richEnable'));
     const notice = el('p', { class: 'notice' }, t('read.richDisabled'), ' ', enable);
@@ -96,9 +112,9 @@ export function buildContentView(envelope: Envelope, options: { wifiQr?: boolean
       render(modes[0] ?? 'source');
     });
     controls.prepend(notice);
-    render('source');
+    render('source', false);
   } else {
-    render(modes[0] ?? 'source');
+    render(modes[0] ?? 'source', false);
   }
 
   return { container, controls };

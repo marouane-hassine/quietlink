@@ -19,11 +19,15 @@ export function formatDate(epochMs: number): string {
   return new Intl.DateTimeFormat(locale(), { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' }).format(new Date(epochMs));
 }
 
+/**
+ * Relative time in the largest unit the value rounds to: the switch happens where rounding
+ * would reach the next unit (59.5 s, 59.5 min, 23.5 h), never "in 24 hours" for a day.
+ */
 export function formatRelative(seconds: number): string {
   const rtf = new Intl.RelativeTimeFormat(locale(), { numeric: 'auto' });
   const abs = Math.abs(seconds);
-  if (abs < 60) return rtf.format(Math.round(seconds), 'second');
-  if (abs < 3600) return rtf.format(Math.round(seconds / 60), 'minute');
-  if (abs < 86400) return rtf.format(Math.round(seconds / 3600), 'hour');
+  if (abs < 59.5) return rtf.format(Math.round(seconds), 'second');
+  if (abs < 59.5 * 60) return rtf.format(Math.round(seconds / 60), 'minute');
+  if (abs < 23.5 * 3600) return rtf.format(Math.round(seconds / 3600), 'hour');
   return rtf.format(Math.round(seconds / 86400), 'day');
 }

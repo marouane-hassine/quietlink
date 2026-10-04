@@ -17,7 +17,7 @@ test('the editor previews Markdown and the reader switches between rendered and 
   await editorOf(page).fill(MARKDOWN);
   await preview.click();
   const panel = page.getByRole('region', { name: 'Preview (rendered locally, nothing is sent)' });
-  await expect(panel.getByRole('heading', { level: 3, name: 'Dummy heading' })).toBeVisible();
+  await expect(panel.getByRole('heading', { level: 2, name: 'Dummy heading' })).toBeVisible();
   await expect(panel.locator('em')).toHaveText('emphasised');
   await page.getByRole('button', { name: 'Hide preview' }).click();
   await expect(panel).toBeHidden();
@@ -28,7 +28,7 @@ test('the editor previews Markdown and the reader switches between rendered and 
   const content = reader.locator('.reader');
   const rendered = reader.getByRole('button', { name: 'Rendered' });
   const source = reader.getByRole('button', { name: 'Source' });
-  await expect(content.getByRole('heading', { level: 3, name: 'Dummy heading' })).toBeVisible({ timeout: 30_000 });
+  await expect(content.getByRole('heading', { level: 2, name: 'Dummy heading' })).toBeVisible({ timeout: 30_000 });
   await expect(rendered).toHaveAttribute('aria-pressed', 'true');
 
   await source.click();
@@ -37,5 +37,5 @@ test('the editor previews Markdown and the reader switches between rendered and 
   await expect(content.getByRole('heading', { name: 'Dummy heading' })).toHaveCount(0);
 
   await rendered.click();
-  await expect(content.getByRole('heading', { level: 3, name: 'Dummy heading' })).toBeVisible();
+  await expect(content.getByRole('heading', { level: 2, name: 'Dummy heading' })).toBeVisible();
 });

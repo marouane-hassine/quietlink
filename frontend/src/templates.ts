@@ -93,6 +93,13 @@ export interface ParsedTemplate {
   sections: TemplateSection[];
 }
 
+const FIELD_LINE = /^- (.+?)( ?:)(?: (.*))?$/;
+
+/** True for a "- label: value" line, which the parser reads as a field before any note. */
+export function isFieldLine(line: string): boolean {
+  return FIELD_LINE.test(line);
+}
+
 /** Parses text written from a template (# title, ## sections, "- label: value" lines). */
 export function parseTemplateText(text: string): ParsedTemplate | null {
   const lines = text.replace(/\r\n?/g, '\n').split('\n');
@@ -114,7 +121,7 @@ export function parseTemplateText(text: string): ParsedTemplate | null {
       continue;
     }
     if (!current) return null;
-    const field = /^- (.+?)( ?:)(?: (.*))?$/.exec(line);
+    const field = FIELD_LINE.exec(line);
     if (field?.[1] && field[2] && current.notes.length === 0) current.fields.push({ label: field[1], separator: field[2], value: field[3] ?? '' });
     else current.notes.push(line);
   }

@@ -77,9 +77,10 @@ export function renderMarkdown(source: string): DocumentFragment {
     FORBID_ATTR: ['style'],
     RETURN_DOM_FRAGMENT: true,
   });
-  // Content headings start at h3: the page keeps a single h1 and its h2 level (WCAG 1.3.1).
+  // Content headings start at h2: the page keeps a single h1, and the reading screen has no h2
+  // of its own, so a larger shift would skip a level (WCAG 1.3.1, heading order).
   for (const heading of [...fragment.querySelectorAll('h1, h2, h3, h4, h5, h6')]) {
-    const level = Math.min(6, Number(heading.tagName.slice(1)) + 2);
+    const level = Math.min(6, Number(heading.tagName.slice(1)) + 1);
     const shifted = document.createElement(`h${level}`);
     shifted.append(...heading.childNodes);
     heading.replaceWith(shifted);

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // @vitest-environment jsdom
 // Requirements (WCAG 2.2 AA audit, §6.6): EXG-A11Y-016, EXG-A11Y-005, EXG-A11Y-004, EXG-I18N-001,
-// EXG-MD-003, EXG-UX-108.
+// EXG-MD-003, EXG-UX-108, EXG-A11Y-018.
 
 import { describe, expect, it } from 'vitest';
 import en from '../../translations/en.json';
@@ -10,6 +10,7 @@ import { setLocale, t } from '../src/i18n';
 import { buildContentView } from '../src/render/content-view';
 import { renderMarkdown } from '../src/render/markdown';
 import { renderChrome } from '../src/ui/chrome';
+import { confirmInline } from '../src/ui/confirm';
 import { showScreen } from '../src/ui/dom';
 import { parseTemplateText, renderTemplate } from '../src/templates';
 import { buildTemplateForm } from '../src/ui/template-form';
@@ -29,12 +30,34 @@ describe('accessibility fixes', () => {
     expect(document.title).toBe('Encrypted and ready to share · QuietLink');
   });
 
-  it('keeps one h1 per page: decrypted Markdown headings start at h3 (1.3.1)', () => {
-    const fragment = renderMarkdown('# Heading\n\n## Sub\n\n###### Deep');
-    expect(fragment.querySelector('h1, h2')).toBeNull();
-    expect(fragment.querySelector('h3')?.textContent).toBe('Heading');
-    expect(fragment.querySelector('h4')?.textContent).toBe('Sub');
-    expect(fragment.querySelectorAll('h6')).toHaveLength(1);
+  it('keeps one h1 per page: decrypted Markdown headings start at h2, with no skipped level (1.3.1)', () => {
+    // The reading screen has no h2 of its own: h1 content becomes h2 (axe heading-order).
+    const fragment = renderMarkdown('# Heading\n\n## Sub\n\n##### Five\n\n###### Deep');
+    expect(fragment.querySelector('h1')).toBeNull();
+    expect(fragment.querySelector('h2')?.textContent).toBe('Heading');
+    expect(fragment.querySelector('h3')?.textContent).toBe('Sub');
+    expect([...fragment.querySelectorAll('h6')].map((h) => h.textContent)).toEqual(['Five', 'Deep']);
+  });
+
+  it('names the inline confirmation dialog by its message (4.1.2)', async () => {
+    setLocale('en');
+    const trigger = document.createElement('button');
+    document.body.replaceChildren(trigger);
+    const answer = confirmInline(trigger, 'Delete this dummy item?', 'Delete');
+    const dialog = document.querySelector('[role=alertdialog]') as HTMLElement;
+    const labelId = dialog.getAttribute('aria-labelledby') ?? '';
+    expect(labelId).not.toBe('');
+    expect(document.getElementById(labelId)?.textContent).toBe('Delete this dummy item?');
+    (dialog.querySelector('.button-secondary') as HTMLButtonElement).click();
+    await answer;
+  });
+
+  it('gives the focusable reading container a region role so its label is exposed (4.1.2)', () => {
+    setLocale('en');
+    const { container } = buildContentView({ v: 1, format: 'plain', language: null, template: null, text: 'dummy' });
+    expect(container.getAttribute('tabindex')).toBe('0');
+    expect(container.getAttribute('role')).toBe('region');
+    expect(container.getAttribute('aria-label')).not.toBe('');
   });
 
   it('offers block copy only where it adds something: not for a single plain text', () => {

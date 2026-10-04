@@ -13,16 +13,16 @@ import { parseEnvelope, type Envelope } from '../crypto/envelope';
 import { DecryptionError } from '../crypto/primitives';
 import { accessPublicKey, accessSeed, checkConsumeKey, decrypt, matchesAccessKey, prove, WrongPassphraseError } from '../crypto/protocol';
 import type { PublicConfig } from '../config';
-import type { buildContentView } from '../render/content-view';
+import type { buildContentView, ContentDisplay } from '../render/content-view';
 
 type BuildContentView = typeof buildContentView;
-import { t } from '../i18n';
+import { t, tn } from '../i18n';
 import { exportButton, printButton } from '../ui/local-output';
 import { announce } from '../ui/announcer';
 import { copyText } from '../ui/clipboard';
 import { synchronise, type Sync } from '../ui/countdown';
 import { runCountdown } from '../ui/expiry-view';
-import { el, focusUnlessRedrawing, forgetFragment, nextId, showScreen } from '../ui/dom';
+import { el, focusUnlessRedrawing, forgetFragment, nextId, reloadOnFragmentChange, showScreen } from '../ui/dom';
 import { holdRetry } from '../ui/retry-delay';
 import { formatDate, formatRelative } from '../ui/format';
 import { cryptoAvailable } from '../ui/capabilities';
@@ -50,21 +50,30 @@ async function parseLink(): Promise<{ id: string; idBytes: Uint8Array; urlKey: U
 }
 
 export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
+  reloadOnFragmentChange();
   let challenges = config.challenges ?? null;
 
   /** Redraws the current screen in a new language; null while busy or once content is shown. */
   let redraw: (() => void) | null = null;
 
   const fail = (messageKey: string, values: Record<string, string | number> = {}, retry: (() => void) | null = null, retryAfter: number | null = null) => {
-    redraw = () => fail(messageKey, values, retry, retryAfter);
-    const message = t(messageKey, values);
-    let retryButton: HTMLButtonElement | null = null;
-    if (retry) {
-      retryButton = el('button', { type: 'button', class: 'button button-primary' }, t('action.retry'));
-      retryButton.addEventListener('click', retry);
-      holdRetry(retryButton, retryAfter);
-    }
-    showScreen(main, el('h1', { class: 'page-title' }, t('page.read.title')), el('p', { class: 'error', role: 'alert' }, message), el('div', { class: 'action-bar' }, ...[retryButton, newLink()].filter((n): n is NonNullable<typeof n> => n !== null)));
+    // Deadline fixed once: a redraw (language change) continues the countdown, never restarts it.
+    const retryAt = retryAfter !== null && retryAfter > 0 ? Date.now() + retryAfter * 1000 : null;
+    const draw = () => {
+      redraw = draw;
+      const left = retryAt === null ? null : Math.max(0, (retryAt - Date.now()) / 1000);
+      // A delay quoted in the message follows the countdown too.
+      const shown = 'seconds' in values && left !== null ? { ...values, seconds: Math.ceil(left) } : values;
+      const message = t(messageKey, shown);
+      let retryButton: HTMLButtonElement | null = null;
+      if (retry) {
+        retryButton = el('button', { type: 'button', class: 'button button-primary' }, t('action.retry'));
+        retryButton.addEventListener('click', retry);
+        holdRetry(retryButton, left);
+      }
+      showScreen(main, el('h1', { class: 'page-title' }, t('page.read.title')), el('p', { class: 'error', role: 'alert' }, message), el('div', { class: 'action-bar' }, ...[retryButton, newLink()].filter((n): n is NonNullable<typeof n> => n !== null)));
+    };
+    draw();
   };
 
   const newLink = () => el('a', { href: '/', class: 'button button-secondary' }, t('action.new'));
@@ -194,7 +203,7 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
       el('p', {}, t('read.decryptedLocally')),
       expiry,
       aad.object.read_once ? el('p', { class: 'warning' }, t('read.readOnce')) : null,
-      opens > 0 ? el('p', { class: 'warning', role: 'alert' }, t('read.priorOpens', { count: opens })) : null,
+      opens > 0 ? el('p', { class: 'warning', role: 'alert' }, tn('read.priorOpens', opens)) : null,
       needsPassphrase ? el('div', { class: 'field' }, el('label', { for: inputId }, t('read.passphraseRequired')), input, error) : error,
       el('div', { class: 'action-bar' }, button, statusLine),
     );
@@ -265,12 +274,12 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
    * Content screen. A language change redraws it from the decrypted envelope kept in memory
    * (no request: a read-once paste cannot be fetched again), keeping it hidden if it was.
    */
-  function showContent(buildContentView: BuildContentView, envelope: Envelope, data: OpenResponse, consumedKey: string | null, sync: Sync | null, priorOpens: number, view = { hidden: false, keepVisible: false }): void {
+  function showContent(buildContentView: BuildContentView, envelope: Envelope, data: OpenResponse, consumedKey: string | null, sync: Sync | null, priorOpens: number, view = { hidden: false, keepVisible: false, display: { mode: null, wrap: true } as ContentDisplay }): void {
     teardownContent?.();
     const listeners = new AbortController();
     const { signal } = listeners;
     redraw = () => showContent(buildContentView, envelope, data, consumedKey, sync, priorOpens, view);
-    const { container, controls } = buildContentView(envelope, { wifiQr: config.enableQrCode });
+    const { container, controls } = buildContentView(envelope, { wifiQr: config.enableQrCode, display: view.display });
 
     const hiddenNotice = el('p', { class: 'hint', hidden: true }, t('read.hidden'));
     const hideButton = el('button', { type: 'button', class: 'button button-secondary' }, t('read.hide'));
@@ -319,7 +328,7 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
       main,
       el('h1', { class: 'page-title' }, t('page.read.title')),
       consumedKey === null ? null : el('p', { class: 'banner', role: 'status' }, t(consumedKey)),
-      priorOpens > 0 ? el('p', { class: 'warning', role: 'alert' }, t('read.priorOpens', { count: priorOpens })) : null,
+      priorOpens > 0 ? el('p', { class: 'warning', role: 'alert' }, tn('read.priorOpens', priorOpens)) : null,
       el('p', { class: 'hint' }, t('read.decryptedLocally')),
       expiry,
       controls,

@@ -13,6 +13,7 @@ import { serialize, type Envelope } from '../src/crypto/envelope';
 import { sha256 } from '../src/crypto/primitives';
 import { prepare } from '../src/crypto/protocol';
 import { formatRelative } from '../src/ui/format';
+import { navigation, redrawInPlace } from '../src/ui/dom';
 import type { PublicConfig } from '../src/config';
 import type { ContentView } from '../src/render/content-view';
 import { deferred, dummyChallenge, flush, idForCreation, mockFetch, renderedText, response, setSecureContext, until, type RecordedRequest } from './support/fake-api';
@@ -176,7 +177,7 @@ describe('nothing is rendered before decryption and integrity checks', () => {
     expect(announced).toContain(t('state.decrypting'));
     expect(views.built).toHaveLength(1);
     expect(views.built[0]?.envelope).toEqual({ format: 'markdown', language: null, template: null, text: PLAINTEXT, v: 1 });
-    expect(main.querySelector('.reader h3')?.textContent).toBe('DUMMY-HEADING-51c2');
+    expect(main.querySelector('.reader h2')?.textContent).toBe('DUMMY-HEADING-51c2');
   });
 
   it('shows an integrity error and no content for a tampered ciphertext', async () => {
@@ -558,6 +559,61 @@ describe('hiding the content (WCAG 2.4.3, 4.1.2)', () => {
     await onContent();
     const keep = [...main.querySelectorAll('input[type=checkbox]')].find((input) => main.querySelector(`label[for="${input.id}"]`)?.textContent === t('read.keepVisible')) as HTMLInputElement;
     expect(keep.closest('.field-check')).not.toBeNull();
+  });
+});
+
+describe('state kept across a language change (EXG-I18N-005, EXG-MD-014, EXG-MD-019)', () => {
+  it('keeps the chosen view mode and line wrapping', async () => {
+    const paste = await makePaste();
+    serve(paste);
+    mount();
+    await onContent();
+    ([...main.querySelectorAll('.reader-controls button')].find((b) => b.textContent === t('read.view.source')) as HTMLButtonElement).click();
+    const wrap = main.querySelector('.reader-controls input[type=checkbox]') as HTMLInputElement;
+    wrap.checked = false;
+    wrap.dispatchEvent(new Event('change'));
+
+    setLocale('fr');
+    redrawInPlace(rerender);
+
+    const source = [...main.querySelectorAll('.reader-controls button')].find((b) => b.textContent === t('read.view.source')) as HTMLButtonElement;
+    expect(source.getAttribute('aria-pressed')).toBe('true');
+    expect(main.querySelector('.reader pre.plain')?.textContent).toBe(PLAINTEXT);
+    expect((main.querySelector('.reader-controls input[type=checkbox]') as HTMLInputElement).checked).toBe(false);
+    expect(main.querySelector('.reader')?.classList.contains('no-wrap')).toBe(true);
+    setLocale('en');
+  });
+
+  it('continues the Retry-After countdown of the error screen from the remaining time (EXG-UX-052)', async () => {
+    let now = 5_000_000;
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
+    const paste = await makePaste();
+    serve(paste, {}, (request) => (request.path.endsWith('/status') ? Object.assign(response(429), { headers: new Headers({ 'Retry-After': '30' }) }) : null));
+    mount();
+    await until(() => main.textContent?.includes(t('error.rateLimited')) === true);
+    now += 10_000;
+    setLocale('fr');
+    redrawInPlace(rerender);
+
+    const retry = main.querySelector('.action-bar .button-primary') as HTMLButtonElement;
+    expect(retry.disabled).toBe(true);
+    expect(retry.textContent).toBe(t('action.retryIn', { seconds: 20 }));
+    setLocale('en');
+  });
+
+  it('reloads when the fragment is corrected in the same tab (EXG-READ-038)', async () => {
+    const reload = vi.fn();
+    const original = navigation.reload;
+    navigation.reload = reload;
+    try {
+      history.replaceState(null, '', '/p/AAAA#incomplete');
+      mount();
+      await until(() => main.textContent?.includes(t('error.incompleteLink')) === true);
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+      expect(reload).toHaveBeenCalledOnce();
+    } finally {
+      navigation.reload = original;
+    }
   });
 });
 

@@ -264,6 +264,8 @@ h2 {
 }
 
 .field-check input {
+  /* A flex item shrinks by default: keep 24x24 next to a label wrapping on narrow screens. */
+  flex: none;
   inline-size: 1.5rem;
   block-size: 1.5rem;
   accent-color: var(--ql-color-primary);
@@ -850,7 +852,7 @@ details[open] > summary::after {
   margin-block-end: 0.5rem;
   border-radius: 50%;
   background: var(--ql-color-primary);
-  color: var(--ql-color-background);
+  color: var(--ql-color-primary-contrast);
   font-weight: 700;
 }
 
@@ -919,7 +921,7 @@ details[open] > summary::after {
 
 .how-link-fragment {
   padding: 0.2rem 0.35rem;
-  color: var(--ql-color-background);
+  color: var(--ql-color-primary-contrast);
   background: var(--ql-color-primary);
   border-radius: var(--ql-radius-small);
 }

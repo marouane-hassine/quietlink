@@ -53,7 +53,7 @@ test('a concurrent reservation is reported, then the unconfirmed open is announc
   // The reservation expires (30 s in the e2e instance) and counts as an unconfirmed open.
   await reader.waitForTimeout(31_000);
   await reader.getByRole('button', { name: 'Retry' }).click();
-  await expect(reader.getByRole('alert').filter({ hasText: '(1 unconfirmed opening(s))' }).first()).toBeVisible();
+  await expect(reader.getByRole('alert').filter({ hasText: '(1 unconfirmed opening)' }).first()).toBeVisible();
   await reader.getByRole('button', { name: 'Reveal' }).click();
   await expect(reader.locator('.reader')).toContainText('Dummy read-once text');
 });

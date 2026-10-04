@@ -13,11 +13,11 @@ describe('content view', () => {
 
   it('switches between rendered Markdown and its source', () => {
     const { container, controls } = buildContentView(envelope('markdown', '# Title\n\n```\nblock one\n```\n\n```\nblock two\n```'));
-    expect(container.querySelector('h3')?.textContent).toBe('Title');
+    expect(container.querySelector('h2')?.textContent).toBe('Title');
     expect(container.querySelectorAll('.copy-block')).toHaveLength(2);
     const source = [...controls.querySelectorAll('button')].find((b) => b.textContent === 'Source') as HTMLButtonElement;
     source.click();
-    expect(container.querySelector('h3')).toBeNull();
+    expect(container.querySelector('h2')).toBeNull();
     expect(container.querySelector('pre')?.textContent).toContain('# Title');
   });
 
@@ -30,10 +30,10 @@ describe('content view', () => {
   it('shows large content as plain text and formats it only on request', () => {
     const big = '# Big\n\n' + 'x'.repeat(210 * 1024);
     const { container, controls } = buildContentView(envelope('markdown', big));
-    expect(container.querySelector('h3')).toBeNull();
+    expect(container.querySelector('h2')).toBeNull();
     const enable = [...controls.querySelectorAll('button')].find((b) => b.textContent === 'Show the formatted version') as HTMLButtonElement;
     enable.click();
-    expect(container.querySelector('h3')?.textContent).toBe('Big');
+    expect(container.querySelector('h2')?.textContent).toBe('Big');
   });
 
   it('highlights code and toggles line wrapping without changing the text', () => {

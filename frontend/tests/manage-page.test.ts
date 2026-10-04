@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // @vitest-environment jsdom
-// Requirements (management page §8.5, language switch §6.6.1): EXG-URL-012, EXG-I18N-001.
+// Requirements (management page §8.5, language switch §6.6.1): EXG-URL-012, EXG-I18N-001,
+// EXG-I18N-005, EXG-UX-049.
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { encode } from '../src/crypto/base64url';
 import { concat, randomBytes } from '../src/crypto/bytes';
 import { ID_ACCESS_PREFIX, ID_DELETE_PREFIX } from '../src/crypto/constants';
 import { fingerprint, sha256 } from '../src/crypto/primitives';
 import { mountManage } from '../src/pages/manage';
 import { setLocale, t } from '../src/i18n';
-import { mockFetch, response, setSecureContext, until } from './support/fake-api';
-import { redrawInPlace } from '../src/ui/dom';
+import { deferred, mockFetch, response, setSecureContext, until } from './support/fake-api';
+import { navigation, redrawInPlace } from '../src/ui/dom';
 
 describe('management page', () => {
   let main: HTMLElement;
@@ -69,5 +70,40 @@ describe('management page', () => {
     expect(document.activeElement).toBe(outside);
     expect(main.querySelector('.button-danger')?.textContent).toBe(t('manage.delete'));
     setLocale('en');
+  });
+
+  it('keeps Delete disabled when the language changes during the deletion, then reports its outcome (EXG-UX-049)', async () => {
+    const answer = deferred<Response>();
+    mockFetch(() => answer.promise);
+    await until(() => main.querySelector('.button-danger') !== null);
+    (main.querySelector('.button-danger') as HTMLButtonElement).click();
+    await until(() => main.querySelector('[role=alertdialog] .button-danger') !== null);
+    (main.querySelector('[role=alertdialog] .button-danger') as HTMLButtonElement).click();
+    await until(() => main.querySelector('.status')?.textContent === t('state.deleting'));
+
+    setLocale('fr');
+    redrawInPlace(rerender);
+    const remove = main.querySelector('.action-bar .button-danger') as HTMLButtonElement;
+    expect(remove.disabled).toBe(true);
+    expect(main.querySelector('.status')?.textContent).toBe(t('state.deleting'));
+
+    answer.reject(new TypeError('offline'));
+    await until(() => main.querySelector('.error')?.textContent === t('manage.deleteNetwork'));
+    expect((main.querySelector('.action-bar .button-danger') as HTMLButtonElement).disabled).toBe(false);
+    expect(main.querySelector('.status')?.textContent).toBe('');
+    setLocale('en');
+  });
+
+  it('reloads when the fragment is corrected in the same tab', async () => {
+    const reload = vi.fn();
+    const original = navigation.reload;
+    navigation.reload = reload;
+    try {
+      await until(() => main.querySelector('.button-danger') !== null);
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+      expect(reload).toHaveBeenCalled();
+    } finally {
+      navigation.reload = original;
+    }
   });
 });

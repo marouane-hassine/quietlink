@@ -67,6 +67,18 @@ describe.each([
   });
 });
 
+it('writes text on a primary-colour fill in the primary contrast colour only (EXG-A11Y-011)', () => {
+  // The background colour on the primary fill is 4.04:1 in the dark theme (step badges, URL
+  // fragment of the how-it-works page): only color-primary-contrast is checked against it.
+  const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter((m) => /(^|;)\s*background:\s*var\(--ql-color-primary\)\s*;/.test(m[2] as string));
+  expect(rules.length).toBeGreaterThan(0);
+  for (const rule of rules) {
+    const color = /(?:^|;)\s*color:\s*([^;]+);/.exec(rule[2] as string)?.[1]?.trim();
+    if (color !== undefined) expect(color, (rule[1] as string).trim()).toBe('var(--ql-color-primary-contrast)');
+  }
+  expect(contrast(dark['color-primary-contrast'] as string, dark['color-primary'] as string)).toBeGreaterThanOrEqual(4.5);
+});
+
 it('the dark theme block in the media query matches the explicit dark block', () => {
   expect(block(':root:not([data-theme="light"]) {')).toEqual(block(':root[data-theme="dark"]'));
 });

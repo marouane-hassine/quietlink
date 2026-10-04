@@ -6,23 +6,31 @@
  */
 
 import { t } from '../i18n';
-import { isSensitiveLabel, serializeTemplate, type ParsedTemplate } from '../templates';
+import { isFieldLine, isSensitiveLabel, serializeTemplate, type ParsedTemplate } from '../templates';
 import { el, nextId } from './dom';
 
-export function buildTemplateForm(template: ParsedTemplate, onChange: (text: string) => void): HTMLElement {
+/** Mask state of the sensitive fields; the caller keeps it to rebuild the form unchanged. */
+export interface SensitiveMask {
+  hidden: boolean;
+}
+
+/**
+ * `mask` is shared with the caller so that a rebuild (language change) keeps revealed fields
+ * revealed; a new form starts masked.
+ */
+export function buildTemplateForm(template: ParsedTemplate, onChange: (text: string) => void, mask: SensitiveMask = { hidden: true }): HTMLElement {
   const sensitiveInputs: HTMLInputElement[] = [];
-  let hidden = true;
   const emit = () => onChange(serializeTemplate(template));
 
   // The label says the action ("Show"/"Hide"): no aria-pressed, which would contradict it.
   const toggle = el('button', { type: 'button', class: 'button button-tertiary' }, t('editor.sensitive.show'));
   const applyMask = () => {
     // Real password inputs (ADR-0009): CSS masking would leave values readable by screen readers.
-    for (const input of sensitiveInputs) input.type = hidden ? 'password' : 'text';
-    toggle.textContent = t(hidden ? 'editor.sensitive.show' : 'editor.sensitive.hide');
+    for (const input of sensitiveInputs) input.type = mask.hidden ? 'password' : 'text';
+    toggle.textContent = t(mask.hidden ? 'editor.sensitive.show' : 'editor.sensitive.hide');
   };
   toggle.addEventListener('click', () => {
-    hidden = !hidden;
+    mask.hidden = !mask.hidden;
     applyMask();
   });
 
@@ -47,8 +55,12 @@ export function buildTemplateForm(template: ParsedTemplate, onChange: (text: str
       // Kept as typed (nothing is dropped silently); trailing blank lines only are trimmed.
       const typed = notes.value.replace(/\s+$/, '');
       // A notes line starting with "## " would start a new section: escaped as "\## ", which
-      // Markdown shows unchanged.
-      section.notes = typed === '' ? [] : typed.split('\n').map((line) => line.replace(/^## /, '\\## '));
+      // Markdown shows unchanged. Likewise a first line written like a field ("- label: value")
+      // would be read back as a field: its "- " is escaped as "\- ".
+      const lines = typed === '' ? [] : typed.split('\n').map((line) => line.replace(/^## /, '\\## '));
+      const first = lines.findIndex((line) => line.trim() !== '');
+      if (first >= 0 && isFieldLine(lines[first] ?? '')) lines[first] = `\\${lines[first] ?? ''}`;
+      section.notes = lines;
       emit();
     });
     group.append(el('div', { class: 'field' }, el('label', { for: notesId }, t('tpl.notes', { section: section.title })), notes));

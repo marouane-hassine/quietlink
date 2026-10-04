@@ -50,7 +50,7 @@ test('keyboard shortcut, result screen, reading actions', async ({ page, context
   await expect(page.getByText('The text was encrypted in your browser before being sent.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Copy', exact: true })).toBeVisible();
   await expect(page.getByText('Readable until expiration')).toBeVisible();
-  await expect(page.locator('.expiry')).toContainText(/Expires in 24 hours/);
+  await expect(page.locator('.expiry')).toContainText(/Expires tomorrow/);
   await expect(page.getByText(/Anyone with this link can read the content/)).toBeVisible();
   await expect(page.locator('.danger-zone input')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Show the management link' })).toBeVisible();
@@ -66,7 +66,7 @@ test('keyboard shortcut, result screen, reading actions', async ({ page, context
   await reader.goto(link);
   await expect(reader.getByText('The content is decrypted in your browser; the server cannot read it.')).toBeVisible();
   await expect(reader.locator('.reader')).toContainText('Dummy shortcut text');
-  await expect(reader.locator('.expiry')).toContainText(/Expires in .*\(/);
+  await expect(reader.locator('.expiry')).toContainText(/Expires (in .*|tomorrow) \(/);
   if (browserName === 'chromium') {
     await reader.getByRole('button', { name: 'Copy', exact: true }).click();
     expect(await reader.evaluate(() => navigator.clipboard.readText())).toBe('Dummy shortcut text');
