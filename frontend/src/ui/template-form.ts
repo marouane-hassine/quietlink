@@ -10,17 +10,14 @@ import { isSensitiveLabel, serializeTemplate, type ParsedTemplate } from '../tem
 import { el, nextId } from './dom';
 
 export function buildTemplateForm(template: ParsedTemplate, onChange: (text: string) => void): HTMLElement {
-  const masking = typeof CSS !== 'undefined' && CSS.supports('-webkit-text-security', 'disc');
   const sensitiveInputs: HTMLInputElement[] = [];
   let hidden = true;
   const emit = () => onChange(serializeTemplate(template));
 
   const toggle = el('button', { type: 'button', class: 'button button-tertiary', 'aria-pressed': 'true' }, t('editor.sensitive.show'));
   const applyMask = () => {
-    for (const input of sensitiveInputs) {
-      if (masking) input.classList.toggle('is-masked', hidden);
-      else input.type = hidden ? 'password' : 'text';
-    }
+    // Real password inputs (ADR-0009): CSS masking would leave values readable by screen readers.
+    for (const input of sensitiveInputs) input.type = hidden ? 'password' : 'text';
     toggle.textContent = t(hidden ? 'editor.sensitive.show' : 'editor.sensitive.hide');
     toggle.setAttribute('aria-pressed', String(hidden));
   };

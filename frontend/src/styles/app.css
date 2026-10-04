@@ -283,10 +283,6 @@ select {
   overscroll-behavior: contain;
 }
 
-.passphrase.is-masked {
-  -webkit-text-security: disc;
-}
-
 .control-select {
   inline-size: auto;
   min-block-size: 44px;

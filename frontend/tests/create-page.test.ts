@@ -72,7 +72,7 @@ describe('templates on the creation page', () => {
     const inputs = [...main.querySelectorAll('.template-form input')] as HTMLInputElement[];
     expect(inputs.length).toBeGreaterThan(5);
     const password = inputs.find((input) => main.querySelector(`label[for="${input.id}"]`)?.textContent === 'Password') as HTMLInputElement;
-    expect(password.type === 'password' || password.classList.contains('is-masked')).toBe(true);
+    expect(password.type).toBe('password');
     password.value = 'dummy-value';
     password.dispatchEvent(new Event('input'));
     expect(editor().value).toContain('- Password: dummy-value');

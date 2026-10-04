@@ -21,7 +21,7 @@ test('a Wi-Fi template keeps its password masked and its QR code hidden until re
   const password = form.getByLabel('Password', { exact: true });
   await password.fill(PASSWORD);
   // Sensitive inputs are masked while typing in the form.
-  expect(await password.evaluate((input) => input.classList.contains('is-masked') || (input as HTMLInputElement).type === 'password')).toBe(true);
+  expect(await password.evaluate((input) => (input as HTMLInputElement).type)).toBe('password');
   await expect(page.locator('.secret-suggestion')).toBeVisible();
   const link = await submitAndGetLink(page);
 

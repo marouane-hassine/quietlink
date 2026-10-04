@@ -531,16 +531,9 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     const input = el('input', { id: inputId, class: 'passphrase', type: 'text', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false', 'aria-describedby': hintId });
     input.addEventListener('focus', preloadArgon2, { once: true });
     const confirmInput = el('input', { id: nextId('confirm'), class: 'passphrase', type: 'text', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false' });
-    const masking = typeof CSS !== 'undefined' && CSS.supports('-webkit-text-security', 'disc');
+    // Real password inputs (ADR-0009): CSS masking would leave the value readable by screen readers.
     const applyMask = () => {
-      for (const field of [input, confirmInput]) {
-        if (masking) {
-          field.type = 'text';
-          field.classList.toggle('is-masked', !state.passphraseVisible);
-        } else {
-          field.type = state.passphraseVisible ? 'text' : 'password';
-        }
-      }
+      for (const field of [input, confirmInput]) field.type = state.passphraseVisible ? 'text' : 'password';
       confirmField.hidden = state.passphraseVisible || state.generated;
       toggle.textContent = state.passphraseVisible ? t('passphrase.hide') : t('passphrase.show');
       toggle.setAttribute('aria-pressed', String(state.passphraseVisible));

@@ -166,7 +166,7 @@ describe('creation flow', () => {
     expect((main.querySelector('textarea.editor')?.closest('.field') as HTMLElement).hidden).toBe(true);
     // Field labels belong to the template text inserted in English: content is not translated.
     const password = [...main.querySelectorAll('.template-form input')].find((input) => main.querySelector(`label[for="${input.id}"]`)?.textContent === 'Password') as HTMLInputElement;
-    expect(password.type === 'password' || password.classList.contains('is-masked')).toBe(true);
+    expect(password.type).toBe('password');
     expect((main.querySelector('details.options') as HTMLDetailsElement).open).toBe(true);
     expect(main.querySelector('.secret-suggestion')).not.toBeNull();
     expect(main.querySelector('.inline-notice .link-button')).not.toBeNull();
