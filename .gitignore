@@ -9,6 +9,7 @@
 /playwright-report/
 /public/build/
 /quietlink.phar
+/box.release.json
 /secrets/
 /test-results/
 /var/

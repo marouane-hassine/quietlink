@@ -1,6 +1,7 @@
 {
     "main": "bin/quietlink",
     "output": "quietlink.phar",
+    "alias": "quietlink.phar",
     "directories": [
         "src"
     ],

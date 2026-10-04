@@ -1,4 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
+# Actions are pinned to full commit SHAs (tag in the trailing comment); see
+# docs/README-developer.md, "Updating pinned dependencies".
 name: CI
 
 on:
@@ -13,8 +15,8 @@ jobs:
   php:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: shivammathur/setup-php@v2
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: '8.3'
           extensions: intl, sodium, openssl, mbstring
@@ -27,8 +29,8 @@ jobs:
   frontend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: '24'
           cache: npm
@@ -49,7 +51,7 @@ jobs:
   security:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           # Full history: the secret scan covers every commit, not only the pushed range.
           fetch-depth: 0
@@ -62,26 +64,52 @@ jobs:
   phar:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: shivammathur/setup-php@v2
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: '8.3'
           extensions: intl, sodium, openssl, mbstring
           ini-values: phar.readonly=0
-          tools: box
+          tools: box:4.7.0
       - run: composer install --no-dev --classmap-authoritative --no-interaction
-      - run: box compile --config=box.json
+      - name: Reproducible PHAR (fixed alias, commit timestamp, two identical builds)
+        run: |
+          jq --arg ts "$(git log -1 --format=%cI)" '.timestamp = $ts' box.json > box.release.json
+          box compile --config=box.release.json --no-interaction
+          sha256sum quietlink.phar > /tmp/first.txt
+          box compile --config=box.release.json --no-interaction
+          sha256sum --check /tmp/first.txt
       - name: The PHAR starts outside the source tree
         run: cd /tmp && php "$GITHUB_WORKSPACE/quietlink.phar" list | grep -q decrypt
 
   docker:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - run: docker build -f docker/php/Dockerfile -t quietlink/app:ci .
       - run: docker build -f docker/nginx/Dockerfile -t quietlink/web:ci .
       - run: docker build -f docker/cli/Dockerfile -t quietlink/cli:ci .
       - name: Images run as non-root
         run: |
           test "$(docker image inspect -f '{{.Config.User}}' quietlink/app:ci)" = "10001:10001"
-          test -n "$(docker image inspect -f '{{.Config.User}}' quietlink/cli:ci)"
+          test "$(docker image inspect -f '{{.Config.User}}' quietlink/web:ci)" = "101"
+          test "$(docker image inspect -f '{{.Config.User}}' quietlink/cli:ci)" = "10002"
+      - name: Compose smoke test (documented first start, then /healthz)
+        env:
+          QUIETLINK_HTTP_PORT: '18080'
+        run: |
+          cp config/config.php.example config/config.php
+          mkdir -p secrets
+          docker compose build
+          docker compose run --rm --no-deps -T app php bin/console app:secret:generate > secrets/app_secret
+          sudo chgrp 10001 secrets/app_secret config/config.php
+          chmod 640 secrets/app_secret config/config.php
+          docker compose up -d --wait --wait-timeout 180
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18080/healthz)" = "200"
+          docker compose exec -T app php bin/console app:config:check > /dev/null
+      - name: Compose logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+      - name: Compose teardown
+        if: always()
+        run: docker compose down -v || true
