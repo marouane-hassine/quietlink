@@ -9,10 +9,12 @@ import en from '../../translations/en.json';
 import es from '../../translations/es.json';
 import fr from '../../translations/fr.json';
 import it from '../../translations/it.json';
+import type { PublicConfig } from '../src/config';
 import { mountHow } from '../src/pages/how';
 import { catalogKeys, loadLocale, setLocale } from '../src/i18n';
 
 const catalogs = [en, fr, es, it, ar] as Record<string, unknown>[];
+const config = { allowReadOnce: true, allowPassphrase: true } as PublicConfig;
 const howKeys = [
   'how.intro',
   'how.flow.title',
@@ -28,6 +30,7 @@ const howKeys = [
   'how.server.sees.item2',
   'how.server.sees.item3',
   'how.server.sees.item4',
+  'how.server.sees.item5',
   'how.server.never.title',
   'how.server.never.item1',
   'how.server.never.item2',
@@ -75,7 +78,7 @@ describe('how-it-works page', () => {
 
   test('explains the data flow, server visibility and security options', () => {
     const main = document.getElementById('main') as HTMLElement;
-    mountHow(main);
+    mountHow(main, config);
 
     expect(main.querySelector('h1')?.textContent).toBe('How it works');
     expect(main.querySelector('.how-flow')?.children).toHaveLength(3);
@@ -88,7 +91,7 @@ describe('how-it-works page', () => {
 
   test('keeps the FAQ progressively disclosed and accessible', () => {
     const main = document.getElementById('main') as HTMLElement;
-    mountHow(main);
+    mountHow(main, config);
 
     const faq = main.querySelectorAll<HTMLDetailsElement>('.how-faq details');
     expect(faq).toHaveLength(6);
@@ -110,7 +113,7 @@ describe('how-it-works page', () => {
     for (const code of ['en', 'fr', 'es', 'it', 'ar']) {
       expect(await loadLocale(code)).toBe(true);
       expect(setLocale(code)).toBe(true);
-      mountHow(main);
+      mountHow(main, config);
       const catalog = catalogs[['en', 'fr', 'es', 'it', 'ar'].indexOf(code)] as Record<string, string>;
       expect(catalog['how.readOnce.step1']).toContain('{action}');
       expect(main.querySelector('.how-read-once li')?.textContent).toContain(catalog['read.reveal']);
@@ -120,7 +123,39 @@ describe('how-it-works page', () => {
 
   test('shows no untranslated word in the fictional link', () => {
     const main = document.getElementById('main') as HTMLElement;
-    mountHow(main);
+    mountHow(main, config);
     expect(main.querySelector('.how-link-example')?.textContent).not.toMatch(/key|identifier/i);
+  });
+  test('lists the metadata the server sees and never claims it lacks public keys', () => {
+    const main = document.getElementById('main') as HTMLElement;
+    mountHow(main, config);
+    expect(main.querySelectorAll('.how-data-card-sees li')).toHaveLength(5);
+    for (const catalog of catalogs) {
+      expect(String(catalog['how.server.sees.item5'])).toBeTruthy();
+    }
+    for (const code of ['fr', 'es', 'it']) {
+      const catalog = catalogs[['en', 'fr', 'es', 'it', 'ar'].indexOf(code)] as Record<string, string>;
+      for (const [key, value] of Object.entries(catalog)) {
+        if (key.startsWith('how.')) expect(value).not.toMatch(/ciphertext|payload/i);
+      }
+    }
+  });
+
+  test('describes only the options this instance enables', () => {
+    const main = document.getElementById('main') as HTMLElement;
+    mountHow(main, { allowReadOnce: false, allowPassphrase: false } as PublicConfig);
+    expect(main.querySelector('#how-read-once-title')).toBeNull();
+    expect(main.querySelectorAll('.how-options li')).toHaveLength(4);
+    expect(main.querySelector('.how-options')?.textContent).not.toMatch(/passphrase|read once/i);
+  });
+
+  test('keeps open questions open when the language changes', () => {
+    const main = document.getElementById('main') as HTMLElement;
+    const rerender = mountHow(main, config);
+    const faq = () => main.querySelectorAll<HTMLDetailsElement>('.how-faq details');
+    (faq()[2] as HTMLDetailsElement).open = true;
+    setLocale('fr');
+    rerender();
+    expect([...faq()].map((d) => d.open)).toEqual([false, false, true, false, false, false]);
   });
 });

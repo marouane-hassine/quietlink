@@ -3,7 +3,7 @@
 /** Header controls: language and light/dark choice (only preferences are remembered). */
 
 import { availableLocales, loadLocale, locale, setLocale, t } from '../i18n';
-import { el, redrawInPlace } from './dom';
+import { el, redrawInPlace, windowTitle } from './dom';
 import { toast } from './announcer';
 import type { PublicConfig } from '../config';
 
@@ -36,9 +36,7 @@ export function initTheme(config: PublicConfig): string {
 
 /** Window title in the current language; the server rendered it from Accept-Language. */
 export function translateTitle(config: PublicConfig): void {
-  const separator = document.title.lastIndexOf(' · ');
-  const suffix = separator >= 0 ? document.title.slice(separator) : '';
-  document.title = t(`page.${config.page}.title`) + suffix;
+  document.title = windowTitle(t(`page.${config.page}.title`));
 }
 
 const SVG_NS = 'http://www.w3.org/2000/svg';

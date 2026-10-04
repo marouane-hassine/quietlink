@@ -6,6 +6,8 @@ import type { Expiration } from './crypto/constants';
 
 export interface PublicConfig {
   page: 'create' | 'read' | 'manage' | 'how';
+  /** Instance name (app.name), the window title suffix. */
+  name?: string;
   enabledLocales: string[];
   /** Name and writing direction of each enabled locale (catalogues loaded on demand). */
   locales?: { code: string; name: string; dir: 'ltr' | 'rtl' }[];

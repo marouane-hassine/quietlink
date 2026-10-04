@@ -322,6 +322,11 @@ select {
   font-family: var(--ql-font-sans);
 }
 
+/* With dir="auto" and no text, Chromium and WebKit resolve the editor to LTR. */
+[dir="rtl"] .editor:placeholder-shown {
+  direction: rtl;
+}
+
 .control-select {
   inline-size: auto;
   min-block-size: 44px;
@@ -480,6 +485,46 @@ summary {
   min-block-size: 44px;
   display: flex;
   align-items: center;
+}
+
+/* display: flex removes the native marker: draw a chevron that points to the inline end when
+   closed and down when open. */
+summary {
+  list-style: none;
+  gap: 0.5rem;
+}
+
+summary::-webkit-details-marker {
+  display: none;
+}
+
+summary::after {
+  content: "";
+  flex: none;
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  margin-inline-start: auto;
+  border-inline-end: 2px solid currentcolor;
+  border-block-end: 2px solid currentcolor;
+  transform: rotate(-45deg);
+}
+
+[dir="rtl"] summary::after {
+  transform: rotate(45deg);
+}
+
+details[open] > summary::after {
+  transform: rotate(45deg);
+}
+
+[dir="rtl"] details[open] > summary::after {
+  transform: rotate(-45deg);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  summary::after {
+    transition: transform 0.15s ease;
+  }
 }
 
 .action-bar {

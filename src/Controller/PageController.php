@@ -113,6 +113,7 @@ final class PageController
         $paste = $this->config->paste;
         $settings = [
             'page' => $page,
+            'name' => $this->config->app->name,
             'enabledLocales' => $this->config->app->enabledLocales,
             'locales' => $this->catalogs->locales($this->config->app->enabledLocales),
             'defaultExpiration' => $paste->defaultExpiration,

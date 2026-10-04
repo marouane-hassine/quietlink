@@ -2,15 +2,16 @@
 
 import { locale } from '../i18n';
 
+/** Size with decimal units localised by the browser (o/ko/Mo in French, B/kB/MB in English). */
 export function formatBytes(bytes: number): string {
-  const units = ['B', 'KB', 'MB'];
+  const units = ['byte', 'kilobyte', 'megabyte'] as const;
   let value = bytes;
   let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
+  while (value >= 1000 && unit < units.length - 1) {
+    value /= 1000;
     unit += 1;
   }
-  return `${new Intl.NumberFormat(locale(), { maximumFractionDigits: unit === 0 ? 0 : 1 }).format(value)} ${units[unit]}`;
+  return new Intl.NumberFormat(locale(), { style: 'unit', unit: units[unit], unitDisplay: 'short', maximumFractionDigits: unit === 0 ? 0 : 1 }).format(value);
 }
 
 /** Absolute date in the active language and the browser time zone, with the zone name. */

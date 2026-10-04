@@ -180,7 +180,7 @@ None.
 | EXG-UX-088 | `frontend/tests/confirm.test.ts` |
 | EXG-UX-089 | `frontend/tests/viewport.test.ts` |
 | EXG-THEME-002 | `tests/Theme/TokenThemeBuilderTest.php` |
-| EXG-I18N-001 | `frontend/tests/a11y-fixes.test.ts`, `frontend/tests/chrome.test.ts`, `frontend/tests/how-page.test.ts`, `frontend/tests/manage-page.test.ts`, `frontend/tests/read-failures.test.ts` |
+| EXG-I18N-001 | `frontend/tests/a11y-fixes.test.ts`, `frontend/tests/chrome.test.ts`, `frontend/tests/format-title.test.ts`, `frontend/tests/how-page.test.ts`, `frontend/tests/manage-page.test.ts`, `frontend/tests/read-failures.test.ts` |
 | EXG-THEME-003 | `tests/e2e/result.spec.ts` |
 | EXG-A11Y-008 | `frontend/tests/css.test.ts` |
 | EXG-UX-097 | `tests/e2e/ux.spec.ts` |
@@ -287,7 +287,7 @@ None.
 | EXG-SEC-037 | `tests/Theme/TokenThemeBuilderTest.php` |
 | EXG-SEC-038 | `frontend/tests/create-security.test.ts` |
 | EXG-THEME-021 | `tests/Web/PageTest.php` |
-| EXG-A11Y-016 | `frontend/tests/a11y-fixes.test.ts`, `frontend/tests/viewport.test.ts` |
+| EXG-A11Y-016 | `frontend/tests/a11y-fixes.test.ts`, `frontend/tests/format-title.test.ts`, `frontend/tests/viewport.test.ts` |
 | EXG-A11Y-017 | `tests/e2e/keyboard.spec.ts` |
 | EXG-A11Y-018 | `frontend/tests/create-page.test.ts` |
 | EXG-I18N-003 | `frontend/tests/locales.test.ts`, `tests/e2e/languages.spec.ts` |

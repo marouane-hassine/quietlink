@@ -53,6 +53,20 @@ export function focusUnlessRedrawing(target: HTMLElement | null | undefined): vo
   if (!redrawing) target?.focus({ preventScroll: false });
 }
 
+let instanceName: string | null = null;
+
+/** Instance name from the page configuration, used as the window title suffix. */
+export function setInstanceName(name: string): void {
+  instanceName = name;
+}
+
+/** Screen title followed by the instance name (read from the server title when not set). */
+export function windowTitle(screen: string): string {
+  if (instanceName !== null) return `${screen} · ${instanceName}`;
+  const separator = document.title.lastIndexOf(' · ');
+  return screen + (separator >= 0 ? document.title.slice(separator) : '');
+}
+
 /** Replaces the main content and moves focus to the new screen title (§6.6). */
 export function showScreen(main: HTMLElement, ...nodes: (Node | null)[]): void {
   clearAlerts();
@@ -60,10 +74,7 @@ export function showScreen(main: HTMLElement, ...nodes: (Node | null)[]): void {
   const heading = main.querySelector('h1, h2');
   // The window title names the current screen (WCAG 2.4.2); screen titles never hold secrets.
   const title = main.querySelector('h1')?.textContent?.trim();
-  if (title) {
-    const separator = document.title.lastIndexOf(' · ');
-    document.title = title + (separator >= 0 ? document.title.slice(separator) : '');
-  }
+  if (title) document.title = windowTitle(title);
   if (heading instanceof HTMLElement) {
     heading.tabIndex = -1;
     focusUnlessRedrawing(heading);

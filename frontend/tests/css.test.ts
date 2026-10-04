@@ -31,6 +31,14 @@ describe('stylesheet', () => {
     expect(mono).toContain('"Geeza Pro"');
     expect(css).toMatch(/\.editor::placeholder\s*\{[^}]*font-family:\s*var\(--ql-font-sans\)/);
   });
+  it('shows an expand marker on every summary, turned when open and mirrored in rtl', () => {
+    expect(css).toMatch(/summary::after\s*\{[^}]*content:\s*""/);
+    expect(css).toMatch(/details\[open\]\s*>\s*summary::after\s*\{[^}]*transform/);
+    expect(css).toMatch(/\[dir="rtl"\]\s*summary::after\s*\{[^}]*transform/);
+  });
+  it('aligns an empty editor placeholder with the interface direction', () => {
+    expect(css).toMatch(/\[dir="rtl"\]\s*\.editor:placeholder-shown\s*\{[^}]*direction:\s*rtl/);
+  });
   it('uses logical properties instead of physical left/right', () => {
     expect(css).not.toMatch(/(margin|padding)-(left|right)\s*:/);
     expect(css).not.toMatch(/text-align:\s*(left|right)/);
