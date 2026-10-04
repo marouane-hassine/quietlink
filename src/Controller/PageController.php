@@ -100,6 +100,7 @@ final class PageController
         $settings = [
             'page' => $page,
             'enabledLocales' => $this->config->app->enabledLocales,
+            'locales' => $this->catalogs->locales($this->config->app->enabledLocales),
             'defaultExpiration' => $paste->defaultExpiration,
             'expirations' => $paste->acceptedExpirationCodes(),
             'allowReadOnce' => $paste->allowReadOnce,
@@ -116,6 +117,7 @@ final class PageController
 
         return new Response($this->twig->render('page.html.twig', [
             'locale' => $locale,
+            'dir' => $this->catalogs->direction($locale),
             'name' => $this->config->app->name,
             'title' => $t($titleKey),
             'noscript' => $t('app.noscript'),

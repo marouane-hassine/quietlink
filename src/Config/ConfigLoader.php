@@ -7,6 +7,7 @@ declare(strict_types=1);
 namespace QuietLink\Config;
 
 use QuietLink\Crypto\Argon2id;
+use QuietLink\Web\Catalogs;
 use Throwable;
 
 /**
@@ -16,13 +17,23 @@ use Throwable;
  */
 final class ConfigLoader
 {
-    public const AVAILABLE_LOCALES = ['en', 'fr'];
     public const FALLBACK_LOCALE = 'en';
     /** Built-in themes; operators customize the active one with theme.custom_tokens_file. */
     public const AVAILABLE_THEMES = ['default'];
     public const TEMPLATES = ['credentials', 'api-token', 'wifi', 'ssh-key', 'database', 'env-vars', 'temporary-access', 'incident'];
     public const RATE_LIMIT_BUCKETS = ['create', 'create_replay', 'challenge', 'open', 'status', 'consume', 'delete', 'health', 'open_per_paste', 'status_per_paste'];
     private const LOG_LEVELS = ['debug', 'info', 'notice', 'warning', 'error', 'critical', 'alert', 'emergency'];
+
+    /**
+     * Locales of the catalogues shipped in translations/ (§6.6.1: a new language is a new
+     * catalogue, no code change).
+     *
+     * @return list<string>
+     */
+    public static function availableLocales(): array
+    {
+        return Catalogs::available(dirname(__DIR__, 2) . '/translations');
+    }
 
     /**
      * Versioned defaults (§9.5, ADR-0007 for rate limits).
@@ -36,7 +47,8 @@ final class ConfigLoader
                 'name' => 'QuietLink',
                 'public_url' => null,
                 'source_url' => 'https://github.com/marouane-hassine/quietlink',
-                'enabled_locales' => ['en', 'fr'],
+                // Every shipped catalogue (translations/*.json) is enabled unless restricted.
+                'enabled_locales' => self::availableLocales(),
             ],
             'theme' => [
                 'name' => 'default',
@@ -266,8 +278,8 @@ final class ConfigLoader
             $errors[] = '"app.source_url" must be an https URL of the deployed source code (AGPL-3.0 section 13).';
         }
         $locales = $r->stringList('app.enabled_locales');
-        if (!in_array(self::FALLBACK_LOCALE, $locales, true) || array_diff($locales, self::AVAILABLE_LOCALES) !== [] || count(array_unique($locales)) !== count($locales)) {
-            $errors[] = sprintf('"app.enabled_locales" must include "en" and only contain: %s.', implode(', ', self::AVAILABLE_LOCALES));
+        if (!in_array(self::FALLBACK_LOCALE, $locales, true) || array_diff($locales, self::availableLocales()) !== [] || count(array_unique($locales)) !== count($locales)) {
+            $errors[] = sprintf('"app.enabled_locales" must include "en" and only contain: %s.', implode(', ', self::availableLocales()));
         }
 
         if (!in_array($r->string('theme.name'), self::AVAILABLE_THEMES, true)) {

@@ -212,7 +212,7 @@ Durations use the format `<integer><m|h|d>` (e.g. `30m`, `24h`, `7d`). Expiratio
 | `app.name` | `'QuietLink'` | Non-empty string; instance name displayed in pages. |
 | `app.public_url` | `null` (must be set) | Required. `https://` origin without path, query, fragment or credentials. `http://` is accepted only for `localhost`, `127.0.0.1`, `[::1]`. |
 | `app.source_url` | `'https://github.com/marouane-hassine/quietlink'` | `https://` URL of the deployed source code, linked in the footer (AGPL-3.0 section 13). Point it to your fork if you modify the code. |
-| `app.enabled_locales` | `['en', 'fr']` | List. Must contain `en` (mandatory fallback); only available locales (`en`, `fr`); no duplicates. |
+| `app.enabled_locales` | every shipped catalogue (`['en', 'ar', 'es', 'fr', 'it']`) | List. Must contain `en` (mandatory fallback); only locales with a valid catalogue in `translations/`; no duplicates. |
 
 #### `theme`
 
@@ -597,10 +597,12 @@ selects the default mode; users can still switch.
 
 ### 12.2 Languages
 
-`app.enabled_locales` selects the offered languages among those shipped (`en`, `fr`). English is
-mandatory. The language is negotiated from `Accept-Language`, and the user's explicit choice is
-remembered in the browser only. Adding a language requires a code change
-(`docs/README-developer.md`).
+`app.enabled_locales` selects the offered languages among those shipped: English (`en`, the
+mandatory fallback), Arabic (`ar`, right to left), Spanish (`es`), French (`fr`) and Italian (`it`).
+A language is added by dropping a catalogue `translations/<code>.json` (same keys as `en.json`,
+with `_meta.locale`, `_meta.name` and `_meta.dir` set to `ltr` or `rtl`) and running `app:boot`;
+no code change is needed. The browser chooses the language from the user's explicit choice, then
+the browser preference, then English.
 
 ## 13. Health check and diagnostics
 

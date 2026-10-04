@@ -47,6 +47,79 @@ final class Catalogs
         return 'en';
     }
 
+    /**
+     * Locales of the valid catalogues in $directory, English first (§6.6.1: a new language is a
+     * new catalogue, no code change). A catalogue is valid when its `_meta` names its own locale
+     * and declares a direction.
+     *
+     * @return list<string>
+     */
+    public static function available(string $directory): array
+    {
+        $files = glob($directory . '/*.json');
+        $locales = [];
+        foreach ($files === false ? [] : $files as $file) {
+            $code = basename($file, '.json');
+            if (preg_match('/^[a-z]{2}$/D', $code) === 1 && self::metaOf($file, $code) !== null) {
+                $locales[] = $code;
+            }
+        }
+        sort($locales);
+        usort($locales, static fn (string $a, string $b): int => ($b === 'en') <=> ($a === 'en'));
+
+        return $locales;
+    }
+
+    /** Writing direction declared by the catalogue (ltr when unknown). */
+    public function direction(string $locale): string
+    {
+        return $this->meta($locale)['dir'] ?? 'ltr';
+    }
+
+    /**
+     * Name and direction of each enabled locale, for the language selector.
+     *
+     * @param list<string> $enabled
+     *
+     * @return list<array{code: string, name: string, dir: string}>
+     */
+    public function locales(array $enabled): array
+    {
+        $locales = [];
+        foreach ($enabled as $code) {
+            $meta = $this->meta($code);
+            if ($meta !== null) {
+                $locales[] = ['code' => $code, 'name' => $meta['name'], 'dir' => $meta['dir']];
+            }
+        }
+
+        return $locales;
+    }
+
+    /**
+     * @return array{name: string, dir: string}|null
+     */
+    private function meta(string $locale): ?array
+    {
+        return preg_match('/^[a-z]{2}$/D', $locale) === 1 ? self::metaOf($this->path($locale), $locale) : null;
+    }
+
+    /**
+     * @return array{name: string, dir: string}|null
+     */
+    private static function metaOf(string $file, string $code): ?array
+    {
+        $json = @file_get_contents($file);
+        $data = $json === false ? null : json_decode($json, true);
+        $meta = is_array($data) ? ($data['_meta'] ?? null) : null;
+        if (!is_array($meta) || ($meta['locale'] ?? null) !== $code || !is_string($meta['name'] ?? null)
+            || !in_array($meta['dir'] ?? null, ['ltr', 'rtl'], true)) {
+            return null;
+        }
+
+        return ['name' => $meta['name'], 'dir' => $meta['dir']];
+    }
+
     public function translate(string $locale, string $key): string
     {
         return $this->catalog($locale)[$key] ?? $this->catalog('en')[$key] ?? $key;

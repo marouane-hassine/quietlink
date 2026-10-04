@@ -93,7 +93,9 @@ final class ConfigLoaderTest extends TestCase
         $config = $this->load();
 
         self::assertSame('https://paste.example.test', $config->app->publicUrl);
-        self::assertSame(['en', 'fr'], $config->app->enabledLocales);
+        // Every shipped catalogue is enabled by default (§6.6.1).
+        self::assertSame(ConfigLoader::availableLocales(), $config->app->enabledLocales);
+        self::assertSame(['en', 'ar', 'es', 'fr', 'it'], $config->app->enabledLocales);
         self::assertSame('1d', $config->paste->defaultExpiration);
         self::assertSame(['5m', '1h', '1d', '7d', '30d'], $config->paste->allowedExpirations);
         self::assertFalse($config->paste->allowForever);

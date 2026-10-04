@@ -33,6 +33,22 @@ final class PageTest extends KernelTestCase
         self::assertStringContainsString('<html lang="en" dir="ltr">', (string) $other->getContent());
     }
 
+    /**
+     * A catalogue declaring a right-to-left direction is served with dir="rtl"; the page gives the
+     * language selector the name and direction of every enabled catalogue (§6.6.1).
+     */
+    #[Group('EXG-I18N-007')]
+    #[Group('EXG-I18N-008')]
+    public function testRightToLeftCatalogueSetsTheDocumentDirection(): void
+    {
+        $ar = (string) $this->request('GET', '/', null, ['Accept-Language' => 'ar'])->getContent();
+        self::assertStringContainsString('<html lang="ar" dir="rtl">', $ar);
+
+        $it = (string) $this->request('GET', '/', null, ['Accept-Language' => 'it-IT'])->getContent();
+        self::assertStringContainsString('<html lang="it" dir="ltr">', $it);
+        self::assertMatchesRegularExpression('/&quot;locales&quot;:\[.*&quot;code&quot;:&quot;ar&quot;,&quot;name&quot;:&quot;[^&]+&quot;,&quot;dir&quot;:&quot;rtl&quot;/', $it);
+    }
+
     #[Group('EXG-READ-014')]
     #[Group('EXG-SEC-061')]
     #[Group('EXG-API-030')]

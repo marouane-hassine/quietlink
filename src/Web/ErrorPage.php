@@ -61,7 +61,7 @@ final class ErrorPage
             $body .= "\n" . '<p><a href="' . self::escape($request->getBasePath() . '/') . '">' . self::escape($this->text($locale, 'page.notFound.home')) . '</a></p>';
         }
         $html = '<!doctype html>' . "\n"
-            . '<html lang="' . self::escape($locale) . '" dir="ltr">' . "\n"
+            . '<html lang="' . self::escape($locale) . '" dir="' . self::escape($this->catalogs->direction($locale)) . '">' . "\n"
             . '<head>' . "\n"
             . '<meta charset="utf-8">' . "\n"
             . '<meta name="viewport" content="width=device-width, initial-scale=1">' . "\n"
@@ -87,7 +87,7 @@ final class ErrorPage
         try {
             return $this->status->config()->app->enabledLocales;
         } catch (InvalidConfigException) {
-            return ConfigLoader::AVAILABLE_LOCALES;
+            return ConfigLoader::availableLocales();
         }
     }
 

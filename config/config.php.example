@@ -17,7 +17,7 @@ return [
         // Link to the source code of the deployed version (AGPL-3.0 section 13).
         'source_url' => 'https://github.com/marouane-hassine/quietlink',
         // English is the mandatory fallback and must stay enabled.
-        'enabled_locales' => ['en', 'fr'],
+        'enabled_locales' => ['en', 'ar', 'es', 'fr', 'it'],
     ],
     'theme' => [
         // Only the built-in "default" theme exists; customize it with custom_tokens_file.
