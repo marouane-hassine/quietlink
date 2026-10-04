@@ -17,8 +17,8 @@ written right to left (RTL), which goes beyond the V1 requirement without contra
    every valid `translations/<code>.json` (`_meta.locale` matching the file name, `_meta.dir` =
    `ltr` or `rtl`), English first. All of them are enabled by default; `app.enabled_locales`
    restricts the list. The frontend loads catalogues other than `en` and `fr` on demand
-   (`import.meta.glob`), so adding a file needs no code change and does not grow the first
-   screen.
+   (`import.meta.glob`), so adding a file needs no code change and does not grow the initial
+   bundle.
 2. **RTL is supported**: the document gets `dir` from the catalogue (server page, error pages,
    language switch); CSS already uses logical properties (enforced by tests), the select arrow is
    mirrored, user content uses `dir="auto"`, links and code stay LTR.
@@ -32,7 +32,11 @@ written right to left (RTL), which goes beyond the V1 requirement without contra
 
 ## Consequences
 
-- The template module loads every catalogue (to recognise field labels): about 60 KB more on the
-  creation and reading pages, not on the first screen.
+- The template module loads every catalogue (to recognise field labels): about 60 KB more,
+  fetched as separate chunks with the creation and reading pages — the creation page being the
+  home page, they are part of the first visit, not of the initial bundle (budget-checked).
+- A catalogue that cannot be fetched (offline, stale page after a redeploy) never blocks the
+  page: the stored choice falls back to English, and a language switch keeps the current
+  language with a message.
 - Plural forms are not supported by the catalogue format; messages avoid them ("(n
   unconfirmed opening(s))") — a plural mechanism may be added later.

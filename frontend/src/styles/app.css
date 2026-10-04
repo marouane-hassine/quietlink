@@ -316,8 +316,8 @@ select {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  inline-size: 40px;
-  min-block-size: 40px;
+  inline-size: 44px;
+  min-block-size: 44px;
   border-radius: 999px;
   color: var(--ql-color-text-muted);
   cursor: pointer;

@@ -62,4 +62,7 @@ describe('stylesheet', () => {
     expect(css).toMatch(/\[dir="rtl"\] select\s*\{[^}]*background-position:\s*0\.75rem 55%,\s*1\.1rem 55%/);
     expect(css).not.toMatch(/padding-inline:\s*env\(safe-area-inset-left\)\s*env\(safe-area-inset-right\)/);
   });
+  it('gives the theme buttons the 44px touch target of every other control (§5.1)', () => {
+    expect(css).toMatch(/\.theme-switch label\s*\{[^}]*inline-size:\s*44px[^}]*min-block-size:\s*44px/);
+  });
 });

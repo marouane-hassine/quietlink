@@ -209,7 +209,7 @@
   "tpl.field.name": "Nom",
   "tpl.field.url": "URL",
   "tpl.field.environment": "Environnement",
-  "tpl.field.username": "Utilisateur",
+  "tpl.field.username": "Nom d’utilisateur",
   "tpl.field.password": "Mot de passe",
   "tpl.field.relatedToken": "Token ou clé associée",
   "tpl.field.expiresOn": "Date d’expiration",
