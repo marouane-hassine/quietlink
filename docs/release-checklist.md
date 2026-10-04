@@ -16,6 +16,10 @@ signed-off review.
 - [ ] The release workflow repeats `composer qa`, `npm run qa`, the coverage and vectors checks
       on the tagged commit, and publishes nothing if the tag differs from `v` + `Version::APP`
       or the commit is not on `main`.
+- [ ] Local Docker validation green on the release commit: `tools/docker/qa.sh all` (PHP,
+      frontend and pattern checks with the production PHP and Node versions) and
+      `tools/docker/smoke.sh` (images, users, no database, `app:boot --dry-run`, healthchecks,
+      headers, read-only root, CLI round trip with dummy text, purge).
 - [ ] Playwright campaign green on the five projects (`npm run e2e`, run locally: not part of
       CI), twice in a row with no flaky retry.
 - [ ] `npm run coverage:requirements` regenerated; every Must requirement is either cited by a
@@ -50,8 +54,9 @@ signed-off review.
 
 - [ ] `CHANGELOG.md`: `Unreleased` section renamed to the version, with the date.
 - [ ] `docs/README-admin.md` and `docs/README-developer.md` followed from scratch on a clean
-      machine: Docker installation, installation without Docker, developer setup and test run
-      (§16.4, reproducible installations).
+      machine: Docker installation, installation without Docker (systemd units), backup and
+      restore test, developer setup and test run (§16.4, reproducible installations;
+      `EXG-OPS-004`).
 - [ ] `SECURITY.md` contact channel live before the first public release (§17).
 - [ ] `docs/openapi.yaml`, `docs/protocol/sp-proto-v1.md` and `docs/storage-format.md` match
       the code (no change since the external audit, or the change was re-reviewed).
@@ -75,8 +80,10 @@ signed-off review.
 6. Run the verification procedure of README-admin ("Upgrade and rollback") against the
    published artefacts from a machine that did not build them, including a rebuild of the PHAR
    from the tag with the same SHA-256 (README-developer, "Reproducible PHAR").
-7. Deploy a staging instance by digest, run `/healthz`, one create/read/delete journey with
-   dummy text, and check the response headers (CSP, HSTS, `Referrer-Policy`, no third-party
-   request).
+7. Deploy a staging instance by digest: first run `app:boot --dry-run` on the target with its
+   real configuration (no error), then start it, check `app:config:check --format=json`
+   (exit `0`, `ready`), `/healthz`, one create/read/delete journey with dummy text, and the
+   response headers (CSP, HSTS, `Referrer-Policy`, no third-party request), following
+   README-admin "Post-deployment verification".
 8. Merge `main` back into `develop` if the release pull request added commits, then set
    `Version::APP` on `develop` to the next development version (for example `1.1.0-dev`).

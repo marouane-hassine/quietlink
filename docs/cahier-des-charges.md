@@ -1,14 +1,15 @@
 # Cahier des charges — QuietLink, outil de partage de textes confidentiels
 
-**Statut :** version 0.21 — projet de cahier des charges produit et technique  
+**Statut :** version 0.22 — projet de cahier des charges produit et technique  
 **Périmètre :** V1  
 **Technologie obligatoire :** PHP avec Symfony pour le backend, l’API et la CLI ; TypeScript avec Vite pour le frontend  
 **Licence :** GNU Affero General Public License v3.0 (AGPL-3.0)  
 **Référence fonctionnelle :** PrivateBin (projet libre sous licence zlib), utilisé comme référence d’usage uniquement : aucune reprise de marque, de logo, d’identité visuelle ni de code, et aucune compatibilité de format visée  
-**Date :** 3 octobre 2026
+**Date :** 4 octobre 2026
 
 **Historique :**
 
+- 0.22 — outillage d’exploitation (§15.1) : `app:boot --dry-run`, sorties JSON et codes de sortie documentés de `app:boot` et `app:config:check`, `app:secret:generate --output`, événements d’exploitation journalisés sans identifiant, validation locale et test de fumée en Docker ; marqueurs de création en cours dans `state/creating/` ; correction : seule la purge retire les répertoires `<id>/` incomplets (et non `app:boot`).
 - 0.21 — logo QuietLink : symbole bouclier et maillons, mot-symbole, versions claire et sombre en SVG, intégration en ligne colorée par les tokens et favicon.
 - 0.20 — langues : l’application doit accepter les langues écrites de droite à gauche (RTL) en plus des langues LTR ; langues fournies en V1 : anglais (référence et fallback), français, espagnol, italien et arabe (RTL) ; catalogues découverts automatiquement et chargés à la demande ; contenu utilisateur avec direction automatique, liens et code toujours LTR.
 - 0.19 — répertoire de données configurable par `storage.data_dir`, par défaut `datas/` à la racine du projet (hors de `public/`) ; les répertoires de contenus, d’idempotence, de rate limiting et d’état en dérivent par défaut et restent configurables individuellement ; en Docker, le volume de données est monté sur ce répertoire.
@@ -1266,7 +1267,8 @@ Chaque contenu doit être stocké dans un répertoire partitionné par préfixes
     ├── health.json     # seuils d’espace et d’inodes, horodaté, écrit par la purge et app:boot
     ├── boot.json       # marqueur d’amorçage (empreinte de la configuration validée)
     ├── usage.lock
-    └── purge.lock
+    ├── purge.lock
+    └── creating/       # marqueurs vides, nommés aléatoirement, des créations en cours
 
 /var/lib/quietlink-generated/   # storage.generated_assets_dir, volume distinct
 └── tokens.<hash>.css
@@ -1280,7 +1282,7 @@ Règles obligatoires :
 - lors de la consommation, `payload.bin` est supprimé sous verrou juste après l’écriture de l’état `consumed` ;
 - toute suppression d’un contenu (suppression manuelle, purge d’un contenu expiré ou d’un contenu consommé depuis plus de 10 minutes) se fait en deux temps : sous verrou, `state.json` passe d’abord à l’état terminal `deleted` avec `terminal_at`, et `payload.bin` est supprimé ; les autres fichiers puis le répertoire sont ensuite supprimés, `state.lock` en dernier ; si un arrêt brutal intervient entre ces étapes, la purge suivante termine la suppression de tout contenu en état `deleted` ;
 - tout processus qui obtient le verrou doit, **après l’obtention du verrou**, vérifier que le descripteur verrouillé désigne toujours `<id>/state.lock` (égalité du périphérique et de l’inode entre `fstat()` sur le descripteur et `stat()` sur le chemin), puis relire l’état ; il abandonne l’opération, avec la réponse générique d’indisponibilité, si l’inode diffère, si le répertoire n’existe plus ou si l’état est `deleted`, ainsi que si l’état est `consumed`, sauf pour le rejeu idempotent de `consume` (§6.3.1) ; un verrou obtenu sur un fichier déjà supprimé ne permet donc jamais de réserver, servir ou modifier un contenu ;
-- un répertoire partiellement supprimé ne doit jamais rester vide sous le nom `<id>/` : la purge supprime les fichiers puis le répertoire dans la même opération sous verrou, et un répertoire `<id>/` sans `state.json` ou sans `state.lock` trouvé par `app:boot` ou par la purge est traité comme supprimé et retiré ;
+- un répertoire partiellement supprimé ne doit jamais rester vide sous le nom `<id>/` : la purge supprime les fichiers puis le répertoire dans la même opération sous verrou, et un répertoire `<id>/` sans `state.json` ou sans `state.lock` trouvé par la purge est traité comme supprimé et retiré par celle-ci (`app:boot` ne parcourt pas les contenus) ;
 - `state.lock` est utilisé avec `flock()` en mode exclusif pour les transitions de lecture unique, de suppression et de réservation ;
 - `state.lock` est créé uniquement avec le répertoire temporaire, lors de la création du contenu ; il est ensuite toujours ouvert **sans création** (mode `r+`, jamais `c`, `a`, `w` ni `x`) ; un fichier de verrou absent signifie que le contenu n’existe pas, et la requête reçoit la réponse générique d’indisponibilité ; aucun processus ne peut ainsi recréer un verrou dans un répertoire en cours de suppression ;
 - toute modification de `state.json` est écrite dans un fichier temporaire du même répertoire, synchronisée avec `fsync()` (PHP ≥ 8.1), puis appliquée par `rename()` atomique ;
@@ -1296,6 +1298,7 @@ Règles obligatoires :
 - l’index d’idempotence est lui aussi stocké sous forme de fichiers ne contenant ni texte en clair ni jeton de suppression brut ; sa durée de conservation est bornée indépendamment de l’expiration du contenu (§10) afin d’éviter toute accumulation et l’épuisement des inodes ;
 - la commande de purge parcourt uniquement les répertoires attendus, refuse les liens symboliques sortants et reste idempotente ; elle s’exécute sous un verrou global exclusif non bloquant (`purge.lock`) : une exécution qui trouve le verrou déjà pris se termine immédiatement, ce qui empêche les exécutions concurrentes lorsque la planification est plus fréquente que la durée d’une purge ;
 - les contenus `consumed` sont conservés au moins 10 minutes après `terminal_at`, sans payload, pour l’idempotence de `consume` (§6.3.1), puis supprimés par la purge ; une suppression manuelle d’un contenu `consumed` conserve l’état `consumed` jusqu’à cette échéance afin de ne pas casser l’idempotence de `consume` ;
+- une création en cours est signalée par un fichier vide, nommé aléatoirement, dans `state/creating/`, écrit avant la réservation du quota et supprimé après la validation ou l’abandon de la création ; le recalcul horaire de `usage.json` n’est pas appliqué tant qu’un marqueur de moins d’une heure existe, afin de ne pas effacer une création encore absente du disque ; la purge supprime les marqueurs de plus d’une heure laissés par un arrêt brutal ; ces marqueurs ne contiennent aucune donnée et ne modifient aucun format de fichier existant ;
 - `usage.json` est protégé par un verrou dédié (`usage.lock`, créé par `app:boot`) ; le contrôle de quota et la réservation de la taille et d’un contenu se font sous ce même verrou, de sorte que des créations concurrentes ne peuvent pas dépasser les quotas ; il est mis à jour à chaque création (ajout de la taille du ciphertext et d’un contenu), à chaque suppression d’un contenu perdant ou en échec d’idempotence (retrait), et à chaque suppression de `payload.bin` (consommation, suppression, expiration : retrait de la taille) ; le nombre de contenus n’est décrémenté qu’à la suppression du répertoire ;
 - les sauvegardes portent sur ce stockage de fichiers et doivent conserver les permissions, la cohérence des renommages et la confidentialité des ciphertexts ; une copie `tar` d’un répertoire actif n’est pas considérée comme une sauvegarde cohérente ;
 - une sauvegarde doit être réalisée depuis un snapshot cohérent du système de fichiers ou après arrêt/mise en lecture seule du service ; une copie en direct d’un répertoire actif sans garantie de cohérence est interdite ; la restauration doit être testée régulièrement ;
@@ -1766,6 +1769,19 @@ Livrables attendus :
 - filesystem en lecture seule lorsque compatible ;
 - healthcheck et arrêt propre ;
 - planification de la purge en conteneur : un service dédié du Docker Compose, basé sur la même image, avec le même utilisateur non root, le même filesystem racine en lecture seule et le même volume de stockage, exécute `app:purge-expired` toutes les 60 secondes dans une boucle supervisée ; aucun démon `cron` n’est requis dans l’image ; l’équivalent systemd est un timer (`OnUnitActiveSec=60s`).
+
+### 15.1 Outillage d’exploitation
+
+L’exploitation se fait uniquement par la console, la configuration et les outils système (aucun backoffice). Les commandes suivantes sont attendues (priorité Should) :
+
+- `app:boot --dry-run` exécute tous les contrôles d’amorçage sans rien créer, écrire ni supprimer : un répertoire absent devient un avertissement, contrôlé par son plus proche parent existant, et le test de `rename()`/`link()`, qui exige des fichiers de test, est omis (`EXG-OPS-001`) ;
+- `app:boot` signale en avertissement un fichier de secret ou une configuration lisibles par tous les comptes, des inodes non mesurables et un `post_max_size` PHP inférieur à `http.max_request_bytes`, et refuse les répertoires de stockage accessibles à d’autres comptes (mode `0700` exigé) (`EXG-OPS-002`) ;
+- `app:boot` et `app:config:check` acceptent `--format=json` (un document JSON unique, sans jamais le secret) ; les codes de sortie sont documentés : `0` succès, `1` échec bloquant ou configuration invalide, `2` erreur d’usage ou, pour `app:config:check`, configuration valide mais non amorcée ; `app:config:check` est en lecture seule et sert au healthcheck du conteneur (`EXG-OPS-003`) ;
+- les procédures d’exploitation (unités systemd, sauvegarde et restauration avec test régulier, permissions, mise à jour et retour arrière, vérification après déploiement, dépannage, procédure d’incident) sont documentées dans le README administrateur (`EXG-OPS-004`) ;
+- les situations d’exploitation autrement invisibles sont journalisées sous forme d’événements (`health_stale`, `boot_marker_mismatch`, `purge_failures`, en plus de `quota_alert`), au plus une fois par minute et par worker pour ceux émis par les requêtes, sans identifiant, chemin ni adresse (`EXG-OPS-005`) ;
+- `app:secret:generate --output=<fichier>` écrit le secret dans un nouveau fichier (mode `0600`, ou `0640` avec `--group-readable`) sans l’afficher ; un fichier existant n’est remplacé, atomiquement, qu’avec `--force` (`EXG-OPS-006`) ;
+- hygiène Docker : healthcheck du service applicatif conditionné à l’état d’amorçage, signal d’arrêt adapté du service de purge, exclusions du contexte de build (données, rapports, artefacts), espace temporaire suffisant pour Nginx et journal d’erreurs Nginx limité au niveau `emerg` (`EXG-OPS-007`) ;
+- validation locale en Docker (`tools/docker/qa.sh`) et test de fumée de la pile Compose (`tools/docker/smoke.sh`), exécutés avant chaque version (`EXG-OPS-008`).
 
 ## 16. Tests et validation
 

@@ -45,7 +45,9 @@ datas/                                    # storage.data_dir: project root by de
     ├── health.json                       # free space / inodes, timestamped (purge, app:boot)
     ├── boot.json                         # boot marker (validated config fingerprint)
     ├── usage.lock                        # created by app:boot
-    └── purge.lock                        # global purge lock
+    ├── purge.lock                        # global purge lock
+    └── creating/                         # markers of creations in progress (§9.1)
+        └── <16 hex chars>                # empty file, random name, one per creation
 
 /var/lib/quietlink-generated/             # storage.generated_assets_dir, separate volume
 └── tokens.<hash>.css
@@ -76,6 +78,7 @@ Source: §9.4.1, l. 1244–1265; §9.5, l. 1365–1372.
 | idempotency record | write-once (published with `link()`) | create | [`idempotency.v1`](schemas/idempotency.v1.schema.json) |
 | `usage.json` | rewritten atomically under `usage.lock` | create, delete paths, purge | [`usage.v1`](schemas/usage.v1.schema.json) |
 | `health.json`, `boot.json` | rewritten atomically | purge, `app:boot` | [`health.v1`](schemas/health.v1.schema.json), [`boot.v1`](schemas/boot.v1.schema.json) |
+| `state/creating/<rand>` | created empty (exclusive create, mode 0600), unlinked at the end of the creation | create; purge removes markers older than 1 h | — (empty file, no content) |
 
 All JSON files carry an integer `schema_version` (ADR-0002). Proposed (non-normative) encodings: binary values in base64url without padding, timestamps as integer Unix seconds (same convention as the challenge `issued_at`, §6.3.1 l. 442), UTF-8 JSON without BOM.
 
@@ -174,8 +177,9 @@ The spec requires `LOCK_EX` for read-once, reservation and deletion transitions 
 | during staging-dir write | orphan `.<id>.tmp-<rand>/`; quota already reserved | purge removes old staging dirs (§6.3); hourly usage recompute corrects the counters |
 | after `consumed` written, before `payload.bin` unlink | `consumed` with payload still on disk (never served) | purge unlinks `payload.bin` for any `consumed`/`deleted` paste and decrements bytes (Proposed (non-normative)) |
 | after `deleted` written | partial directory | purge completes deletion of any `deleted` paste (l. 1273) |
-| after `state.json` unlinked | dir without `state.json`/`state.lock` | treated as deleted and removed by purge/`app:boot` (l. 1275) |
+| after `state.json` unlinked | dir without `state.json`/`state.lock` | treated as deleted and removed by the purge (l. 1275; `app:boot` does not scan pastes, spec v0.22) |
 | between `usage.json` reserve and failure handling | counter drift | hourly recompute (l. 1521) |
+| during a creation, after its marker was written | stale `state/creating/<rand>` marker | ignored by the recompute once older than 1 h, then removed by the purge (§9.1) |
 
 ## 6. Atomic write procedures
 
@@ -315,14 +319,24 @@ Rules (l. 1291):
 Consistency:
 
 - Check and increment happen in one `usage.lock` critical section, so concurrent creations cannot exceed the quotas.
-- Decrements are applied under `usage.lock` by whoever performs the unlink/rmdir, after the filesystem operation succeeded (never before), and never go below zero (clamp + log).
+- Decrements are applied under `usage.lock` by whoever performs the unlink/rmdir, after the filesystem operation succeeded (never before), and never go below zero (clamp + log). They (and the post-rename commit of a creation) wait for `usage.lock` patiently, with several bounded attempts of about 2 s each, instead of giving up after the first timeout: a lost decrement would leave the counters too high until the next recompute.
 - Drift sources (crash between filesystem operation and counter update, orphan staging dirs) are corrected by the purge's full recompute, **at most once per hour** (l. 1521), in its own read-only pass after the removals: read the counters and their `generation`, scan `pastes/` without `usage.lock`, then under `usage.lock` replace the counters with the observed totals **only if** `generation` is unchanged. Every reservation, release and completed creation (after its rename) increments `generation`, so any concurrent change, even one that leaves the totals unchanged, defers the recomputation, which is retried 10 minutes later rather than at every purge run (OQ-09, resolved).
+
+### 9.1 Creation markers (`state/creating/`)
+
+A creation reserves its quota before its directory exists, and becomes visible on disk only at the final `rename()`. A recomputation scanning `pastes/` in between would not see it and would erase the reservation. Therefore:
+
+- before reserving its quota, a creation writes an empty marker `state/creating/<16 random hex chars>` (exclusive create, mode 0600; the directory is created on demand with mode 0700) and unlinks it after its commit, or after its rollback;
+- the recomputation is applied only if no marker younger than one hour exists (in addition to the `generation` check above); otherwise it is postponed like any other concurrent change;
+- markers older than one hour (left by a crash) no longer block the recomputation and are removed by the purge.
+
+Markers contain nothing and their names are random: they reveal no identifier, size or time beyond their own mtime. They are not versioned (no JSON, no `schema_version`) and do not change any existing file format. Rollback safety: an older release ignores `state/creating/` entirely (it never reads it), so downgrading needs no migration; the directory can be left in place or removed while the instance is stopped.
 
 ## 10. Purge (`app:purge-expired`, §9.7)
 
 Preconditions: `state/boot.json` present and matching the loaded configuration, else refuse to run (l. 1521). Acquire `purge.lock` with `LOCK_EX|LOCK_NB`; if busy, exit immediately (l. 1289). Recommended schedule: every minute.
 
-Steps (each idempotent):
+Steps (each idempotent; a failure on one paste never stops the run: it is counted as `failed` in the purge output, logged as one `purge_failures` warning with the count, and retried by the next run):
 
 1. Walk only `pastes/<s1>/<s2>/` entries matching the expected naming; refuse symlinks (l. 1289).
 2. For each `<id>/`:
@@ -330,7 +344,7 @@ Steps (each idempotent):
    - else lock it (§5.2, non-blocking per Proposed 5.5) and apply, in order: finish `deleted` (T12); expired (any non-terminal state) ⇒ delete (T9); `consumed` with `now ≥ terminal_at + 10 min` ⇒ delete (T10); `consumed` with leftover `payload.bin` ⇒ unlink it; `reserved` with expired reservation ⇒ release (T5/T6).
 3. Remove orphan staging dirs and state temp files (§6.3).
 4. Unlink idempotency records with `retain_until ≤ now`.
-5. Remove expired rate-limiting entries (out of scope here).
+5. Remove expired rate-limiting entries (out of scope here), and creation markers older than one hour (§9.1).
 6. Update `health.json` (free bytes, free inode percentage, timestamp) atomically.
 7. At most once per hour, recompute `usage.json` (§9).
 

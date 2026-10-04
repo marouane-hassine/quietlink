@@ -39,10 +39,11 @@ key, passphrase, deletion token).
 cp config/config.php.example config/config.php       # set app.public_url
 mkdir -p secrets
 docker compose build
-docker compose run --rm --no-deps app php bin/console app:secret:generate > secrets/app_secret
+(umask 077 && docker compose run --rm --no-deps -T app php bin/console app:secret:generate > secrets/app_secret)
 sudo chgrp 10001 secrets/app_secret config/config.php   # containers run as uid/gid 10001
 chmod 640 secrets/app_secret config/config.php
-docker compose up -d
+docker compose run --rm --no-deps -T app php bin/console app:boot --dry-run   # checks only
+docker compose up -d --wait
 ```
 
 Then put an HTTPS reverse proxy in front of `127.0.0.1:8080`. No database is used: storage is
@@ -80,7 +81,7 @@ sodium, openssl, mbstring) or the `ghcr.io/marouane-hassine/quietlink-cli:vX.Y.Z
 (linux/amd64; prefer the digest listed in the release notes; `docker run -it` for interactive
 passphrase prompts; build it locally with `docker build -f docker/cli/Dockerfile -t quietlink/cli .`).
 Published server images (immutable `vX.Y.Z` tags, deploy by digest) and their verification are
-described in [docs/README-admin.md](docs/README-admin.md) (§3 "Published images", §15).
+described in [docs/README-admin.md](docs/README-admin.md) (§3.3 "Published images", §15.3).
 
 ## Development
 
@@ -90,6 +91,11 @@ composer qa        # PHP: coding style, PHPStan, PHPUnit
 npm run qa         # frontend: typecheck, Vitest, build, bundle budget, coverage report
 npm run e2e        # Playwright end-to-end tests (npx playwright install first)
 ```
+
+The same validations run inside Docker, with the PHP and Node versions of the production images
+and without installing anything on the host: `tools/docker/qa.sh [php|frontend|all]`. Before a
+deployment change, `tools/docker/smoke.sh` builds the images and smoke tests a throwaway Compose
+stack (healthchecks, headers, CLI round trip with dummy text), then removes it.
 
 Test-driven development, Conventional Commits and work on `develop`: see
 [docs/README-developer.md](docs/README-developer.md) and [CONTRIBUTING.md](CONTRIBUTING.md).

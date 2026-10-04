@@ -23,10 +23,14 @@ vulnerability in a public issue.
 ```sh
 composer install && npm ci
 composer qa          # PHP-CS-Fixer (PSR-12), PHPStan level max, PHPUnit
-npm run qa           # TypeScript, Vitest, Vite build
+npm run qa           # TypeScript, Vitest, Vite build, bundle budget, coverage report check
 composer vectors:check
 tools/ci/forbidden-patterns.sh
 ```
+
+The same checks run in Docker, with the production PHP and Node versions:
+`tools/docker/qa.sh all`. Changes to the Docker files, `compose.yaml` or the deployment also
+need `tools/docker/smoke.sh` to pass (see `docs/README-developer.md`).
 
 ## Commits
 

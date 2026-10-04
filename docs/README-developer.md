@@ -76,9 +76,12 @@ public/                index.php front controller, build/ (generated assets)
 src/                   PHP sources, namespace QuietLink\ (PSR-4)
 templates/             Twig page template (HTML shell only)
 tests/                 PHPUnit tests, tests/vectors/ shared protocol vectors
-tools/                 vector generator, word list builder, dev router
-translations/          en.json, fr.json (shared by server templates and frontend)
-docker/, compose.yaml  container images and demonstration deployment
+tools/                 vector generator, word list builder, dev router, CI checks (ci/),
+                       requirement coverage (traceability/), benchmarks (bench/),
+                       Docker validation and smoke test (docker/)
+translations/          en.json, fr.json, es.json, it.json, ar.json (shared by server
+                       templates and frontend)
+docker/, compose.yaml  container images (php, nginx, cli, qa) and demonstration deployment
 ```
 
 ### 3.1 PHP (`src/`)
@@ -95,10 +98,10 @@ docker/, compose.yaml  container images and demonstration deployment
 | `Http/` | Client address normalisation, request body parsing, problem responses. |
 | `Controller/` | `ApiController` (`/api/v1/pastes…`), `PageController` (`/`, `/p/{id}`, `/manage/{id}`, `/how-it-works`), `HealthController` (`/healthz`). |
 | `EventSubscriber/` | Runtime guard (boot marker, trusted proxies), security headers/CSP, exception mapping to uniform problems, request log. |
-| `Log/` | `JsonLogger`: PSR-3 JSON lines on stderr with a context allowlist and sanitisation. |
+| `Log/` | `JsonLogger`: PSR-3 JSON lines on stderr with a context allowlist and sanitisation; `OperationsLog`: throttled operations events (`health_stale`, `boot_marker_mismatch`), at most once a minute per worker, without identifiers. |
 | `Maintenance/` | `Booter` (app:boot checks), `Purger`, `DiskProbe`, `ThemeBuilder` interface. |
 | `Theme/` | `TokenThemeBuilder`: validates theme tokens, compiles hashed CSS. |
-| `Command/` | `app:boot`, `app:config:check`, `app:secret:generate`, `app:purge-expired`. |
+| `Command/` | `app:boot` (`--dry-run`), `app:config:check`, `app:secret:generate` (`--output`), `app:purge-expired`, `app:theme:preview`, `app:cache:purge`; `OutputFormat` (shared `--format=text\|json` option). Exit codes: `0` success, `1` failure, `2` usage error or, for `app:config:check`, not booted (README-admin §8.4). |
 | `Runtime/` | `Environment` (APP_ENV/APP_DEBUG, never debug in prod), `RuntimeStatus` (config + boot marker), `ServiceFactory`. |
 | `Web/` | Vite manifest reader (`Assets`), translation catalogs (`Catalogs`). |
 | `Client/`, `Cli/` | CLI client: client-side crypto (`ClientCrypto`), API client, share link parsing, passphrase input, commands. Independent from the server kernel. |
@@ -146,7 +149,17 @@ Rules:
 - Tests never use real secrets or personal data: fixed dummy values only.
 - Cryptographic code is developed from the shared test vectors (§6).
 - Must items come before Should, Should before Could (§0.3 of the specification).
-- `docs/traceability.md` maps requirements to tests; keep it up to date.
+- `docs/traceability.md` maps requirements to tests; keep it up to date. Identifiers are never
+  renumbered or reused; a new requirement gets the next free number of its domain and a row in
+  the matrix (with its specification section) before its first test.
+- PHPUnit tests cite requirements with `#[Group('EXG-…')]` attributes, Vitest and Playwright
+  files with a `Requirements:` header comment; `node tools/traceability/coverage.mjs` builds
+  `docs/coverage.md` from them and `npm run qa` fails when that file is out of date.
+- Operations requirements (spec §15.1) use the `EXG-OPS-<n>` domain: boot dry run, boot
+  checks, exit codes and JSON output, operations log events, `app:secret:generate --output`,
+  Docker hygiene and the local Docker validation. Console behaviour is tested through
+  Symfony's `CommandTester` (`tests/Command/`), boot checks in `tests/Maintenance/`, Docker and
+  Compose files in `tests/Deploy/`.
 
 ## 6. Commands
 
@@ -162,11 +175,40 @@ composer vectors         # regenerate tests/vectors/sp-proto-v1.json
 npm run typecheck        # tsc --noEmit
 npm test                 # Vitest (frontend/tests/)
 npm run build            # Vite production build into public/build/
-npm run qa               # typecheck + test + build: must be green before every commit
+npm run qa               # typecheck + test + build + bundle budget + requirement coverage check:
+                         # must be green before every commit
+npm run coverage:requirements   # regenerate docs/coverage.md after changing tests or traceability.md
 ```
 
 CI runs the same commands (`composer qa`, `composer vectors:check`, `npm run qa`). End-to-end
 tests use Playwright (ADR-0001: Chromium, Firefox, WebKit, mobile emulation).
+
+### 6.1 Local validation in Docker
+
+Run the validations locally **in Docker**, so that the PHP version, extensions and Node version
+are the ones of the production images whatever your workstation has:
+
+```sh
+tools/docker/qa.sh            # all: composer qa, npm run qa, tools/ci/forbidden-patterns.sh
+tools/docker/qa.sh php        # composer install + composer qa (cs, PHPStan, PHPUnit incl. CLI tests)
+tools/docker/qa.sh frontend   # npm ci + npm run qa
+tools/docker/smoke.sh         # build the images and smoke test the Compose stack
+```
+
+- `qa.sh` builds the validation image `docker/qa/Dockerfile` (PHP 8.3 with the production
+  extensions, Composer and Node, same pinned base digests; never deployed) and runs the commands
+  with your uid/gid, so files written to the working copy (`public/build/`) keep their owner.
+  `vendor/`, `node_modules/` and the home directory live in Docker volumes
+  (`quietlink-qa-vendor`, `quietlink-qa-node`, `quietlink-qa-home`), never on the host; `var/`
+  is a tmpfs.
+- `smoke.sh` runs a throwaway Compose project (`quietlink-smoke`) with its own configuration and
+  secret (your `config/` is never touched): image users, no database service,
+  `app:boot --dry-run`, `up --wait` with healthchecks, `app:config:check` ready, `/healthz`,
+  CSP header, read-only root filesystem, CLI create/read/delete with dummy text, purge; then it
+  removes everything. Port `18096` by default (`QUIETLINK_SMOKE_PORT`). On failure it prints
+  the last log lines of each service.
+- `tools/docker/qa.sh all` and `tools/docker/smoke.sh` must be green before a pull request that
+  touches the code, the Docker files or `compose.yaml`; the release checklist requires both.
 
 ## 7. Test vectors
 
@@ -324,7 +366,7 @@ printf 'dummy text\n' | bin/quietlink create --server https://quietlink.example.
 bin/quietlink create --server https://quietlink.example.test --input notes.txt --passphrase
 
 # Passphrase from an owner-only file (chmod 600, or under /run/secrets/)
-bin/quietlink create --input notes.txt --passphrase-file ./pass.txt --format markdown
+bin/quietlink create --server https://quietlink.example.test --input notes.txt --passphrase-file ./pass.txt --format markdown
 
 # Metadata without decrypting or reserving
 bin/quietlink metadata --url-stdin < share-link.txt
@@ -338,6 +380,8 @@ bin/quietlink delete --url-stdin --yes < manage-link.txt
 # Docker (local build; releases publish ghcr.io/marouane-hassine/quietlink-cli:vX.Y.Z)
 docker build -f docker/cli/Dockerfile -t quietlink/cli .
 docker run --rm -i quietlink/cli metadata --url-stdin < share-link.txt
+# /app is read-only in the image: mount a directory writable by uid 10002 for -o
+docker run --rm -i -v "$PWD/out:/out" quietlink/cli decrypt --url-stdin -o /out/file.txt < share-link.txt
 ```
 
 Options: `create` accepts `--server` (or `QUIETLINK_SERVER`), `--expires` (`5m`, `1h`, `1d`,
@@ -348,12 +392,17 @@ Options: `create` accepts `--server` (or `QUIETLINK_SERVER`), `--expires` (`5m`,
 1 MiB limit applies to the serialized envelope (sp-proto §4), JSON escaping included, and is
 checked before any prompt or request. Usage errors (unknown command or option, unexpected
 argument) exit with code `2` and never repeat the offending value, which may be a link or a
-passphrase typed by mistake.
+passphrase typed by mistake. `create` writes the share link to stdout and the management link
+to stderr, so pipes never mix them; `delete` requires `--yes` when no terminal is available;
+the passphrase prompt is refused when the terminal echo cannot be disabled (`stty` failure);
+`--server` accepts IPv6 literals (`http://[::1]:8080`); output files are created with mode 0600
+from the first instant; the PHAR reports a disabled `allow_url_fopen` explicitly.
 
 ## 16. Reviews and releases
 
 - Every pull request targets `develop`, passes `composer qa`, `composer vectors:check` and
-  `npm run qa`, and is reviewed. Changes touching `src/Crypto`, `frontend/src/crypto`, the
+  `npm run qa` (locally through `tools/docker/qa.sh`, plus `tools/docker/smoke.sh` for
+  deployment changes), and is reviewed. Changes touching `src/Crypto`, `frontend/src/crypto`, the
   storage format, headers/CSP or logging require a security-focused review.
 - Dependency audits (`composer audit`, `npm audit`), SBOM generation, reproducible builds and
   release signing are part of the release procedure (`docs/release-checklist.md`); image base

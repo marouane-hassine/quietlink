@@ -10,7 +10,7 @@ Decisions already recorded in §19.1 are applied: Playwright for E2E tests, JSON
 
 ## Legend
 
-- **ID**: stable requirement identifier. Domains: GEN (general), UX, A11Y (accessibility), I18N, THEME, MD (Markdown and templates), LIFE (expiry, deletion, burn after reading), READ (read protocol, §6.3.1), CRYPTO (§8), URL, SEC (§7, §11, HTTP headers, CSP), STORE (§9.4, §9.7), CONF (§9.5), CACHE (§9.6), API (§10), CLI, OBS (§14 logging), PERF (§13), DEPLOY (§15), TEST (§16), DOC (§17), PWA.
+- **ID**: stable requirement identifier. Domains: GEN (general), UX, A11Y (accessibility), I18N, THEME, MD (Markdown and templates), LIFE (expiry, deletion, burn after reading), READ (read protocol, §6.3.1), CRYPTO (§8), URL, SEC (§7, §11, HTTP headers, CSP), STORE (§9.4, §9.7), CONF (§9.5), CACHE (§9.6), API (§10), CLI, OBS (§14 logging), PERF (§13), DEPLOY (§15), OPS (§15.1 operations tooling), TEST (§16), DOC (§17), PWA.
 - **§**: section of the specification where the requirement is stated.
 - **Summary**: short English paraphrase of the requirement. The specification is the reference text.
 - **Priority**: V1 priority from §0.3. **Must** blocks the release; **Should** blocks the release unless a written waiver exists; **Could** does not block and may be deferred to V1.1. Requirements not listed in §0.3 inherit the priority of their feature area (security, crypto, storage, API, CLI, i18n, a11y, Docker and docs are Must).
@@ -824,6 +824,19 @@ Decisions already recorded in §19.1 are applied: Playwright for E2E tests, JSON
 | EXG-DEPLOY-027 | 15 | Healthcheck and graceful shutdown | Must | MUST | CI check: compose healthcheck and SIGTERM |
 | EXG-DEPLOY-028 | 15 | Compose purge service every 60 s, hardened, no cron; systemd timer | Must | MUST | CI check: compose purge service |
 
+### 15.1 Operations tooling (§15.1, spec v0.22)
+
+| ID | § | Summary | Priority | Level | Planned test |
+|---|---|---|---|---|---|
+| EXG-OPS-001 | 15.1 | `app:boot --dry-run` runs every check and creates, writes or deletes nothing (missing directories reported as warnings) | Should | MUST | PHPUnit integration: dry run on empty and existing stores leaves the filesystem unchanged |
+| EXG-OPS-002 | 15.1 | `app:boot` reports a world-readable secret file or configuration, unmeasurable inodes and `post_max_size` below `http.max_request_bytes`, and refuses storage directories accessible to other accounts | Should | MUST | PHPUnit unit: Booter warnings and mode errors; DiskProbe inode parsing |
+| EXG-OPS-003 | 15.1 | Console exit codes documented (0 success, 1 failure, 2 usage or not booted) and JSON output for `app:boot` and `app:config:check`, never showing the secret | Should | MUST | PHPUnit integration: CommandTester exit codes and JSON documents |
+| EXG-OPS-004 | 15.1 | Operations procedures documented in README-admin (systemd, backup/restore and restore test, permissions, upgrade/rollback, verification, troubleshooting, incident procedure) | Should | MUST | Manual review: README-admin followed from scratch |
+| EXG-OPS-005 | 15.1 | Operations log events (`health_stale`, `boot_marker_mismatch`, `purge_failures`) throttled and without identifiers, path or address | Should | MUST | PHPUnit integration: log scan of operations events |
+| EXG-OPS-006 | 15.1 | `app:secret:generate --output` writes a new file 0600 (0640 with `--group-readable`) without printing the secret; existing file replaced only with `--force` | Should | MUST | PHPUnit integration: CommandTester output file mode and refusal |
+| EXG-OPS-007 | 15.1 | Docker hygiene: app healthcheck on boot status, purge stop signal, build context exclusions, Nginx spool space and `emerg` error log | Should | MUST | PHPUnit unit: compose.yaml, .dockerignore and Nginx configuration checks |
+| EXG-OPS-008 | 15.1 | Local validation in Docker (`tools/docker/qa.sh`) and Docker smoke test of the Compose stack (`tools/docker/smoke.sh`) | Should | MUST | CI check: tools/docker scripts run green before release |
+
 ### 16. Tests and validation (§16)
 
 | ID | § | Summary | Priority | Level | Planned test |
@@ -991,7 +1004,7 @@ Decisions already recorded in §19.1 are applied: Playwright for E2E tests, JSON
 
 ## Summary
 
-Total requirements: **903**.
+Total requirements: **913**.
 
 ### Count per domain and priority
 
@@ -1010,16 +1023,17 @@ Total requirements: **903**.
 | LIFE | 26 | 0 | 0 | 26 |
 | MD | 1 | 24 | 3 | 28 |
 | OBS | 10 | 0 | 0 | 10 |
+| OPS | 0 | 8 | 0 | 8 |
 | PERF | 10 | 1 | 0 | 11 |
 | PWA | 2 | 0 | 5 | 7 |
 | READ | 38 | 0 | 0 | 38 |
 | SEC | 109 | 2 | 0 | 111 |
-| STORE | 45 | 0 | 0 | 45 |
+| STORE | 46 | 0 | 0 | 46 |
 | TEST | 122 | 6 | 2 | 130 |
-| THEME | 0 | 19 | 1 | 20 |
+| THEME | 0 | 20 | 1 | 21 |
 | URL | 17 | 0 | 0 | 17 |
 | UX | 97 | 14 | 9 | 120 |
-| **Total** | **816** | **67** | **20** | **903** |
+| **Total** | **817** | **76** | **20** | **913** |
 
 ## Ambiguities
 
