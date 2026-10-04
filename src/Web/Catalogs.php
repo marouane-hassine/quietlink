@@ -14,6 +14,9 @@ final class Catalogs
     /** @var array<string, array<string, string>> */
     private array $loaded = [];
 
+    /** @var array<string, array{name: string, dir: string}|null> */
+    private static array $metaMemo = [];
+
     public function __construct(private readonly string $directory)
     {
     }
@@ -108,6 +111,20 @@ final class Catalogs
      * @return array{name: string, dir: string}|null
      */
     private static function metaOf(string $file, string $code): ?array
+    {
+        // Read once per process: pages ask for the metadata of every enabled locale.
+        $memoKey = $code . "\0" . $file;
+        if (!array_key_exists($memoKey, self::$metaMemo)) {
+            self::$metaMemo[$memoKey] = self::readMeta($file, $code);
+        }
+
+        return self::$metaMemo[$memoKey];
+    }
+
+    /**
+     * @return array{name: string, dir: string}|null
+     */
+    private static function readMeta(string $file, string $code): ?array
     {
         $json = @file_get_contents($file);
         $data = $json === false ? null : json_decode($json, true);

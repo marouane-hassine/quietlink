@@ -71,4 +71,18 @@ final class CatalogsTest extends TestCase
         self::assertContains('fr', $shipped);
         self::assertSame($shipped, ConfigLoader::availableLocales());
     }
+
+    /**
+     * A missing or broken translations directory degrades texts, never the service: English
+     * stays available so the configuration (and the API) keep working.
+     */
+    #[Group('EXG-I18N-006')]
+    public function testEnglishStaysAvailableWithoutReadableCatalogues(): void
+    {
+        $empty = $this->tmp->path . '/empty';
+        mkdir($empty);
+
+        self::assertSame(['en'], ConfigLoader::availableLocales($empty));
+        self::assertSame(['en', 'ar', 'fr'], ConfigLoader::availableLocales($this->tmp->path));
+    }
 }

@@ -18,6 +18,9 @@ use Throwable;
 final class ConfigLoader
 {
     public const FALLBACK_LOCALE = 'en';
+
+    /** @var array<string, list<string>> */
+    private static array $localeMemo = [];
     /** Built-in themes; operators customize the active one with theme.custom_tokens_file. */
     public const AVAILABLE_THEMES = ['default'];
     public const TEMPLATES = ['credentials', 'api-token', 'wifi', 'ssh-key', 'database', 'env-vars', 'temporary-access', 'incident'];
@@ -30,9 +33,18 @@ final class ConfigLoader
      *
      * @return list<string>
      */
-    public static function availableLocales(): array
+    public static function availableLocales(?string $directory = null): array
     {
-        return Catalogs::available(dirname(__DIR__, 2) . '/translations');
+        $directory ??= dirname(__DIR__, 2) . '/translations';
+        // Computed once per process: the configuration is loaded on every request.
+        if (!isset(self::$localeMemo[$directory])) {
+            $found = Catalogs::available($directory);
+            // English always counts: a missing or broken catalogue directory degrades the texts
+            // (keys shown), never the whole service.
+            self::$localeMemo[$directory] = in_array(self::FALLBACK_LOCALE, $found, true) ? $found : [self::FALLBACK_LOCALE, ...$found];
+        }
+
+        return self::$localeMemo[$directory];
     }
 
     /**
