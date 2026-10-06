@@ -29,5 +29,6 @@ export function formatRelative(seconds: number): string {
   if (abs < 59.5) return rtf.format(Math.round(seconds), 'second');
   if (abs < 59.5 * 60) return rtf.format(Math.round(seconds / 60), 'minute');
   if (abs < 23.5 * 3600) return rtf.format(Math.round(seconds / 3600), 'hour');
-  return rtf.format(Math.round(seconds / 86400), 'day');
+  // "always": with "auto", one day would read "tomorrow" although it may end today.
+  return new Intl.RelativeTimeFormat(locale(), { numeric: 'always' }).format(Math.round(seconds / 86400), 'day');
 }

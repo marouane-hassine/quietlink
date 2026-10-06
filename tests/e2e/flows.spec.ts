@@ -87,6 +87,8 @@ test('an incomplete link is reported without contacting the API', async ({ page 
 test('the management link deletes the paste after confirmation', async ({ page, context }) => {
   const link = await create(page);
   await page.getByRole('button', { name: 'Show the management link' }).click();
+  // Revealing asks for an explicit confirmation after the irreversibility warning (§5.1).
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Show the link' }).click();
   const manageLink = await page.locator('.danger-zone input.link-field').inputValue();
   expect(manageLink).toMatch(/^http:\/\/localhost:8090\/manage\/[A-Za-z0-9_-]{32}#[A-Za-z0-9_-]{43}$/);
   expect(manageLink).not.toBe(link);

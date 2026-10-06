@@ -25,7 +25,7 @@ export const TEMPLATES: Record<string, Section[]> = {
     { title: 'notes', fields: [] },
   ],
   wifi: [
-    { title: 'network', fields: ['name', 'ssid', 'security', 'password'] },
+    { title: 'network', fields: ['name', 'ssid', 'security', 'password', 'hidden'] },
     { title: 'location', fields: ['location'] },
     { title: 'notes', fields: [] },
   ],
@@ -109,7 +109,8 @@ export function parseTemplateText(text: string): ParsedTemplate | null {
   const parsed: ParsedTemplate = { title: heading[1].trim(), sections: [] };
   let current: TemplateSection | null = null;
   for (const line of lines.slice(first + 1)) {
-    const section = /^## (.+)$/.exec(line);
+    // A title is required: "##" followed by blanks only would vanish when written back.
+    const section = /^## (.*\S.*)$/.exec(line);
     if (section?.[1]) {
       current = { title: section[1].trim(), fields: [], notes: [] };
       parsed.sections.push(current);
@@ -155,12 +156,15 @@ export function fieldIdForLabel(label: string): string | null {
   return null;
 }
 
+/** "Yes" in the shipped languages, for the hidden-network field. */
+const HIDDEN_YES = new Set(['yes', 'y', 'true', '1', 'oui', 'sí', 'si', 'sì', 'نعم']);
+
 /** Escapes a value for the WIFI: QR payload (backslash before \ ; , : and "). */
 export function escapeWifi(value: string): string {
   return value.replace(/([\\;,:"])/g, '\\$1');
 }
 
-/** WIFI:T:<type>;S:<ssid>;P:<password>;; from a filled Wi-Fi template, or null when incomplete. */
+/** WIFI:T:<type>;S:<ssid>;P:<password>;[H:true;]; from a filled Wi-Fi template, or null when incomplete. */
 export function wifiPayload(template: ParsedTemplate): string | null {
   const values = new Map<string, string>();
   for (const section of template.sections) {
@@ -174,7 +178,38 @@ export function wifiPayload(template: ParsedTemplate): string | null {
   const security = (values.get('security') ?? '').toLowerCase();
   const password = values.get('password') ?? '';
   // Open only without a password: one that was entered is never dropped from the code. WEP
-  // only when named without WPA ("WPA2/WEP" networks accept WPA).
-  const type = password === '' ? 'nopass' : /\bwep\b/.test(security) && !/wpa/.test(security) ? 'WEP' : 'WPA';
-  return `WIFI:T:${type};S:${escapeWifi(ssid)};${type === 'nopass' ? '' : `P:${escapeWifi(password)};`};`;
+  // only when named without WPA ("WPA2/WEP" networks accept WPA). SAE only for WPA3 alone:
+  // transition networks (WPA2/WPA3) keep WPA, which every phone understands.
+  const type = password === ''
+    ? 'nopass'
+    : /\bwep\b/.test(security) && !/wpa/.test(security)
+      ? 'WEP'
+      : /wpa3/.test(security) && !/wpa(?!3)/.test(security) ? 'SAE' : 'WPA';
+  // First word only, NFC and lower case: "Oui (masqué)", "Yes, hidden" or a decomposed "sí" count.
+  const firstWord = /^[\p{L}\p{N}]+/u.exec((values.get('hidden') ?? '').normalize('NFC').trim().toLowerCase())?.[0] ?? '';
+  const hidden = HIDDEN_YES.has(firstWord) ? 'H:true;' : '';
+  return `WIFI:T:${type};S:${escapeWifi(ssid)};${type === 'nopass' ? '' : `P:${escapeWifi(password)};`}${hidden};`;
+}
+
+/**
+ * Escaping of notes lines (§6.1.1), exactly reversible: a line starting with "## " (any line)
+ * or a first non-empty line written like a field ("- label: value") gets one more leading
+ * backslash, including when backslashes already precede the pattern, so that a backslash
+ * typed there is kept. Markdown shows "\## " and "\- " as typed.
+ */
+const SECTION_ESCAPE = /^\\*## /;
+const FIELD_ESCAPE = /^\\*- /;
+
+const isEscapedField = (line: string, escaped: RegExp): boolean => escaped.test(line) && isFieldLine(line.replace(/^\\+/, ''));
+
+/** Notes lines as written in the text, from the lines typed (blank edges already trimmed). */
+export function escapeNotes(typed: string[]): string[] {
+  const first = typed.findIndex((line) => line.trim() !== '');
+  return typed.map((line, index) => (SECTION_ESCAPE.test(line) || (index === first && isEscapedField(line, FIELD_ESCAPE)) ? `\\${line}` : line));
+}
+
+/** Notes lines as typed: removes exactly the backslash escapeNotes() could have added. */
+export function noteTexts(notes: string[]): string[] {
+  const first = notes.findIndex((line) => line.trim() !== '');
+  return notes.map((line, index) => (/^\\+## /.test(line) || (index === first && isEscapedField(line, /^\\+- /)) ? line.slice(1) : line));
 }

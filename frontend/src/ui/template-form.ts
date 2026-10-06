@@ -6,7 +6,7 @@
  */
 
 import { t } from '../i18n';
-import { isFieldLine, isSensitiveLabel, serializeTemplate, type ParsedTemplate } from '../templates';
+import { escapeNotes, isSensitiveLabel, noteTexts, serializeTemplate, type ParsedTemplate } from '../templates';
 import { el, nextId } from './dom';
 
 /** Mask state of the sensitive fields; the caller keeps it to rebuild the form unchanged. */
@@ -50,16 +50,14 @@ export function buildTemplateForm(template: ParsedTemplate, onChange: (text: str
     }
     const notesId = nextId('tpl-notes');
     const notes = el('textarea', { id: notesId, rows: section.fields.length > 0 ? '2' : '4', spellcheck: 'false', autocomplete: 'off' });
-    notes.value = section.notes.join('\n');
+    notes.value = noteTexts(section.notes).join('\n');
     notes.addEventListener('input', () => {
       // Kept as typed (nothing is dropped silently); trailing blank lines only are trimmed.
-      const typed = notes.value.replace(/\s+$/, '');
-      // A notes line starting with "## " would start a new section: escaped as "\## ", which
-      // Markdown shows unchanged. Likewise a first line written like a field ("- label: value")
-      // would be read back as a field: its "- " is escaped as "\- ".
-      const lines = typed === '' ? [] : typed.split('\n').map((line) => line.replace(/^## /, '\\## '));
-      const first = lines.findIndex((line) => line.trim() !== '');
-      if (first >= 0 && isFieldLine(lines[first] ?? '')) lines[first] = `\\${lines[first] ?? ''}`;
+      // Leading blank lines too: the text could not be read back as this template.
+      const typed = notes.value.replace(/\s+$/, '').replace(/^(\s*\n)+/, '');
+      // A notes line starting with "## " would start a new section, and a first line written
+      // like a field ("- label: value") would be read back as a field: both are escaped.
+      const lines = typed === '' ? [] : escapeNotes(typed.split('\n'));
       section.notes = lines;
       emit();
     });

@@ -7,7 +7,8 @@
 
 import { t } from '../i18n';
 
-export function holdRetry(button: HTMLButtonElement, seconds: number | null): void {
+/** `onDone` runs once when a countdown ends (the page re-enables its other actions). */
+export function holdRetry(button: HTMLButtonElement, seconds: number | null, onDone?: () => void): void {
   let left = seconds !== null && seconds > 0 ? Math.ceil(seconds) : 0;
   const update = () => {
     button.disabled = left > 0;
@@ -18,6 +19,9 @@ export function holdRetry(button: HTMLButtonElement, seconds: number | null): vo
   const timer = window.setInterval(() => {
     left -= 1;
     update();
-    if (left <= 0 || !button.isConnected) window.clearInterval(timer);
+    if (left <= 0 || !button.isConnected) {
+      window.clearInterval(timer);
+      if (left <= 0 && button.isConnected) onDone?.();
+    }
   }, 1000);
 }

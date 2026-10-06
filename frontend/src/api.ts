@@ -86,7 +86,14 @@ const paste = (id: string) => `/api/v1/pastes/${encodeURIComponent(id)}`;
 export const api = {
   /** Same Idempotency-Key and byte-identical body on every retry (§10). */
   create: (json: string, idempotencyKey: string) => request<CreateResponse>('POST', '/api/v1/pastes', json, { 'Idempotency-Key': idempotencyKey }),
-  challenge: async (id: string, usage: 'open' | 'status') => (await request<{ challenge: string }>('POST', `${paste(id)}/challenge`, JSON.stringify({ usage }))).data.challenge,
+  /**
+   * A fresh challenge with its lifetime in seconds (`expires_in`) and `issuedAfter`, the monotonic
+   * instant the request left: the server cannot have issued it earlier (§6.3.1).
+   */
+  challenge: async (id: string, usage: 'open' | 'status'): Promise<{ challenge: string; expiresIn: number | null; issuedAfter: number }> => {
+    const { data, t0 } = await request<{ challenge: string; expires_in?: number }>('POST', `${paste(id)}/challenge`, JSON.stringify({ usage }));
+    return { challenge: data.challenge, expiresIn: typeof data.expires_in === 'number' && Number.isFinite(data.expires_in) ? data.expires_in : null, issuedAfter: t0 };
+  },
   status: (id: string, body: object) => request<StatusResponse>('POST', `${paste(id)}/status`, JSON.stringify(body)),
   open: (id: string, body: object) => request<OpenResponse>('POST', `${paste(id)}/open`, JSON.stringify(body)),
   consume: (id: string, body: object) => request<{ consumed: boolean }>('POST', `${paste(id)}/consume`, JSON.stringify(body)),

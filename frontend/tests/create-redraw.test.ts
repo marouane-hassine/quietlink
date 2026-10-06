@@ -21,6 +21,7 @@ const createKeys: string[] = [];
 let failNext = 0;
 let failKind: 'network' | 'rate' = 'network';
 let gate: Promise<void> | null = null;
+let expiresAt: string | null = null;
 
 vi.mock('../src/crypto/protocol', () => ({
   prepare: async (options: { readOnce: boolean }) => {
@@ -50,7 +51,7 @@ vi.mock('../src/api', async (original) => {
           failNext--;
           throw new actual.ApiError(failKind, failKind === 'rate' ? 30 : null);
         }
-        return { data: { id: 'A'.repeat(32), expires_at: null, server_time: new Date().toISOString() }, t0: 0, t1: 1 };
+        return { data: { id: 'A'.repeat(32), expires_at: expiresAt, server_time: new Date().toISOString() }, t0: 0, t1: 1 };
       },
     },
   };
@@ -97,6 +98,7 @@ describe('creation page state', () => {
     failNext = 0;
     failKind = 'network';
     gate = null;
+    expiresAt = null;
     setLocale('en');
     Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true });
     mount();
@@ -258,6 +260,9 @@ describe('creation page state', () => {
     button(t('result.qr'))?.click();
     button(t('manage.reveal'))?.click();
     await settle();
+    // Revealing asks for an explicit confirmation first (§5.1, EXG-SEC-015).
+    main.querySelector<HTMLButtonElement>('[role=alertdialog] .button-danger')?.click();
+    await settle();
     changeLanguage('fr');
     await settle();
 
@@ -267,5 +272,107 @@ describe('creation page state', () => {
     expect((main.querySelector('.danger-body') as HTMLElement).hidden).toBe(false);
     expect((main.querySelector('.danger-body .link-field') as HTMLInputElement).value).toContain('/manage/');
     expect(button(t('manage.reveal'))?.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('redraws the form in the new language when a language change during the creation ends in an error', async () => {
+    const encryption = deferred<void>();
+    gate = encryption.promise;
+    failNext = 1;
+    type('dummy text');
+    submit();
+    await settle();
+    changeLanguage('fr');
+    encryption.resolve();
+    await settle();
+
+    expect(main.querySelector('h1')?.textContent).toBe(t('page.create.title'));
+    expect(editor().value).toBe('dummy text');
+    expect((main.querySelector('.error-box') as HTMLElement).hidden).toBe(false);
+  });
+
+  it('keeps focus in a text field while the creation is busy (read-only, not disabled)', async () => {
+    readOnceBox();
+    const encryption = deferred<void>();
+    gate = encryption.promise;
+    failNext = 1;
+    type('dummy text');
+    editor().focus();
+    submit();
+    await settle();
+    const fields = [...main.querySelectorAll<HTMLInputElement>('.options input[type=text], .options input[type=password], .template-form input')];
+    for (const field of fields) expect(field.disabled).toBe(false);
+    expect(document.activeElement).toBe(editor());
+    encryption.resolve();
+    await settle();
+    expect(document.activeElement).toBe(editor());
+  });
+
+  it('does not let Create bypass a Retry-After hold', async () => {
+    let now = 1_000_000;
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
+    failNext = 1;
+    failKind = 'rate';
+    type('dummy text');
+    submit();
+    await settle();
+
+    const create = main.querySelector('.action-bar .button-primary') as HTMLButtonElement;
+    expect(create.disabled).toBe(true);
+    submit();
+    await settle();
+    expect(createKeys).toEqual(['key-1']);
+    now += 31_000;
+    expect(prepared).toHaveLength(1);
+  });
+
+  it('starts the next text with a hidden passphrase and wipes keys of a refused paste', async () => {
+    const passphraseBox = () => main.querySelectorAll<HTMLInputElement>('.options input[type=checkbox]')[1] as HTMLInputElement;
+    passphraseBox().checked = true;
+    passphraseBox().dispatchEvent(new Event('change'));
+    const show = button(t('passphrase.show'));
+    show?.click();
+    const input = main.querySelector<HTMLInputElement>('.passphrase-panel input') ?? main.querySelector<HTMLInputElement>('input.passphrase');
+    expect(input?.type).toBe('text');
+    type('dummy text');
+    (main.querySelector('.options input[type=text]') as HTMLInputElement).value = 'dummy passphrase words';
+    (main.querySelector('.options input[type=text]') as HTMLInputElement).dispatchEvent(new Event('input'));
+    submit();
+    await settle();
+    button(t('action.new'))?.click();
+    await settle();
+    main.querySelector<HTMLButtonElement>('[role=alertdialog] .button-primary, [role=alertdialog] .button-danger')?.click();
+    await settle();
+    passphraseBox().checked = true;
+    passphraseBox().dispatchEvent(new Event('change'));
+    const field = main.querySelector<HTMLInputElement>('.options input[type=password], .options input[type=text]');
+    expect(field?.type).toBe('password');
+  });
+
+  it('detaches the result screen document listeners on redraw and on New text (no key kept alive)', async () => {
+    const registered: { type: string; signal: AbortSignal | undefined }[] = [];
+    const add = document.addEventListener.bind(document);
+    vi.spyOn(document, 'addEventListener').mockImplementation((type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions) => {
+      registered.push({ type, signal: typeof options === 'object' ? options.signal : undefined });
+      add(type, listener, options);
+    });
+    expiresAt = new Date(Date.now() + 86_400_000).toISOString();
+    mount({ enableQrCode: true });
+    type('dummy text');
+    submit();
+    await settle();
+    button(t('result.qr'))?.click();
+    await settle();
+    changeLanguage('fr');
+    changeLanguage('en');
+    await settle();
+    (main.querySelector('.danger-zone .button-tertiary, .danger-zone button') as HTMLButtonElement | null)?.click();
+    button(t('action.new'))?.click();
+    await settle();
+    main.querySelector<HTMLButtonElement>('[role=alertdialog] .button-primary, [role=alertdialog] .button-danger')?.click();
+    await settle();
+
+    const resultListeners = registered.filter((r) => r.type === 'visibilitychange' || r.type === 'fullscreenchange');
+    expect(resultListeners.length).toBeGreaterThanOrEqual(4);
+    expect(resultListeners.every((r) => r.signal?.aborted === true)).toBe(true);
   });
 });

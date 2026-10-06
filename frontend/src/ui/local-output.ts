@@ -31,7 +31,14 @@ export function printButton(): HTMLButtonElement {
   button.addEventListener('click', async () => {
     if (!(await confirmInline(button, t('read.printWarning'), t('read.printConfirm')))) return;
     document.body.classList.add('print-allowed');
-    window.addEventListener('afterprint', () => document.body.classList.remove('print-allowed'), { once: true });
+    // Browsers may print the page address in headers or footers: the key fragment of a
+    // multi-read link is dropped from it while printing, then put back.
+    const hash = location.hash;
+    if (hash !== '') history.replaceState(history.state, '', location.pathname + location.search);
+    window.addEventListener('afterprint', () => {
+      document.body.classList.remove('print-allowed');
+      if (hash !== '' && location.hash === '') history.replaceState(history.state, '', location.pathname + location.search + hash);
+    }, { once: true });
     window.print();
   });
   return button;

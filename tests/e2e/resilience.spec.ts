@@ -63,7 +63,9 @@ test('a lost confirmation keeps the text, and the reservation resumes after a re
 });
 
 test('an expired embedded challenge is renewed transparently', async ({ page, context }) => {
-  test.setTimeout(120_000);
+  // 61 s of deliberate waiting: a 120 s budget left too little margin for WebKit under the
+  // load of the full parallel campaign.
+  test.setTimeout(180_000);
   await page.goto('/');
   await page.getByRole('textbox', { name: /Text to protect/ }).fill('Dummy late reveal');
   await page.locator('details.options > summary').click();

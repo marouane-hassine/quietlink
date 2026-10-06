@@ -3,7 +3,7 @@
 /** Reading page (§5.1 "Écran de lecture", §6.2, §6.3.1, parcours B). */
 
 import { api, ApiError, retrying, type OpenResponse, type StatusResponse } from '../api';
-import { clearExpiredReservations, clearReservation, loadReservation, saveReservation } from '../reservation';
+import { clearExpiredReservations, clearReservation, loadReservation, reservationUntil, saveReservation } from '../reservation';
 import { parse, type ParsedAad } from '../crypto/aad';
 import { decode, EncodingError } from '../crypto/base64url';
 import { equal, randomBytes, wipe } from '../crypto/bytes';
@@ -28,7 +28,24 @@ import { formatDate, formatRelative } from '../ui/format';
 import { cryptoAvailable } from '../ui/capabilities';
 
 const RESERVATION_MAX_SECONDS = 300;
-const AUTO_HIDE_MS = 120_000;
+/** Auto-hide delays offered (minutes; 0 = never), the default and its preference key (§5.1). */
+const AUTO_HIDE_CHOICES = [1, 2, 5, 0] as const;
+const AUTO_HIDE_DEFAULT = 2;
+const AUTO_HIDE_KEY = 'ql-autohide';
+
+/** Remembered delay: a display preference only, never content (storage may be unavailable). */
+function storedAutoHide(): number {
+  try {
+    const value = Number(localStorage.getItem(AUTO_HIDE_KEY));
+    return localStorage.getItem(AUTO_HIDE_KEY) !== null && (AUTO_HIDE_CHOICES as readonly number[]).includes(value) ? value : AUTO_HIDE_DEFAULT;
+  } catch {
+    return AUTO_HIDE_DEFAULT;
+  }
+}
+/** Lifetime of open/status challenges when the server does not state it (§6.3.1). */
+const CHALLENGE_LIFETIME_S = 60;
+/** A challenge with less validity left than this is replaced before being signed. */
+const CHALLENGE_RENEW_MARGIN_S = 10;
 
 class LinkError extends Error {}
 
@@ -51,7 +68,6 @@ async function parseLink(): Promise<{ id: string; idBytes: Uint8Array; urlKey: U
 
 export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
   reloadOnFragmentChange();
-  let challenges = config.challenges ?? null;
 
   /** Redraws the current screen in a new language; null while busy or once content is shown. */
   let redraw: (() => void) | null = null;
@@ -78,11 +94,38 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
 
   const newLink = () => el('a', { href: '/', class: 'button button-secondary' }, t('action.new'));
 
+  /**
+   * Challenges held for later use, each with the monotonic instant before which it cannot have
+   * been issued and its lifetime. The embedded ones were issued while the page was served, after
+   * navigation started: the performance time origin (0) bounds their age (§6.3.1).
+   */
+  type Held = { value: string; issuedAfter: number; lifetime: number };
+  const embeddedLifetime = typeof config.challenges?.expires_in === 'number' ? config.challenges.expires_in : CHALLENGE_LIFETIME_S;
+  let held: Partial<Record<'open' | 'status', Held>> = config.challenges
+    ? { open: { value: config.challenges.open, issuedAfter: 0, lifetime: embeddedLifetime }, status: { value: config.challenges.status, issuedAfter: 0, lifetime: embeddedLifetime } }
+    : {};
+  /** Still valid when it reaches the server: a margin covers the round trip. */
+  const fresh = (challenge: Held | undefined): challenge is Held => challenge !== undefined && challenge.value !== '' && performance.now() < challenge.issuedAfter + (challenge.lifetime - CHALLENGE_RENEW_MARGIN_S) * 1000;
+  const fetchChallenge = async (id: string, usage: 'open' | 'status'): Promise<Held> => {
+    const fetched = await api.challenge(id, usage);
+    return { value: fetched.challenge, issuedAfter: fetched.issuedAfter, lifetime: fetched.expiresIn ?? CHALLENGE_LIFETIME_S };
+  };
+
+  /**
+   * Each challenge is signed once. One about to expire (the reader waited on the Reveal screen, a
+   * slow answer) is proactively replaced by a fresh one instead of paying a 404 and a retry (§6.3.1).
+   */
+  const takeChallenge = async (id: string, usage: 'open' | 'status'): Promise<string> => {
+    const kept = held[usage];
+    held = { ...held, [usage]: undefined };
+    if (fresh(kept)) return kept.value;
+    const first = await fetchChallenge(id, usage);
+    // A single renewal: an answer slower than the challenge lifetime would loop otherwise.
+    return fresh(first) ? first.value : (await fetchChallenge(id, usage)).value;
+  };
+
   const proofBody = async (link: Awaited<ReturnType<typeof parseLink>>, usage: 'open' | 'status', extra: Record<string, string> = {}) => {
-    // Each embedded challenge is used once, then fresh ones are requested (§6.3.1).
-    const embedded = challenges?.[usage] ?? '';
-    if (challenges) challenges = { ...challenges, [usage]: '' };
-    const challenge = embedded !== '' ? embedded : await api.challenge(link.id, usage);
+    const challenge = await takeChallenge(link.id, usage);
     const seed = await accessSeed(link.urlKey);
     try {
       return { challenge, access_pk: encode(link.accessPk), signature: await prove(seed, challenge), ...extra };
@@ -91,13 +134,13 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
     }
   };
 
-  /** One transparent retry with a fresh challenge on 404 (§6.3.1). */
+  /** One transparent retry with a fresh challenge on 404, whatever the age of the first one (§6.3.1). */
   const withRetry = async <T,>(call: () => Promise<T>): Promise<T> => {
     try {
       return await call();
     } catch (error) {
       if (error instanceof ApiError && error.kind === 'unavailable') {
-        challenges = null;
+        held = {};
         return call();
       }
       throw error;
@@ -117,6 +160,39 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
     return fail('error.server');
   };
 
+  /** Monotonic end (performance.now ms) of the reservation this tab resumes after a reload. */
+  let reservationEnd: number | null = null;
+
+  /**
+   * Remaining time of a reservation made by this tab before a reload: the server figure when it
+   * reports the paste reserved, the stored estimate from an older server; none once released.
+   */
+  const resumedReservationEnd = (pasteId: string, status: StatusResponse): number | null => {
+    const until = reservationUntil(pasteId, Date.now());
+    if (until === null || status.state === 'available') return null;
+    const seconds = status.state === 'reserved' && typeof status.retry_after === 'number' ? status.retry_after : (until - Date.now()) / 1000;
+    return performance.now() + Math.max(0, seconds) * 1000;
+  };
+
+  /** Live "reservation kept for m:ss" line of the Reveal screen; stops once detached. */
+  const reservationCountdown = (end: number): HTMLElement => {
+    const line = el('p', { class: 'notice reservation-left' });
+    let previous = Number.POSITIVE_INFINITY;
+    const tick = () => {
+      if (!line.isConnected && previous !== Number.POSITIVE_INFINITY) return;
+      const left = Math.max(0, Math.ceil((end - performance.now()) / 1000));
+      const time = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+      line.textContent = left > 0 ? t('read.reservationLeft', { time }) : t('read.reservationExpired');
+      // Announced at the last minute and at expiry only, not every second (WCAG 4.1.3).
+      if ((previous > 60 && left <= 60 && left > 0) || (previous > 0 && left === 0)) announce(line.textContent);
+      previous = left;
+      // Next tick when the displayed second changes.
+      if (left > 0) window.setTimeout(tick, (end - performance.now()) % 1000 || 1000);
+    };
+    tick();
+    return line;
+  };
+
   async function start(): Promise<void> {
     // A new attempt replaces the previous screen: a language change must not redraw it.
     redraw = null;
@@ -129,6 +205,7 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
       const aad = parse(decode(status.data.aad));
       if (!equal(aad.accessPk, link.accessPk)) throw new DecryptionError('integrity');
       const sync = status.data.expires_at === null ? null : synchronise(status.data.expires_at, status.data.server_time, status.t0, status.t1);
+      reservationEnd = aad.object.read_once ? resumedReservationEnd(link.id, status.data) : null;
       if (aad.object.read_once || aad.object.kdf !== null) showReveal(link, aad, status.data, sync);
       else await openAndShow(link, aad, null, null, sync);
     } catch (error) {
@@ -149,7 +226,6 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
     input.setAttribute('aria-describedby', error.id);
     const button = el('button', { type: 'button', class: 'button button-primary' }, t('read.reveal'));
     const statusLine = el('p', { class: 'status', role: 'status' });
-    const resumable = loadReservation(link.id, Date.now());
 
     button.addEventListener('click', async () => {
       redraw = null;
@@ -169,7 +245,8 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
         consumeSeed = await checkConsumeKey(aad, link.urlKey, kPass);
         let reservationId: string | null = null;
         if (aad.object.read_once) {
-          reservationId = resumable ?? encode(randomBytes(16));
+          // Read at click time: a reservation that lapsed on this screen is not resumed.
+          reservationId = loadReservation(link.id, Date.now()) ?? encode(randomBytes(16));
           // Stored before open (§6.3.1); refined with the real remaining time after open.
           saveReservation(link.id, reservationId, Date.now(), RESERVATION_MAX_SECONDS);
         }
@@ -182,7 +259,10 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
           showReveal(link, aad, status, sync, e.message === 'ambiguous' ? 'error.wrongPassphraseOrAltered' : 'error.wrongPassphrase');
           return;
         }
-        if (e instanceof Argon2UnavailableError || (e instanceof Error && e.message === 'argon2')) return fail('error.argon2');
+        // Unsupported (no WebAssembly or workers): final. Otherwise a worker that failed (stale
+        // chunk after a redeploy, out of memory) can be retried: nothing is reserved yet.
+        if (e instanceof Error && e.message === 'argon2') return fail('error.argon2');
+        if (e instanceof Argon2UnavailableError) return argon2Supported() ? fail('error.argon2Failed', {}, () => showReveal(link, aad, status, sync, null)) : fail('error.argon2');
         // A final answer ends the reservation; transient failures keep it for resumption.
         if ((e instanceof ApiError && e.kind === 'unavailable') || e instanceof DecryptionError) clearReservation(link.id);
         handleError(e);
@@ -203,6 +283,7 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
       el('p', {}, t('read.decryptedLocally')),
       expiry,
       aad.object.read_once ? el('p', { class: 'warning' }, t('read.readOnce')) : null,
+      reservationEnd !== null ? reservationCountdown(reservationEnd) : null,
       opens > 0 ? el('p', { class: 'warning', role: 'alert' }, tn('read.priorOpens', opens)) : null,
       needsPassphrase ? el('div', { class: 'field' }, el('label', { for: inputId }, t('read.passphraseRequired')), input, error) : error,
       el('div', { class: 'action-bar' }, button, statusLine),
@@ -254,10 +335,15 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
         clearReservation(link.id);
         forgetFragment();
       } catch (error) {
-        consumedKey = 'read.consumeFailed';
         // Only a final 404 ends the reservation: after a transient failure (network, 429, 5xx)
-        // a reload of this tab resumes it instead of being locked out (§6.3.1).
-        if (error instanceof ApiError && error.kind === 'unavailable') clearReservation(link.id);
+        // a reload of this tab resumes it instead of being locked out (§6.3.1). The 404 says the
+        // content is gone from the server (deleted or expired meanwhile): told apart (§5.1).
+        const gone = error instanceof ApiError && error.kind === 'unavailable';
+        consumedKey = gone ? 'read.consumeUnavailable' : 'read.consumeFailed';
+        if (gone) {
+          clearReservation(link.id);
+          forgetFragment();
+        }
       }
       window.addEventListener('beforeunload', (event) => {
         event.preventDefault();
@@ -274,7 +360,7 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
    * Content screen. A language change redraws it from the decrypted envelope kept in memory
    * (no request: a read-once paste cannot be fetched again), keeping it hidden if it was.
    */
-  function showContent(buildContentView: BuildContentView, envelope: Envelope, data: OpenResponse, consumedKey: string | null, sync: Sync | null, priorOpens: number, view = { hidden: false, keepVisible: false, display: { mode: null, wrap: true } as ContentDisplay }): void {
+  function showContent(buildContentView: BuildContentView, envelope: Envelope, data: OpenResponse, consumedKey: string | null, sync: Sync | null, priorOpens: number, view = { hidden: false, autoHide: storedAutoHide(), display: { mode: null, wrap: true } as ContentDisplay }): void {
     teardownContent?.();
     const listeners = new AbortController();
     const { signal } = listeners;
@@ -302,13 +388,19 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
     let idle = 0;
     const activity = () => {
       window.clearTimeout(idle);
-      if (!view.keepVisible) idle = window.setTimeout(() => setHidden(true), AUTO_HIDE_MS);
+      if (view.autoHide > 0) idle = window.setTimeout(() => setHidden(true), view.autoHide * 60_000);
     };
     activity();
     for (const type of ['pointerdown', 'keydown', 'scroll', 'touchstart']) document.addEventListener(type, activity, { passive: true, signal });
-    const keep = el('input', { type: 'checkbox', id: nextId('keep'), checked: view.keepVisible });
-    keep.addEventListener('change', () => {
-      view.keepVisible = keep.checked;
+    const autoHide = el('select', { id: nextId('autohide'), class: 'control-select autohide' },
+      ...AUTO_HIDE_CHOICES.map((minutes) => el('option', { value: String(minutes), selected: minutes === view.autoHide }, minutes === 0 ? t('read.autoHideNever') : t('read.autoHideMinutes', { minutes }))));
+    autoHide.addEventListener('change', () => {
+      view.autoHide = Number(autoHide.value);
+      try {
+        localStorage.setItem(AUTO_HIDE_KEY, autoHide.value);
+      } catch {
+        // Storage unavailable: the choice applies to this page only.
+      }
       activity();
     });
     document.addEventListener('visibilitychange', () => {
@@ -334,8 +426,7 @@ export function mountRead(main: HTMLElement, config: PublicConfig): () => void {
       controls,
       container,
       hiddenNotice,
-      el('p', { class: 'hint' }, t('read.autoHide')),
-      el('div', { class: 'field-check' }, keep, el('label', { for: keep.id }, t('read.keepVisible'))),
+      el('div', { class: 'field autohide-field' }, el('label', { for: autoHide.id }, t('read.autoHideLabel')), autoHide),
       el('div', { class: 'action-bar' }, copyAll, hideButton, ...(config.allowExport ? [exportButton(() => envelope.text)] : []), ...(config.allowPrint ? [printButton()] : []), newLink()),
     );
     if (view.hidden) setHidden(true);

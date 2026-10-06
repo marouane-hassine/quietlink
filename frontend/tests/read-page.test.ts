@@ -26,15 +26,22 @@ const argon2 = vi.hoisted(() => ({
   gate: null as null | Promise<void>,
   events: [] as string[],
   calls: 0,
+  /** Number of next derivations failing as a worker that could not load (transient). */
+  failures: 0,
+  Unavailable: class extends Error {},
 }));
 vi.mock('../src/crypto/argon2-client', () => ({
-  Argon2UnavailableError: class extends Error {},
+  Argon2UnavailableError: argon2.Unavailable,
   argon2Supported: () => argon2.supported,
   preloadArgon2: () => undefined,
   deriveInWorker: async (passphrase: string, salt: Uint8Array) => {
     argon2.calls += 1;
     argon2.events.push('derive:start');
     if (argon2.gate) await argon2.gate;
+    if (argon2.failures > 0) {
+      argon2.failures -= 1;
+      throw new argon2.Unavailable();
+    }
     const key = await fakeArgon2(passphrase, salt);
     argon2.events.push('derive:end');
     return key;
@@ -144,6 +151,7 @@ beforeEach(() => {
   argon2.gate = null;
   argon2.events = [];
   argon2.calls = 0;
+  argon2.failures = 0;
   views.built = [];
   announced.length = 0;
   sessionStorage.clear();
@@ -208,7 +216,7 @@ describe('nothing is rendered before decryption and integrity checks', () => {
 });
 
 describe('auto-hide', () => {
-  it('hides the content after two minutes without activity, unless kept visible', async () => {
+  it('hides the content after two minutes without activity by default, never when the reader chooses so', async () => {
     const paste = await makePaste();
     serve(paste);
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
@@ -231,11 +239,12 @@ describe('auto-hide', () => {
     // The user can show it again and keep it visible.
     ([...main.querySelectorAll('button')].find((b) => b.textContent === t('read.show')) as HTMLButtonElement).click();
     expect(hidden()).toBe(false);
-    const keep = main.querySelector('input[id^="keep"]') as HTMLInputElement;
-    keep.checked = true;
-    keep.dispatchEvent(new Event('change'));
+    const delay = main.querySelector('select.autohide') as HTMLSelectElement;
+    delay.value = '0';
+    delay.dispatchEvent(new Event('change'));
     vi.advanceTimersByTime(600_000);
     expect(hidden()).toBe(false);
+    localStorage.removeItem('ql-autohide');
   });
 });
 
@@ -377,6 +386,29 @@ describe('passphrase', () => {
     expect(views.built).toHaveLength(0);
     const algorithms = importKey.mock.calls.map((call) => (typeof call[2] === 'string' ? call[2] : (call[2] as { name: string }).name));
     expect(algorithms).not.toContain('PBKDF2');
+  });
+});
+
+describe('passphrase derivation failure', () => {
+  it('offers a Retry after a transient Argon2id worker failure, without claiming the browser is unsupported', async () => {
+    const paste = await makePaste({ readOnce: true, passphrase: PASSPHRASE });
+    const { requests } = serve(paste);
+    argon2.failures = 1;
+    mount();
+    await until(() => main.querySelector('input.passphrase') !== null);
+    typePassphrase(PASSPHRASE);
+    revealButton().click();
+    await until(() => main.textContent?.includes(t('error.argon2Failed')) === true);
+    expect(main.textContent).not.toContain(t('error.argon2'));
+    expect(paths(requests)).not.toContain('open');
+    const retry = [...main.querySelectorAll('button')].find((b) => b.textContent === t('action.retry')) as HTMLButtonElement;
+    expect(retry).toBeDefined();
+    retry.click();
+    await until(() => main.querySelector('input.passphrase') !== null);
+    typePassphrase(PASSPHRASE);
+    revealButton().click();
+    await onContent();
+    expect(argon2.calls).toBe(2);
   });
 });
 
@@ -552,13 +584,38 @@ describe('hiding the content (WCAG 2.4.3, 4.1.2)', () => {
     expect(announced).toContain(t('read.hidden'));
   });
 
-  it('gives the keep-visible checkbox the styled checkbox row', async () => {
-    const paste = await makePaste();
-    serve(paste);
-    mount();
-    await onContent();
-    const keep = [...main.querySelectorAll('input[type=checkbox]')].find((input) => main.querySelector(`label[for="${input.id}"]`)?.textContent === t('read.keepVisible')) as HTMLInputElement;
-    expect(keep.closest('.field-check')).not.toBeNull();
+  it('lets the reader choose the auto-hide delay (1, 2, 5 min or never), remembered as a preference (§5.1)', async () => {
+    try {
+      localStorage.removeItem('ql-autohide');
+    } catch {
+      // Storage unavailable: the default applies.
+    }
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const paste = await makePaste();
+      serve(paste);
+      mount();
+      await onContent();
+      const select = main.querySelector<HTMLSelectElement>('select.autohide') as HTMLSelectElement;
+      expect(select).not.toBeNull();
+      expect([...select.options].map((o) => o.value)).toEqual(['1', '2', '5', '0']);
+      expect(select.value).toBe('2');
+      expect(main.querySelector(`label[for="${select.id}"]`)?.textContent).toBe(t('read.autoHideLabel'));
+
+      select.value = '0';
+      select.dispatchEvent(new Event('change'));
+      vi.advanceTimersByTime(10 * 60_000);
+      expect(main.querySelector('.reader')?.classList.contains('is-hidden')).toBe(false);
+      expect(localStorage.getItem('ql-autohide')).toBe('0');
+
+      select.value = '1';
+      select.dispatchEvent(new Event('change'));
+      vi.advanceTimersByTime(61_000);
+      expect(main.querySelector('.reader')?.classList.contains('is-hidden')).toBe(true);
+    } finally {
+      vi.useRealTimers();
+      localStorage.removeItem('ql-autohide');
+    }
   });
 });
 
@@ -609,6 +666,7 @@ describe('state kept across a language change (EXG-I18N-005, EXG-MD-014, EXG-MD-
       history.replaceState(null, '', '/p/AAAA#incomplete');
       mount();
       await until(() => main.textContent?.includes(t('error.incompleteLink')) === true);
+      history.replaceState(null, '', location.pathname + '#' + 'k'.repeat(43));
       window.dispatchEvent(new HashChangeEvent('hashchange'));
       expect(reload).toHaveBeenCalledOnce();
     } finally {
@@ -617,3 +675,135 @@ describe('state kept across a language change (EXG-I18N-005, EXG-MD-014, EXG-MD-
   });
 });
 
+
+describe('proactive challenge renewal (§6.3.1, EXG-READ-020, EXG-READ-023, EXG-TEST-071)', () => {
+  const embedded = { open: dummyChallenge(), status: dummyChallenge() };
+  const mountWithChallenges = () => {
+    document.body.innerHTML = '<main id="main"></main>';
+    main = document.getElementById('main') as HTMLElement;
+    rerender = mountRead(main, { ...config, challenges: { ...embedded } });
+  };
+  const sentChallenge = (requests: RecordedRequest[], action: string) => (JSON.parse(requests.find((r) => r.path.endsWith(`/${action}`))?.body ?? '{}') as { challenge?: string }).challenge;
+
+  it('signs the challenge embedded in the page while it is still fresh', async () => {
+    vi.spyOn(performance, 'now').mockReturnValue(2_000);
+    const paste = await makePaste();
+    const { requests } = serve(paste);
+    mountWithChallenges();
+    await onContent();
+
+    expect(paths(requests)).toEqual(['status', 'open']);
+    expect(sentChallenge(requests, 'status')).toBe(embedded.status);
+    expect(sentChallenge(requests, 'open')).toBe(embedded.open);
+  });
+
+  it('requests a fresh challenge instead of signing an embedded one about to expire, without a 404 round trip', async () => {
+    // The page has been open for 55 s: its 60 s challenges would lapse in flight.
+    vi.spyOn(performance, 'now').mockReturnValue(55_000);
+    const paste = await makePaste();
+    const { requests } = serve(paste);
+    mountWithChallenges();
+    await onContent();
+
+    expect(paths(requests)).toEqual(['challenge', 'status', 'challenge', 'open']);
+    expect(sentChallenge(requests, 'status')).not.toBe(embedded.status);
+    expect(sentChallenge(requests, 'open')).not.toBe(embedded.open);
+  });
+
+  it('renews the open challenge when Reveal is pressed after it expired on the Reveal screen', async () => {
+    let now = 1_000;
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const paste = await makePaste({ readOnce: true });
+    const { requests } = serve(paste);
+    mountWithChallenges();
+    await until(() => revealButton()?.textContent === t('read.reveal'));
+    // The reader waits two minutes before revealing.
+    now = 121_000;
+    revealButton().click();
+    await onContent();
+
+    expect(paths(requests).slice(0, 3)).toEqual(['status', 'challenge', 'open']);
+    expect(sentChallenge(requests, 'open')).not.toBe(embedded.open);
+  });
+
+  it('honours the expires_in announced with a fetched challenge', async () => {
+    let now = 1_000;
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const paste = await makePaste();
+    const { requests } = serve(paste, {}, (request) => {
+      if (!request.path.endsWith('/challenge')) return null;
+      // Fetching takes 30 s here, for a challenge valid for 20 s: renewed before signing.
+      now += 30_000;
+      return response(200, { challenge: dummyChallenge(), expires_in: 20 });
+    });
+    mount();
+    await onContent();
+
+    expect(paths(requests)).toEqual(['challenge', 'challenge', 'status', 'challenge', 'challenge', 'open']);
+  });
+
+  it('keeps the single retry with a fresh challenge after a 404 as a fallback', async () => {
+    vi.spyOn(performance, 'now').mockReturnValue(2_000);
+    const paste = await makePaste();
+    let refused = false;
+    const { requests } = serve(paste, {}, (request) => {
+      if (!request.path.endsWith('/status') || refused) return null;
+      refused = true;
+      return response(404);
+    });
+    mountWithChallenges();
+    await onContent();
+
+    expect(paths(requests)).toEqual(['status', 'challenge', 'status', 'challenge', 'open']);
+  });
+});
+
+describe('reservation resumed after a reload (§6.3.1 "Reprise de réservation", §16.1, EXG-READ-037, EXG-TEST-038)', () => {
+  const reservationLine = () => main.querySelector('.reservation-left')?.textContent ?? '';
+
+  it('shows the remaining reservation time on the Reveal screen and counts it down', async () => {
+    const paste = await makePaste({ readOnce: true, passphrase: PASSPHRASE });
+    // Stored by the tab before the reload.
+    sessionStorage.setItem(`ql-reservation-${paste.id}`, JSON.stringify({ id: 'dummy-reservation-id', until: Date.now() + 120_000 }));
+    const { requests } = serve(paste, {}, (request) => {
+      if (!request.path.endsWith('/status')) return null;
+      return response(200, { aad: paste.body.aad, expires_at: '2026-10-04T12:00:00Z', server_time: '2026-10-03T12:00:00Z', read_once: true, state: 'reserved', retry_after: 90 });
+    });
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
+    mount();
+    await until(() => main.querySelector('input.passphrase') !== null);
+
+    // The server figure wins over the local estimate; the passphrase is asked again.
+    expect(reservationLine()).toBe(t('read.reservationLeft', { time: '1:30' }));
+    expect(paths(requests)).not.toContain('open');
+    vi.advanceTimersByTime(31_000);
+    expect(reservationLine()).toBe(t('read.reservationLeft', { time: '0:59' }));
+    vi.advanceTimersByTime(60_000);
+    expect(reservationLine()).toBe(t('read.reservationExpired'));
+  });
+
+  it('shows no reservation line when nothing was reserved by this tab', async () => {
+    const paste = await makePaste({ readOnce: true });
+    serve(paste);
+    mount();
+    await until(() => revealButton()?.textContent === t('read.reveal'));
+
+    expect(main.querySelector('.reservation-left')).toBeNull();
+  });
+});
+
+describe('content destroyed before the confirmation (§5.1, EXG-READ-003)', () => {
+  it('tells a final 404 at consume apart from a transient failure', async () => {
+    const paste = await makePaste({ readOnce: true });
+    serve(paste, {}, (request) => (request.path.endsWith('/consume') ? response(404) : null));
+    mount();
+    await until(() => revealButton()?.textContent === t('read.reveal'));
+    revealButton().click();
+    await onContent();
+    await until(() => main.querySelector('.banner') !== null);
+
+    expect(main.querySelector('.banner')?.textContent).toBe(t('read.consumeUnavailable'));
+    expect(t('read.consumeUnavailable')).not.toBe(t('read.consumeFailed'));
+    expect(main.querySelector('.reader h2')?.textContent).toBe('DUMMY-HEADING-51c2');
+  });
+});

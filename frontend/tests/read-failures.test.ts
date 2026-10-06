@@ -86,7 +86,7 @@ describe('reading page failures', () => {
     expect([...main.querySelectorAll('button')].some((b) => b.textContent === t('action.retry'))).toBe(true);
   });
 
-  it('reports an unavailable Argon2id worker explicitly, without opening', async () => {
+  it('reports a failed Argon2id worker explicitly, as retryable, without opening', async () => {
     argon2.unavailable = true;
     const { requests } = await makePaste(true, 'dummy-passphrase');
     mount();
@@ -94,9 +94,11 @@ describe('reading page failures', () => {
     const input = main.querySelector('input.passphrase') as HTMLInputElement;
     input.value = 'dummy-passphrase';
     revealButton()!.click();
-    await until(() => main.textContent?.includes(t('error.argon2')) === true);
+    // WebAssembly and workers exist: a transient failure, never "browser unsupported".
+    await until(() => main.textContent?.includes(t('error.argon2Failed')) === true);
 
     expect(paths(requests)).not.toContain('open');
+    expect([...main.querySelectorAll('button')].some((b) => b.textContent === t('action.retry'))).toBe(true);
   });
 
   it('translates the reveal screen when the language changes', async () => {

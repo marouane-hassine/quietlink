@@ -93,6 +93,16 @@ export function renderMarkdown(source: string): DocumentFragment {
     }
     link.setAttribute('rel', 'noopener noreferrer nofollow');
     link.setAttribute('target', '_blank');
+    // Exit indicator and target domain as real text (§6.9): a title tooltip alone is not read
+    // reliably; the arrow itself is decorative. Never a statement of trust in the domain.
+    const marker = document.createElement('span');
+    marker.className = 'external-marker';
+    marker.setAttribute('aria-hidden', 'true');
+    marker.textContent = '↗';
+    const exit = document.createElement('span');
+    exit.className = 'visually-hidden';
+    exit.textContent = ` ${t('read.externalLink', { domain: new URL(link.getAttribute('href') ?? '').host })}`;
+    link.append(' ', marker, exit);
   }
   return fragment;
 }

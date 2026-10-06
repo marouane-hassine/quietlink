@@ -4,7 +4,7 @@ import './styles/app.css';
 import { readConfig } from './config';
 import { loadLocale, selectLocale, setLocale } from './i18n';
 import { initTheme, renderChrome, translateTitle } from './ui/chrome';
-import { setInstanceName } from './ui/dom';
+import { enhanceSkipLink, setInstanceName } from './ui/dom';
 import { watchConnectivity } from './ui/connectivity';
 import { followActionBar, followVirtualKeyboard } from './ui/viewport';
 
@@ -13,6 +13,7 @@ async function boot(): Promise<void> {
   if (!main) return;
   const config = readConfig();
   if (config.name) setInstanceName(config.name);
+  enhanceSkipLink();
   const code = selectLocale(config.enabledLocales);
   setLocale((await loadLocale(code)) ? code : 'en');
   const theme = initTheme(config);

@@ -20,7 +20,7 @@ import { canReadClipboard, copyText } from '../ui/clipboard';
 import { confirmInline } from '../ui/confirm';
 import { synchronise, type Sync } from '../ui/countdown';
 import { runCountdown } from '../ui/expiry-view';
-import { el, focusUnlessRedrawing, nextId, showScreen } from '../ui/dom';
+import { el, focusUnlessRedrawing, nextId, redrawInPlace, showScreen } from '../ui/dom';
 import { holdRetry } from '../ui/retry-delay';
 import { formatBytes, formatDate, formatRelative } from '../ui/format';
 import { generate, strength, wordlist } from '../ui/passphrase';
@@ -46,6 +46,17 @@ export { cryptoAvailable };
 
 /** Catalogue key of the message shown for each creation failure kind. */
 const ERROR_KEYS: Record<string, string> = { argon2: 'error.argon2', network: 'error.network', rate: 'error.rateLimited', quota: 'error.quota', refused: 'error.refused', tooLarge: 'error.tooLarge' };
+
+/** Passphrase and confirmation compared as the KDF reads them (NFC): keyboards may type NFD. */
+const samePassphrase = (a: string, b: string): boolean => a.normalize('NFC') === b.normalize('NFC');
+
+/** Adds or removes one id in an element's aria-describedby, keeping the others. */
+function describeWith(node: HTMLElement, id: string, on: boolean): void {
+  const ids = (node.getAttribute('aria-describedby') ?? '').split(/\s+/).filter((token) => token !== '' && token !== id);
+  if (on) ids.push(id);
+  if (ids.length > 0) node.setAttribute('aria-describedby', ids.join(' '));
+  else node.removeAttribute('aria-describedby');
+}
 
 export function mountCreate(main: HTMLElement, config: PublicConfig): () => void {
   const state: State = {
@@ -74,10 +85,19 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     sensitiveMask: { hidden: true } as SensitiveMask,
     /** Last failed creation, redrawn with its Retry box; retryAt is a Date.now() deadline. */
     lastError: null as { kind: string; retryAt: number | null } | null,
+    /**
+     * Date.now() deadline of the last Retry-After: no creation is sent before it, whatever the
+     * user does meanwhile (edit, Cancel, New text). Never cleared with the pending paste.
+     */
+    blockedUntil: 0,
   };
   /** Redraws the result or deletion screen in the current language; null on the form. */
   let redrawResult: (() => void) | null = null;
   let busy = false;
+  /** A language change arrived during a submission: the form is redrawn when it ends. */
+  let redrawPending = false;
+  /** Document listeners of the current result screen, detached on redraw and on New text. */
+  let resultListeners: AbortController | null = null;
   let inResult = false;
   let pending: PreparedPaste | null = null;
   /** Settings the pending (failed, retryable) paste was prepared with; any change drops it. */
@@ -85,6 +105,8 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
   /** Keyboard shortcuts of the current form only: earlier renders must not submit stale text. */
   let detachKeys: (() => void) | null = null;
   let unloadGuard: ((event: BeforeUnloadEvent) => void) | null = null;
+  /** Timer refreshing the Create button while a Retry-After hold lasts (current form only). */
+  let holdTimer = 0;
 
   const setUnloadGuard = (active: boolean, message: string) => {
     if (unloadGuard) window.removeEventListener('beforeunload', unloadGuard);
@@ -110,16 +132,36 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
 
   const envelopeSize = () => byteLength(serialize({ format: state.format, language: state.format === 'code' && state.language ? state.language : null, template: state.template || null, text: state.text }));
 
-  const disabledReason = (): string | null => {
-    if (!cryptoAvailable()) return t('disabled.crypto');
-    if (state.text.trim() === '') return t('disabled.empty');
-    if (envelopeSize() > config.maxEnvelopeBytes) return t('disabled.tooLarge');
-    if (state.usePassphrase && (state.passphrase === '' || (!state.passphraseVisible && !state.generated && state.passphrase !== state.confirmation))) return t('disabled.passphrase');
+  /** Milliseconds left before the Retry-After deadline; 0 when no hold applies. */
+  const holdLeft = () => Math.max(0, ui.blockedUntil - Date.now());
+
+  /** Why Create is disabled, and the field the reason is about (EXG-A11Y-020); null when enabled. */
+  const disabledCause = (): { message: string; field: 'editor' | 'passphrase' | null } | null => {
+    if (!cryptoAvailable()) return { message: t('disabled.crypto'), field: null };
+    if (state.text.trim() === '') return { message: t('disabled.empty'), field: 'editor' };
+    if (envelopeSize() > config.maxEnvelopeBytes) return { message: t('disabled.tooLarge'), field: 'editor' };
+    if (state.usePassphrase && (state.passphrase === '' || (!state.passphraseVisible && !state.generated && !samePassphrase(state.passphrase, state.confirmation)))) return { message: t('disabled.passphrase'), field: 'passphrase' };
+    // The server announced Retry-After: a new attempt would be refused too.
+    const left = holdLeft();
+    if (left > 0) return { message: t('disabled.retryAfter', { seconds: Math.ceil(left / 1000) }), field: null };
     return null;
+  };
+  const disabledReason = (): string | null => disabledCause()?.message ?? null;
+
+  /** Share preset (§5.1): 7 days, or the longest accepted duration up to 7 days, else the shortest. */
+  const shareExpiration = (): Expiration => {
+    const order: Expiration[] = ['5m', '1h', '1d', '7d'];
+    const accepted = order.filter((code) => config.expirations.includes(code));
+    return accepted.at(-1) ?? config.expirations.find((code) => code !== 'never') ?? config.defaultExpiration;
   };
 
   function render(): void {
     inResult = false;
+    // A language change during a submission redraws once; this redraw is that one.
+    redrawPending = false;
+    window.clearTimeout(holdTimer);
+    resultListeners?.abort();
+    resultListeners = null;
     detachKeys?.();
     detachKeys = null;
     const editorId = nextId('editor');
@@ -137,9 +179,13 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       rows: '12',
     });
     editor.value = state.text;
-    const emptyHint = el('p', { id: hintId, class: 'hint' }, state.text === '' ? t('editor.empty') : '');
+    // Space kept when empty: the line toggling would shift the page while typing (EXG-UX-092).
+    const emptyHint = el('p', { id: hintId, class: 'hint editor-hint' }, state.text === '' ? t('editor.empty') : '');
 
-    const sizeLine = el('p', { class: 'size', 'aria-live': 'polite' });
+    // Not a live region: rewritten on every keystroke, it is announced only when a threshold of
+    // the gauge is crossed (EXG-A11Y-002, WCAG 4.1.3).
+    const sizeLine = el('p', { class: 'size' });
+    let sizeLevel: string | null = null;
     const gauge = el('div', { class: 'gauge', 'aria-hidden': 'true' }, el('div', { class: 'gauge-bar' }));
     const reason = el('p', { class: 'disabled-reason', id: nextId('reason') });
     const submit = el('button', { type: 'button', class: 'button button-primary', 'aria-describedby': reason.id }, t('action.create'));
@@ -168,6 +214,24 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       void renderPreview();
     });
 
+    /**
+     * Create button and its reason line. While a Retry-After hold lasts it is drawn again every
+     * second (remaining wait) and once the deadline has passed, with or without a Retry button.
+     */
+    const updateSubmit = () => {
+      const cause = disabledCause();
+      const why = cause?.message ?? null;
+      submit.disabled = busy || why !== null;
+      reason.textContent = busy ? '' : why ?? '';
+      // The reason is also tied to the field it is about (EXG-A11Y-020).
+      const field = busy ? null : cause?.field ?? null;
+      describeWith(editor, reason.id, field === 'editor');
+      for (const input of main.querySelectorAll<HTMLInputElement>('.passphrase-panel input.passphrase')) describeWith(input, reason.id, field === 'passphrase');
+      window.clearTimeout(holdTimer);
+      const left = holdLeft();
+      if (left > 0 && submit.isConnected) holdTimer = window.setTimeout(updateSubmit, (left % 1000) + 50);
+    };
+
     const refresh = () => {
       state.text = editor.value;
       if (pending !== null && !busy && pendingFor !== null && pendingFor.key !== settingsKey()) {
@@ -182,22 +246,33 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       emptyHint.textContent = state.text === '' ? t('editor.empty') : '';
       const used = envelopeSize();
       const ratio = used / config.maxEnvelopeBytes;
-      const visible = ratio >= 0.8;
-      sizeLine.hidden = !visible;
-      gauge.hidden = !visible;
-      // Live region: rewritten only when its text changes, not on every keystroke (WCAG 4.1.3).
+      // The size line is always shown (EXG-UX-022); the gauge keeps its place but is shown only
+      // from 80 % (warning colour), then 95 % and over the limit (blocking colour).
       const sizeText = t(ratio > 1 ? 'size.tooLarge' : 'size.label', { used: formatBytes(used), limit: formatBytes(config.maxEnvelopeBytes) });
       if (sizeLine.textContent !== sizeText) sizeLine.textContent = sizeText;
-      gauge.dataset.level = ratio > 1 ? 'over' : ratio > 0.95 ? 'high' : 'near';
+      const level = ratio > 1 ? 'over' : ratio > 0.95 ? 'high' : ratio >= 0.8 ? 'near' : 'idle';
+      if (sizeLevel !== null && level !== sizeLevel && level !== 'idle') announce(sizeText);
+      sizeLevel = level;
+      gauge.dataset.level = level;
       const bar = gauge.firstElementChild as HTMLElement | null;
       bar?.style.setProperty('inline-size', `${Math.min(100, Math.round(ratio * 100))}%`);
-      const why = disabledReason();
-      submit.disabled = busy || why !== null;
-      reason.textContent = busy ? '' : why ?? '';
-      const parts = [t('summary.expires', { duration: t(`expiration.${state.expiration}`) })];
-      if (state.readOnce) parts.push(t('summary.readOnce'));
-      if (state.usePassphrase) parts.push(t('summary.passphrase'));
+      updateSubmit();
+      // Settings line with negative states and the current size (§5.1, EXG-UX-027).
+      const parts = [
+        state.expiration === 'never' ? t('summary.never') : t('summary.expires', { duration: t(`expiration.${state.expiration}`) }),
+        t(state.readOnce ? 'summary.readOnce' : 'summary.multipleReads'),
+        t(state.usePassphrase ? 'summary.passphrase' : 'summary.noPassphrase'),
+        formatBytes(used),
+      ];
       summary.replaceChildren(el('span', {}, t('summary.line', { settings: parts.join(' · ') })), ' ', changeButton);
+      // What the server receives, never the text or the key (§5.1, EXG-UX-033): the ciphertext
+      // is the envelope plus the 16-byte AES-GCM tag.
+      sentList.replaceChildren(
+        el('li', { class: 'sent-size' }, t('sent.size', { size: formatBytes(used + 16) })),
+        el('li', {}, t('sent.expiration', { expiration: t(`expiration.${state.expiration}`) })),
+        el('li', {}, t(state.readOnce ? 'sent.readOnceYes' : 'sent.readOnceNo')),
+        el('li', {}, t(state.usePassphrase ? 'sent.passphraseYes' : 'sent.passphraseNo')),
+      );
       setUnloadGuard(state.text !== '', t('editor.empty'));
     };
 
@@ -214,7 +289,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     });
 
     const pasteButton = el('button', { type: 'button', class: 'button button-secondary' }, t('editor.paste'));
-    pasteButton.hidden = !canReadClipboard() || state.text !== '';
+    pasteButton.hidden = !canReadClipboard();
     pasteButton.addEventListener('click', async () => {
       try {
         const text = await navigator.clipboard.readText();
@@ -225,8 +300,10 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
         toast(t('editor.pasteDenied'));
       }
     });
+    // Hidden from view but kept in the layout once text is typed (EXG-UX-092).
+    pasteButton.classList.toggle('is-invisible', state.text !== '');
     editor.addEventListener('input', () => {
-      pasteButton.hidden = !canReadClipboard() || editor.value !== '';
+      pasteButton.classList.toggle('is-invisible', editor.value !== '');
     });
 
     // Format, language and template.
@@ -392,8 +469,9 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       secret.addEventListener('click', () => applyPreset('1h', true));
       presets.append(secret);
     }
-    const share = el('button', { type: 'button', class: 'chip' }, t('preset.share'));
-    share.addEventListener('click', () => applyPreset('1d', false));
+    const shareDuration = shareExpiration();
+    const share = el('button', { type: 'button', class: 'chip' }, t('preset.share', { duration: t(`expiration.${shareDuration}`) }));
+    share.addEventListener('click', () => applyPreset(shareDuration, false));
     presets.append(share);
 
     const options = el(
@@ -422,7 +500,8 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       el('div', { class: 'field' }, el('label', { for: templateSelect.id }, t('template.label')), templateSelect),
     );
 
-    const sent = el('details', { class: 'sent' }, el('summary', {}, t('sent.title')), el('p', {}, t('sent.body')));
+    const sentList = el('ul', { class: 'sent-list' });
+    const sent = el('details', { class: 'sent' }, el('summary', {}, t('sent.title')), sentList, el('p', {}, t('sent.body')));
     const shortcuts = el('details', { class: 'shortcuts' }, el('summary', {}, t('shortcuts.title')), el('p', {}, t('shortcuts.body')));
     const status = el('p', { class: 'status', role: 'status' });
     const errorBox = el('div', { class: 'error-box', hidden: true });
@@ -438,7 +517,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       const message = t(ERROR_KEYS[error.kind] ?? 'error.server');
       const retryButton = el('button', { type: 'button', class: 'button button-secondary' }, t('action.retry'));
       retryButton.addEventListener('click', () => void doSubmit(true));
-      holdRetry(retryButton, error.retryAt === null ? null : (error.retryAt - Date.now()) / 1000);
+      holdRetry(retryButton, error.retryAt === null ? null : (error.retryAt - Date.now()) / 1000, () => refresh());
       const cancelButton = el('button', { type: 'button', class: 'button button-tertiary' }, t('action.cancel'));
       cancelButton.addEventListener('click', () => {
         // A new attempt must use a new key and a new link (§10).
@@ -459,9 +538,17 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       const controls = [templateRow, modeBar, formHost, options].flatMap((root) => [...root.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | HTMLButtonElement>('input, textarea, select, button')]);
       controls.push(pasteButton, ...main.querySelectorAll<HTMLButtonElement>('.inline-notice button, .secret-suggestion button'));
       for (const control of controls) {
-        if (busyNow && !control.disabled) {
+        // Text fields become read-only so that focus stays in them; other controls are disabled.
+        const text = control instanceof HTMLTextAreaElement || (control instanceof HTMLInputElement && ['text', 'password', 'search', 'url', 'email'].includes(control.type)) ? (control as HTMLInputElement | HTMLTextAreaElement) : null;
+        if (busyNow && text !== null && !text.readOnly) {
+          text.readOnly = true;
+          text.dataset.busyReadonly = '';
+        } else if (busyNow && text === null && !control.disabled) {
           control.disabled = true;
           control.dataset.busy = '';
+        } else if (!busyNow && text !== null && text.dataset.busyReadonly !== undefined) {
+          text.readOnly = false;
+          delete text.dataset.busyReadonly;
         } else if (!busyNow && control.dataset.busy !== undefined) {
           control.disabled = false;
           delete control.dataset.busy;
@@ -473,7 +560,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
       // A retry resends the exact prepared request (same key and Idempotency-Key, §10), only
       // while the settings it was prepared with are unchanged.
       const reuse = retry && pending !== null && pendingFor !== null && pendingFor.key === settingsKey();
-      if (busy || (!reuse && disabledReason() !== null)) return;
+      if (busy || holdLeft() > 0 || (!reuse && disabledReason() !== null)) return;
       busy = true;
       ui.lastError = null;
       submit.textContent = t('action.creating');
@@ -508,6 +595,9 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
         const id = decode(response.data.id, 24);
         if (!(await matchesAccessKey(id, pending.accessPk)) || !(await matchesDeletionToken(id, pending.deletionToken))) throw new ApiError('server');
         const prepared = pending;
+        // The result screen replaces this form: a language change met during the submission
+        // is applied by it, never later to another form.
+        redrawPending = false;
         // Only the two booleans: pendingFor.key holds the text and the passphrase.
         const settings = { readOnce: (pendingFor ?? state).readOnce, usePassphrase: (pendingFor ?? state).usePassphrase };
         pending = null;
@@ -524,12 +614,24 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
         // Settings changed meanwhile (a racing event): the prepared paste no longer matches
         // them and is never resent; the failure is still reported.
         if (pending !== null && pendingFor !== null && pendingFor.key !== settingsKey()) dropPending();
+        // Never resent (no Retry offered): its keys are wiped now.
+        if ((kind === 'refused' || kind === 'tooLarge') && pending !== null) {
+          wipe(pending.urlKey, pending.deletionToken);
+          pending = null;
+          pendingFor = null;
+        }
         const retryAfter = error instanceof ApiError ? error.retryAfter : null;
-        ui.lastError = { kind, retryAt: retryAfter !== null && retryAfter > 0 ? Date.now() + retryAfter * 1000 : null };
+        const retryAt = retryAfter !== null && retryAfter > 0 ? Date.now() + retryAfter * 1000 : null;
+        ui.lastError = { kind, retryAt };
+        if (retryAt !== null) ui.blockedUntil = Math.max(ui.blockedUntil, retryAt);
         drawError();
         const message = t(ERROR_KEYS[kind] ?? 'error.server');
         announce(message, true);
         refresh();
+        if (redrawPending) {
+          redrawPending = false;
+          redrawInPlace(render);
+        }
       }
     };
     submit.addEventListener('click', () => void doSubmit(false));
@@ -605,7 +707,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     const showStrength = () => {
       const strengthText = state.passphrase === '' ? '' : t(`passphrase.strength.${state.generated ? 'strong' : strength(state.passphrase)}`);
       if (strengthLine.textContent !== strengthText) strengthLine.textContent = strengthText;
-      mismatch.textContent = !state.passphraseVisible && !state.generated && state.confirmation !== '' && state.confirmation !== state.passphrase ? t('passphrase.mismatch') : '';
+      mismatch.textContent = !state.passphraseVisible && !state.generated && state.confirmation !== '' && !samePassphrase(state.confirmation, state.passphrase) ? t('passphrase.mismatch') : '';
     };
     const updateStrength = () => {
       state.passphrase = input.value;
@@ -629,7 +731,17 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     const generateButton = el('button', { type: 'button', class: 'button button-secondary' }, t('passphrase.generate'));
     generateButton.addEventListener('click', async () => {
       if (input.value !== '' && !state.generated && !(await confirmInline(generateButton, t('passphrase.replaceConfirm'), t('passphrase.generate')))) return;
-      input.value = generate(await wordlist(locale()));
+      let words: string[];
+      try {
+        // A dynamic import: it fails offline or after a redeploy (stale chunk).
+        words = await wordlist(locale());
+      } catch {
+        toast(t('passphrase.generateFailed'));
+        return;
+      }
+      // A submission started meanwhile uses the passphrase it read: never changed under it.
+      if (busy || !input.isConnected) return;
+      input.value = generate(words);
       confirmInput.value = '';
       state.generated = true;
       state.passphraseVisible = true;
@@ -681,6 +793,10 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     // Drawn again in the new language on a language change (links are kept in this closure).
     const draw = () => {
       redrawResult = draw;
+      // Listeners of the previous drawing would keep it, and the share link, alive.
+      resultListeners?.abort();
+      resultListeners = new AbortController();
+      const signal = resultListeners.signal;
       if (!manageCopied) setUnloadGuard(true, t('result.leaveWarning'));
 
       const linkInput = el('input', { id: nextId('share'), class: 'link-field', type: 'text', dir: 'ltr', readonly: true, value: shareLink, spellcheck: 'false' });
@@ -711,7 +827,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
               if (!qrBox.isConnected) return document.removeEventListener('fullscreenchange', onFullscreen);
               full.textContent = t(document.fullscreenElement === qrBox ? 'result.qrExitFullscreen' : 'result.qrFullscreen');
             };
-            document.addEventListener('fullscreenchange', onFullscreen);
+            document.addEventListener('fullscreenchange', onFullscreen, { signal });
             const { qrSvg } = await import('../ui/qrcode');
             qrBox.append(qrSvg(shareLink, t('result.qrLabel')), full);
           }
@@ -770,7 +886,12 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
           dangerBody.append(el('p', { class: 'warning' }, t('manage.warning')), manageField, el('div', { class: 'button-row' }, copyManage, remove));
         }
       };
-      reveal.addEventListener('click', () => setDanger(!dangerOpen));
+      reveal.addEventListener('click', async () => {
+        // Revealing is preceded by the irreversibility warning and an explicit confirmation
+        // (§5.1, EXG-SEC-015); hiding it again needs none.
+        if (!dangerOpen && !(await confirmInline(reveal, t('manage.revealWarning'), t('manage.revealConfirm'), true))) return;
+        setDanger(!dangerOpen);
+      });
 
       const newButton = () => {
         const button = el('button', { type: 'button', class: 'button button-secondary' }, t('action.new'));
@@ -781,6 +902,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
           redrawResult = null;
           state.usePassphrase = false;
           state.readOnce = false;
+          Object.assign(state, { passphraseVisible: false, generated: false });
           Object.assign(ui, { formMode: false, previewOpen: false, optionsOpen: false, sentOpen: false, textBeforeTemplates: null, suggestSecret: false, sensitiveMask: { hidden: true }, lastError: null });
           render();
         });
@@ -792,17 +914,19 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
         main,
         el('h1', { class: 'page-title' }, t('result.title')),
         el('p', { class: 'success' }, t('result.encrypted')),
-        el('div', { class: 'field' }, el('label', { for: linkInput.id, class: 'field-label' }, t('result.shareLink')), el('div', { class: 'link-row' }, linkInput, copy)),
+        // Read once: the warning comes before the link and its Copy action (§5.1, EXG-LIFE-001).
+        readOnceMode ? el('p', { class: 'warning' }, t('result.readOnceWarning')) : null,
+        el('div', { class: 'field' }, el('label', { for: linkInput.id, class: 'field-label' }, t('result.shareLink')), el('div', { class: 'link-row' }, linkInput)),
         el('p', { class: 'mode' }, readOnceMode ? t('result.mode.readOnce') : t('result.mode.normal')),
         expiry,
         el('p', { class: 'warning' }, t('result.careful')),
-        readOnceMode ? el('p', { class: 'warning' }, t('result.readOnceWarning')) : null,
         usedPassphrase ? el('p', { class: 'notice' }, t('result.passphraseReminder')) : null,
         extras,
         el('section', { class: 'danger-zone', 'aria-label': t('manage.title') }, el('h2', {}, t('manage.title')), reveal, dangerBody),
-        el('div', { class: 'action-bar' }, newButton()),
+        // Copy is the primary action of the bottom bar, New text the secondary one (§5.1, EXG-UX-089).
+        el('div', { class: 'action-bar' }, copy, newButton()),
       );
-      runCountdown(expiry, expiresAt, sync);
+      runCountdown(expiry, expiresAt, sync, signal);
     };
     draw();
   }
@@ -812,5 +936,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     if (inResult) redrawResult?.();
     // Never rebuild the form under an in-flight submission: its result would land in detached nodes.
     else if (!busy) render();
+    // Redrawn once the submission ends (error path; success shows the result screen).
+    else redrawPending = true;
   };
 }

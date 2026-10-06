@@ -1,15 +1,26 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-/** QR code of the share link only, generated locally as SVG built through the DOM. */
+/** QR codes (share link, Wi-Fi template) generated locally as SVG built through the DOM. */
 
 import qrcode from 'qrcode-generator';
 
+// The default keeps only the low byte of each UTF-16 unit: "é" or Arabic letters would be
+// corrupted (U+063A becomes ":", a Wi-Fi payload delimiter). Byte mode carries UTF-8.
+qrcode.stringToBytes = (text: string): number[] => Array.from(new TextEncoder().encode(text));
+
 const SVG = 'http://www.w3.org/2000/svg';
+
+/** The text exceeds the capacity of a QR code (about 2.3 KB at correction level M). */
+export class QrTooLongError extends Error {}
 
 export function qrSvg(text: string, label: string): SVGSVGElement {
   const qr = qrcode(0, 'M');
   qr.addData(text);
-  qr.make();
+  try {
+    qr.make();
+  } catch {
+    throw new QrTooLongError('Text too long for a QR code.');
+  }
   const count = qr.getModuleCount();
   const quiet = 4;
   const size = count + quiet * 2;

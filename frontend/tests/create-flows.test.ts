@@ -199,7 +199,8 @@ describe('creation flow', () => {
   });
 
   it('builds the settings line from one catalogue entry, with the punctuation of the language', () => {
-    expect(main.querySelector('.summary span')?.textContent).toBe(t('summary.line', { settings: t('summary.expires', { duration: t('expiration.1d') }) }));
+    // Negative states and the size are part of the line (§5.1, EXG-UX-027).
+    expect(main.querySelector('.summary span')?.textContent?.startsWith(t('summary.line', { settings: [t('summary.expires', { duration: t('expiration.1d') }), t('summary.multipleReads'), t('summary.noPassphrase')].join(' · ') }))).toBe(true);
     expect(main.querySelector('.summary span')?.textContent).toMatch(/^Settings: /);
   });
 

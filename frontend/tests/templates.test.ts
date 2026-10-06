@@ -23,6 +23,16 @@ describe('template text', () => {
     expect(parsed?.sections[0]?.notes).toEqual(['Server dummy-01 restarted']);
   });
 
+  it('never reads a "##" heading with a blank title as a section (round trip, EXG-MD-008)', () => {
+    const text = '# T\n\n## S\nnote\n\n##   ';
+    const parsed = parseTemplateText(text);
+    if (parsed !== null) {
+      expect(parsed.sections.every((section) => section.title.trim() !== '')).toBe(true);
+      expect(parseTemplateText(serializeTemplate(parsed))).toEqual(parsed);
+    }
+    expect(parseTemplateText('# T\n\n##   \n- A: 1\n')).toBeNull();
+  });
+
   it('returns null for text that is not a template', () => {
     expect(parseTemplateText('just a sentence')).toBeNull();
   });

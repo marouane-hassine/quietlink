@@ -48,6 +48,18 @@ describe('markdown sanitisation', () => {
     expect(out).toContain('External link: docs.example.test');
   });
 
+  it('exposes the exit indicator and target domain as text, not only as a tooltip (§6.9, EXG-MD-022)', () => {
+    const div = document.createElement('div');
+    div.append(renderMarkdown('[docs](https://docs.example.test/page)'));
+    const link = div.querySelector('a') as HTMLAnchorElement;
+    // The arrow is decorative: assistive technologies get the translated text instead.
+    const marker = link.querySelector('.external-marker') as HTMLElement;
+    expect(marker.textContent).toBe('↗');
+    expect(marker.getAttribute('aria-hidden')).toBe('true');
+    expect(link.querySelector('.visually-hidden')?.textContent).toBe(' (opens an external site: docs.example.test)');
+    expect(link.textContent).toContain('docs');
+  });
+
   it('shows images as alt text and URL, never loads them', () => {
     const out = html('![diagram](https://img.example.test/a.png)');
     expect(out).not.toContain('<img');

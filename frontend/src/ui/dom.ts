@@ -140,7 +140,32 @@ let reloadInstalled = false;
 export function reloadOnFragmentChange(): void {
   if (reloadInstalled) return;
   reloadInstalled = true;
-  window.addEventListener('hashchange', () => navigation.reload());
+  window.addEventListener('hashchange', () => {
+    // Any other fragment (a corrected key, even a malformed one, which then shows "incomplete
+    // link" again) restarts the page; an in-page anchor such as the skip link "#main" never
+    // does, or the reload would replace the key and lose decrypted content.
+    const fragment = location.hash.slice(1);
+    let id = fragment;
+    try {
+      id = decodeURIComponent(fragment);
+    } catch {
+      // Not percent-encoded text: compared as written.
+    }
+    if (fragment !== '' && document.getElementById(fragment) === null && document.getElementById(id) === null) navigation.reload();
+  });
+}
+
+/**
+ * The skip link moves focus to the content without navigating: following "#main" would replace
+ * the key fragment of the read and manage pages in the address bar.
+ */
+export function enhanceSkipLink(): void {
+  document.getElementById('ql-skip')?.addEventListener('click', (event) => {
+    const target = document.getElementById('main');
+    if (target === null) return;
+    event.preventDefault();
+    target.focus();
+  });
 }
 
 /**

@@ -27,6 +27,8 @@ async function create(page: Page, options: { readOnce?: boolean; passphrase?: st
 /** Opens the management link from the result screen and deletes the paste. */
 async function deleteFromManagement(page: Page, manager: Page): Promise<void> {
   await page.getByRole('button', { name: 'Show the management link' }).click();
+  // Revealing asks for an explicit confirmation after the irreversibility warning (§5.1).
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Show the link' }).click();
   const manageLink = await page.locator('.danger-zone input.link-field').inputValue();
   expect(manageLink).toContain('#');
   await manager.goto(manageLink);

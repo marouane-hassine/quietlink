@@ -97,6 +97,11 @@
   display: none !important;
 }
 
+/* Out of view and of the accessibility tree, but keeping its place (no layout shift). */
+.is-invisible {
+  visibility: hidden;
+}
+
 html {
   font-size: 100%;
   -webkit-text-size-adjust: 100%;
@@ -242,6 +247,10 @@ h2 {
 .hint {
   font-size: 0.9rem;
   margin-block: 0.25rem;
+}
+
+.editor-hint {
+  min-block-size: 1.5em;
 }
 
 .field {
@@ -569,6 +578,12 @@ details[open] > summary::after {
 
 .disabled-reason {
   color: var(--ql-color-text-muted);
+  /* Space kept when empty: the reason appearing must not shift the page (EXG-UX-092). */
+  min-block-size: 1.5em;
+}
+
+.gauge[data-level="idle"] {
+  visibility: hidden;
 }
 
 .gauge {
@@ -806,8 +821,8 @@ details[open] > summary::after {
   float: inline-end;
 }
 
-.external-link::after {
-  content: " ↗";
+.external-marker {
+  font-size: 0.85em;
 }
 
 .how-lead {

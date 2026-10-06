@@ -100,8 +100,11 @@ describe('management page', () => {
     navigation.reload = reload;
     try {
       await until(() => main.querySelector('.button-danger') !== null);
+      const before = location.href;
+      history.replaceState(null, '', location.pathname + '#' + 'k'.repeat(43));
       window.dispatchEvent(new HashChangeEvent('hashchange'));
       expect(reload).toHaveBeenCalled();
+      history.replaceState(null, '', before);
     } finally {
       navigation.reload = original;
     }

@@ -7,8 +7,8 @@
  */
 
 import { t } from '../i18n';
-import { isSensitiveLabel, wifiPayload, type ParsedTemplate } from '../templates';
-import { qrSvg } from '../ui/qrcode';
+import { isSensitiveLabel, noteTexts, wifiPayload, type ParsedTemplate } from '../templates';
+import { QrTooLongError, qrSvg } from '../ui/qrcode';
 import { copyText } from '../ui/clipboard';
 import { el } from '../ui/dom';
 
@@ -26,7 +26,14 @@ export function renderTemplateView(template: ParsedTemplate, options: { wifiQr?:
       box.hidden = !open;
       toggle.setAttribute('aria-expanded', String(open));
       toggle.textContent = t(open ? 'tpl.wifiQrHide' : 'tpl.wifiQr');
-      if (open && box.childElementCount === 0) box.append(qrSvg(wifi, t('tpl.wifiQrLabel')));
+      if (open && box.childElementCount === 0) {
+        try {
+          box.append(qrSvg(wifi, t('tpl.wifiQrLabel')));
+        } catch (error) {
+          if (!(error instanceof QrTooLongError)) throw error;
+          box.append(el('p', { class: 'notice' }, t('tpl.wifiQrTooLong')));
+        }
+      }
       if (!open) box.replaceChildren();
     });
     root.append(el('div', { class: 'button-row' }, toggle, box));
@@ -58,7 +65,7 @@ export function renderTemplateView(template: ParsedTemplate, options: { wifiQr?:
       }
       list.append(el('dt', {}, field.label), el('dd', {}, value, actions));
     }
-    root.append(el('section', { class: 'template-section' }, el('h3', {}, section.title), section.fields.length > 0 ? list : null, ...section.notes.map((note) => el('p', { class: 'template-note' }, note))));
+    root.append(el('section', { class: 'template-section' }, el('h3', {}, section.title), section.fields.length > 0 ? list : null, ...noteTexts(section.notes).map((note) => el('p', { class: 'template-note' }, note))));
   }
   return root;
 }

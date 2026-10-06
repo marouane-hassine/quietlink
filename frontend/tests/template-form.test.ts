@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { setLocale, t } from '../src/i18n';
 import { parseTemplateText, renderTemplate } from '../src/templates';
 import { buildTemplateForm } from '../src/ui/template-form';
+import { renderTemplateView } from '../src/render/template-view';
 
 describe('template form', () => {
   it('keeps every line typed in a notes field, shell comments included', () => {
@@ -49,6 +50,51 @@ describe('template form', () => {
     expect(parsed).not.toBeNull();
     expect(fieldCount(parsed)).toBe(before);
     expect(parsed!.sections.at(-1)?.notes).toHaveLength(2);
+  });
+
+  it('shows escaped notes as typed, in the form after a rebuild and in the field view (EXG-MD-008)', () => {
+    setLocale('en');
+    let text = renderTemplate('credentials');
+    const form = buildTemplateForm(parseTemplateText(text)!, (written) => (text = written));
+    const areas = form.querySelectorAll('textarea');
+    const notes = areas[areas.length - 1] as HTMLTextAreaElement;
+    notes.value = '\n- dummy: value\n## not a section';
+    notes.dispatchEvent(new Event('input'));
+
+    const parsed = parseTemplateText(text);
+    expect(parsed).not.toBeNull();
+    const rebuilt = buildTemplateForm(parsed!, () => undefined);
+    const again = rebuilt.querySelectorAll('textarea');
+    expect((again[again.length - 1] as HTMLTextAreaElement).value).toBe('- dummy: value\n## not a section');
+    const view = renderTemplateView(parsed!);
+    const shown = [...view.querySelectorAll('.template-note')].map((p) => p.textContent);
+    expect(shown).toEqual(['- dummy: value', '## not a section']);
+  });
+
+  it('round-trips notes exactly, backslashes typed before "## " and "- " included (EXG-MD-008)', () => {
+    setLocale('en');
+    const cases = [
+      '\\## typed escape\n## plain\n\\\\## two',
+      '\\- dummy: value\nsecond',
+      '- dummy: value\n\\- dummy: other',
+      'first\n\\- dummy: value',
+      'a \\## b\n\\x',
+    ];
+    for (const typed of cases) {
+      let text = renderTemplate('credentials');
+      const form = buildTemplateForm(parseTemplateText(text)!, (written) => (text = written));
+      const areas = form.querySelectorAll('textarea');
+      const notes = areas[areas.length - 1] as HTMLTextAreaElement;
+      notes.value = typed;
+      notes.dispatchEvent(new Event('input'));
+
+      const parsed = parseTemplateText(text);
+      expect(parsed, typed).not.toBeNull();
+      const again = buildTemplateForm(parsed!, () => undefined).querySelectorAll('textarea');
+      expect((again[again.length - 1] as HTMLTextAreaElement).value, typed).toBe(typed);
+      const shown = [...renderTemplateView(parsed!).querySelectorAll('.template-section')].at(-1)!.querySelectorAll('.template-note');
+      expect([...shown].map((p) => p.textContent).join('\n'), typed).toBe(typed);
+    }
   });
 
   it('keeps revealed sensitive fields revealed when the form is rebuilt, masked by default', () => {

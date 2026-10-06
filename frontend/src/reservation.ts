@@ -39,6 +39,17 @@ export function loadReservation(pasteId: string, now: number): string | null {
   return null;
 }
 
+/** Wall-clock end (ms) of the stored reservation, or null: shown on the Reveal screen after a reload. */
+export function reservationUntil(pasteId: string, now: number): number | null {
+  if (loadReservation(pasteId, now) === null) return null;
+  try {
+    const stored = JSON.parse(sessionStorage.getItem(PREFIX + pasteId) ?? '') as Stored;
+    return stored.until;
+  } catch {
+    return null;
+  }
+}
+
 export function clearReservation(pasteId: string): void {
   try {
     sessionStorage.removeItem(PREFIX + pasteId);

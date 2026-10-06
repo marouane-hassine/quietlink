@@ -11,7 +11,8 @@ import { announce } from './announcer';
 import { crossedThreshold, nextTickMs, remainingAt, type Sync } from './countdown';
 import { formatDate, formatRelative } from './format';
 
-export function runCountdown(node: HTMLElement, expiresAt: string | null, sync: Sync | null): void {
+/** `signal` detaches the countdown (listener and timer) when its screen is replaced. */
+export function runCountdown(node: HTMLElement, expiresAt: string | null, sync: Sync | null, signal?: AbortSignal): void {
   if (expiresAt === null || sync === null) {
     node.textContent = t('result.never');
     return;
@@ -58,6 +59,7 @@ export function runCountdown(node: HTMLElement, expiresAt: string | null, sync: 
       tick();
     }
   };
-  document.addEventListener('visibilitychange', onVisibility);
+  document.addEventListener('visibilitychange', onVisibility, signal ? { signal } : undefined);
+  signal?.addEventListener('abort', () => window.clearTimeout(timer));
   tick();
 }

@@ -22,7 +22,8 @@ export interface PublicConfig {
   allowExport?: boolean;
   darkMode: 'auto' | 'light' | 'dark';
   templates: string[];
-  challenges?: { open: string; status: string };
+  /** Challenges embedded in the reading page (§6.3.1); `expires_in` in seconds when provided. */
+  challenges?: { open: string; status: string; expires_in?: number };
 }
 
 export function readConfig(): PublicConfig {

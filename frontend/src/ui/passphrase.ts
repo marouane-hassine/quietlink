@@ -7,9 +7,12 @@
 
 export const WORDS = 6;
 
+/**
+ * Word list of the active language (spec §5.1, §19): French from Lexique, English (EFF) for the
+ * other languages until they have their own list. Each list is a separate lazy chunk.
+ */
 export async function wordlist(localeCode: string): Promise<string[]> {
-  // The French list built from Lexique is pending (human action); English is used meanwhile.
-  void localeCode;
+  if (localeCode === 'fr') return (await import('../wordlists/fr')).default;
   return (await import('../wordlists/en')).default;
 }
 
@@ -37,12 +40,32 @@ export function entropyBits(listSize: number, count = WORDS): number {
   return count * Math.log2(listSize);
 }
 
-/** Rough estimate from length and character classes; never blocking. */
+/** Pool size of each character class; any Unicode letter is a letter (§5.1 local estimate). */
+const CLASSES: [RegExp, number][] = [
+  [/\p{Ll}/u, 26],
+  [/\p{Lu}/u, 26],
+  // Letters without case (Arabic, CJK…): a letter alphabet, not symbols.
+  [/[^\P{L}\p{Ll}\p{Lu}]/u, 26],
+  [/\p{Nd}/u, 10],
+  [/[^\p{L}\p{Nd}]/u, 33],
+];
+
+/**
+ * Rough estimate from length and the character classes present; never blocking. Code points
+ * are counted; repeated and sequential characters ("aaaa", "1234", "abcd") add almost nothing,
+ * and digits only (dates, phone numbers, PINs) are penalised.
+ */
 export function strength(passphrase: string): 'weak' | 'fair' | 'strong' {
-  const classes = [/[a-z]/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/].filter((r) => r.test(passphrase)).length;
-  const pool = [26, 26, 10, 33].slice(0, classes).reduce((a, b) => a + b, 0) || 26;
-  const unique = new Set(passphrase).size;
-  const bits = Math.min(passphrase.length, unique * 2) * Math.log2(pool);
+  const chars = Array.from(passphrase);
+  const pool = CLASSES.filter(([pattern]) => chars.some((c) => pattern.test(c))).reduce((sum, [, size]) => sum + size, 0) || 26;
+  let length = 0;
+  for (let i = 0; i < chars.length; i++) {
+    const delta = i === 0 ? Infinity : (chars[i]?.codePointAt(0) ?? 0) - (chars[i - 1]?.codePointAt(0) ?? 0);
+    if (Math.abs(delta) > 1) length++;
+  }
+  const unique = new Set(chars).size;
+  let bits = Math.min(length, unique * 2) * Math.log2(pool);
+  if (chars.length > 0 && chars.every((c) => /\p{Nd}/u.test(c))) bits *= 0.75;
   if (bits < 50) return 'weak';
   if (bits < 80) return 'fair';
   return 'strong';

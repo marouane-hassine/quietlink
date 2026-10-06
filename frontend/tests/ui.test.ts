@@ -56,6 +56,16 @@ describe('formatting', () => {
     expect(formatRelative(59.7)).toBe('in 1 minute');
     expect(formatRelative(-3590)).toBe('1 hour ago');
   });
+
+  it('never says "tomorrow": a relative day is not a calendar day (23.6 h at 00:10 ends today)', () => {
+    setLocale('en');
+    expect(formatRelative(84_600)).toBe('in 1 day');
+    expect(formatRelative(129_599)).toBe('in 1 day');
+    expect(formatRelative(3 * 86_400)).toBe('in 3 days');
+    setLocale('fr');
+    expect(formatRelative(86_400)).toBe('dans 1 jour');
+    setLocale('en');
+  });
 });
 
 describe('plural messages', () => {
@@ -121,5 +131,18 @@ describe('passphrase generator', () => {
   it('estimates strength without blocking', () => {
     expect(strength('password')).toBe('weak');
     expect(strength('correct-horse-battery-staple-orbit-lantern')).not.toBe('weak');
+  });
+  it('rates by the character classes present, penalising digits only and sequences', () => {
+    expect(strength('12345678901234567890')).toBe('weak');
+    expect(strength('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')).toBe('weak');
+    expect(strength('abcdefghijklmnopqrstuvwxyz')).toBe('weak');
+    // Digits only, without a sequence: weaker than letters of the same length.
+    expect(strength('83920571640293')).toBe('weak');
+    // A digit alone does not bring the pools of absent classes (lower case, upper case).
+    expect(strength('qwzpmxkr7')).toBe('weak');
+    // Non-Latin letters are letters, not symbols; code points, not UTF-16 units, are counted.
+    expect(strength('سكرتيرلبحدن')).toBe(strength('qvbtmzlqxhd'));
+    expect(strength('x😀y😃z😆w😉')).toBe(strength('x!y@z#w$'));
+    for (let i = 0; i < 50; i++) expect(strength(generate(words))).toBe('strong');
   });
 });
