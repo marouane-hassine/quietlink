@@ -1,6 +1,6 @@
 # QuietLink protocol `sp-proto/v1`
 
-Status: **Draft for Phase 0 freeze.** This document restates, in normative English, the cryptographic protocol defined by the French specification `docs/cahier-des-charges.md` (v0.18, hereafter "CDC"). It adds no normative value of its own. Every value carries its CDC source as `§section, L<line>`. Where the CDC is silent or ambiguous, the gap is recorded in [§16 Open questions](#16-open-questions) as `OQ-n`; any "Proposed:" text there is **non-normative** until the CDC is amended.
+Status: **frozen for V1** (`sp-proto/v1`, implemented and covered by the shared vectors). This document restates, in normative English, the cryptographic protocol defined by the French specification `docs/cahier-des-charges.md` (v0.18, hereafter "CDC"). It adds no normative value of its own. Every value carries its CDC source as `§section, L<line>`. Where the CDC is silent or ambiguous, the gap is recorded in [§16 Open questions](#16-open-questions) as `OQ-n`; any "Proposed:" text there is **non-normative** until the CDC is amended.
 
 Values marked *(derived)* are arithmetic consequences of normative CDC values (for example a base64url character count computed from a byte length); they introduce no new decision.
 

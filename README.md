@@ -29,6 +29,10 @@ key, passphrase, deletion token).
 - Logo and favicon as SVG coloured by the theme tokens, with light and dark variants
   ([docs/brand/](docs/brand/)).
 
+> **Pre-release:** the `sp-proto/v1` protocol has not yet been independently reviewed; beta
+> releases (`v1.0.0-beta.N`) are for evaluation only, not for real secrets (ADR-0011). The review
+> is mandatory before `v1.0.0`.
+
 > QuietLink makes verifiable promises — local encryption, no plaintext on the server,
 > authenticated integrity, minimal logs — not absolute security. A compromised server can
 > serve modified JavaScript and capture keys at decryption time: use an instance you trust.
@@ -95,7 +99,8 @@ npm run e2e        # Playwright end-to-end tests (npx playwright install first)
 The same validations run inside Docker, with the PHP and Node versions of the production images
 and without installing anything on the host: `tools/docker/qa.sh [php|frontend|all]`. Before a
 deployment change, `tools/docker/smoke.sh` builds the images and smoke tests a throwaway Compose
-stack (healthchecks, headers, CLI round trip with dummy text), then removes it.
+stack (healthchecks, headers, CLI round trip with dummy text), then removes it, and
+`tools/docker/e2e.sh` runs the Playwright campaign on five browser projects.
 
 Test-driven development, Conventional Commits and work on `develop`: see
 [docs/README-developer.md](docs/README-developer.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -114,4 +119,6 @@ Test-driven development, Conventional Commits and work on `develop`: see
 ## License
 
 [AGPL-3.0-or-later](LICENSE). The English passphrase word list is the EFF Large Wordlist
-(CC BY 3.0 US).
+(CC BY 3.0 US). The French passphrase word list (`frontend/src/wordlists/fr.ts`) is derived
+from Lexique 3.83 by Boris New, Christophe Pallier et al. (www.lexique.org), CC BY-SA 4.0;
+the derived list is distributed under the same licence.

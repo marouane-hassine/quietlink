@@ -118,7 +118,7 @@ docker/, compose.yaml  container images (php, nginx, cli, qa) and demonstration 
 | `ui/` | DOM helpers, clipboard, countdown, QR code (SVG built through the DOM), passphrase generator, live announcer. |
 | `templates.ts` | Markdown templates (`ui.templates`). |
 | `i18n.ts` | Catalog loading (on demand except `en`/`fr`) and locale selection. |
-| `wordlists/` | Generated passphrase word list (`tools/wordlists/build-en.mjs`, do not edit). |
+| `wordlists/` | Generated passphrase word lists, one lazy chunk each: `en.ts` (EFF, `tools/wordlists/build-en.mjs`), `fr.ts` (Lexique 3.83, `tools/wordlists/build-fr.mjs`, exclusions in `fr-exclude.txt`); do not edit. |
 | `styles/app.css` | Styles using `--ql-*` tokens. |
 
 The key never leaves the browser: it is generated locally, placed in the URL fragment, and only
@@ -193,6 +193,7 @@ tools/docker/qa.sh            # all: composer qa, npm run qa, tools/ci/forbidden
 tools/docker/qa.sh php        # composer install + composer qa (cs, PHPStan, PHPUnit incl. CLI tests)
 tools/docker/qa.sh frontend   # npm ci + npm run qa
 tools/docker/smoke.sh         # build the images and smoke test the Compose stack
+tools/docker/e2e.sh           # Playwright campaign, five browser projects (arguments passed on)
 ```
 
 - `qa.sh` builds the validation image `docker/qa/Dockerfile` (PHP 8.3 with the production
@@ -207,8 +208,15 @@ tools/docker/smoke.sh         # build the images and smoke test the Compose stac
   CSP header, read-only root filesystem, CLI create/read/delete with dummy text, purge; then it
   removes everything. Port `18096` by default (`QUIETLINK_SMOKE_PORT`). On failure it prints
   the last log lines of each service.
-- `tools/docker/qa.sh all` and `tools/docker/smoke.sh` must be green before a pull request that
-  touches the code, the Docker files or `compose.yaml`; the release checklist requires both.
+- `e2e.sh` builds `docker/e2e/Dockerfile` (the official Playwright image of the version in
+  `package.json`, pinned by digest, plus PHP 8.3) and runs `npx playwright test` with the
+  disposable test server of `tools/e2e/server.sh`; extra arguments select specs or projects
+  (`tools/docker/e2e.sh tests/e2e/ux.spec.ts --project=chromium`). Its volumes are
+  `quietlink-e2e-*`. A test keeps the image version equal to `@playwright/test`.
+- `tools/docker/qa.sh all`, `tools/docker/smoke.sh` and `tools/docker/e2e.sh` must be green
+  before a pull request that touches the code, the Docker files or `compose.yaml`; the release
+  checklist requires all three. Do not validate with host tools: results must not depend on
+  the workstation.
 
 ## 7. Test vectors
 
@@ -315,8 +323,10 @@ No code change is needed (§6.6.1):
    restricts it).
 3. `npm run qa` checks key and placeholder parity with English for every catalogue
    (`frontend/tests/locales.test.ts`); `composer qa` checks discovery and direction.
-4. Optionally provide a passphrase word list in `frontend/src/wordlists/` (English is used
-   otherwise), and have the translation reviewed by a native speaker.
+4. Optionally provide a passphrase word list in `frontend/src/wordlists/` built by a versioned
+   script (see `tools/wordlists/build-fr.mjs`: at least 2048 words, no homophones, plain letters)
+   and select it in `wordlist()` (`frontend/src/ui/passphrase.ts`); English is used otherwise.
+   Have the translation and the list reviewed by a native speaker.
 
 Right-to-left: the CSS uses logical properties only (`margin-inline`, `text-align: start`,
 enforced by `frontend/tests/css.test.ts`); the few drawn decorations that cannot be logical (the
@@ -375,7 +385,8 @@ bin/quietlink metadata --url-stdin < share-link.txt
 bin/quietlink decrypt --url-stdin -o out.txt < share-link.txt
 
 # Delete with the management link
-bin/quietlink delete --url-stdin --yes < manage-link.txt
+# (create writes the management link to stderr with other lines: keep only the link)
+grep /manage/ manage-link.txt | bin/quietlink delete --url-stdin --yes
 
 # Docker (local build; releases publish ghcr.io/marouane-hassine/quietlink-cli:vX.Y.Z)
 docker build -f docker/cli/Dockerfile -t quietlink/cli .
@@ -436,14 +447,23 @@ cannot change what CI runs (`EXG-DEPLOY-006`).
 
 ### Reproducible PHAR
 
-`box.json` sets a fixed `alias`; the release workflow adds the commit date of the tagged commit
-as Box `timestamp`, so two builds of the same commit with Box 4.7.0 give the same SHA-256 (the
-`phar` CI job builds twice and compares). To reproduce a published PHAR from a checkout of the
-tag:
+`tools/release/build-phar.sh` builds the PHAR inside a pinned container (Composer image by
+digest, Box 4.7.0 checked by SHA-256, `--no-parallel`) from a copy holding only `bin/`, `src/`,
+`composer.*`, `box.json` and `LICENSE`, with the commit date of `HEAD` as Box `timestamp` and a
+fixed `alias`. CI (which builds twice and compares), the release workflow and anyone verifying a
+release run the same script, so the same commit gives the same SHA-256 on any machine with
+Docker; a build with a host PHP and Composer gives the same entries in another order. To
+reproduce a published PHAR from a checkout of the tag (from 1.0.0-beta.2 on; 1.0.0-beta.1 was
+built on the host):
 
 ```sh
-composer install --no-dev --classmap-authoritative --no-interaction
-jq --arg ts "$(git log -1 --format=%cI)" '.timestamp = $ts' box.json > box.release.json
-box compile --config=box.release.json --no-interaction   # Box 4.7.0, phar.readonly=0
-sha256sum -c quietlink.phar.sha256
+git checkout vX.Y.Z
+tools/release/build-phar.sh          # prints the SHA-256 of quietlink.phar
+sha256sum -c quietlink.phar.sha256   # the file downloaded from the release (macOS: shasum -a 256 -c)
 ```
+
+Box adds files in the build filesystem's listing order, which differs between machines;
+`tools/release/normalize-phar.php` then rewrites the PHAR with entries sorted by path and fixed
+timestamps, and CI checks that a build on tmpfs and one on the container filesystem give the
+same hash. Outside a git checkout (a source archive), set `TIMESTAMP` to the commit date of the
+tag (`TIMESTAMP=2026-10-04T13:50:29+02:00 tools/release/build-phar.sh`).

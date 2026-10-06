@@ -7,6 +7,66 @@ a removed API version is announced at least one minor version in advance.
 
 ## [Unreleased]
 
+### Added
+
+- French passphrase word list (4096 words derived from Lexique 3.83, CC BY-SA 4.0): no
+  homophones, plain letters, rebuilt by `tools/wordlists/build-fr.mjs`; English stays the list
+  for the other languages.
+- `quietlink-reload` in the application image: `app:boot`, then a PHP-FPM reload only if it
+  succeeded (§9.5), so a configuration change no longer needs a container restart.
+- Wi-Fi template: a "Hidden network" field adds `H:true` to the QR code, and a WPA3-only
+  network uses `T:SAE` (WPA2/WPA3 transition networks keep `T:WPA`).
+
+### Fixed
+
+- Configuration values that are not valid UTF-8 are refused with their key instead of making
+  every request fail with an internal error.
+- `--format=json` output is written verbatim and always parses (backslashes, console markup and
+  invalid UTF-8 in messages); text output shows messages literally.
+- `app:boot`: state files that cannot be written are a reported error; `--dry-run` reports a
+  file in place of a storage directory; `post_max_size` is read as PHP reads it.
+- `app:secret:generate --output` refuses a symbolic link.
+- A busy `usage.lock` holds a decrement for about 10 s at most, within the request timeout; a
+  creation whose commit could not be recorded keeps its marker; a purge removal lost to a
+  concurrent deletion is no longer counted as a failure.
+- CLI: a missing PHP extension exits with 1; the echo error points to `--passphrase-file`.
+- The router's "Matched route" line is logged at debug level only.
+- Idempotency-Key conflicts (422) count against the replay rate limit, like replays.
+- A full disk no longer takes the API down: rate limiting fails open when its counter cannot be
+  written, and deleting a paste removes its payload first when the deletion marker cannot be
+  written, so deletions and the purge free space.
+- A read-once confirmation arriving after a slow download is accepted for one more reservation
+  lifetime while no other reader took the paste; the purge releases reservations after it.
+- The CLI parses large texts with many escapes in linear time (it reported them as invalid) and
+  takes `--max-bytes` for instances allowing more than 1 MiB.
+- The application container's `/tmp` (where PHP-FPM spools request bodies) is 64 MiB.
+- **Changed:** `app:boot` refuses a storage filesystem whose type cannot be determined, and
+  Btrfs, like any type other than ext4 and XFS (§9.4.1), unless `storage.allow_unsupported_fs`.
+- **Changed:** `paste.max_retention` applies to existing pastes: lowering it shortens them.
+- The reading view's auto-hide delay is a choice (1, 2 or 5 minutes, or never), remembered per
+  browser.
+- `symfony/validator` removed (unused).
+- `app:boot` checks that the PHP-FPM pool passes the secret variable this instance uses (an
+  inline secret with a pool passing only the file variable booted "ok" and answered 503).
+- Paths ending with "/" get the uniform 404 instead of a redirect built from the Host header
+  (open redirect, http downgrade of a share link behind a misconfigured proxy).
+- nginx answers its own 500/502/503/504 with the problem+json body and security headers.
+- `APP_ENV` with a trailing newline is refused instead of enabling debug; Accept-Language uses
+  two-letter primary subtags and reads q in any parameter.
+- The Wi-Fi QR code encodes UTF-8 (accented and Arabic network names and passwords were
+  corrupted); the PHAR build sorts entries so its hash does not depend on the filesystem.
+
+### Changed
+
+- The CLI PHAR is built by `tools/release/build-phar.sh` inside a pinned container, in CI, in
+  the release workflow and for verification, so its SHA-256 is reproducible on any machine.
+- `tools/docker/e2e.sh` runs the Playwright campaign inside Docker (official Playwright image of
+  the project's version, plus PHP 8.3), like `qa.sh` and `smoke.sh` for the other validations.
+- Images carry OCI labels (source, licence, version, revision), set in the last layer.
+- PHP assertions are disabled in the application image (`zend.assertions = -1`).
+- Documentation: source tags are verified against the release provenance, the cosign 3.x flag
+  for SBOM attestations, the current CSP, pre-releases in the release checklist.
+
 ## [1.0.0-beta.1] - 2026-10-04
 
 First public beta: every V1 Must is implemented; the external security review, the
@@ -116,3 +176,6 @@ pending (docs/release-checklist.md).
   only from `QUIETLINK_APP_SECRET` or `QUIETLINK_APP_SECRET_FILE`.
 - The shipped Nginx error log keeps only `emerg` entries: lower levels recorded the client
   address and the request line.
+
+[Unreleased]: https://github.com/marouane-hassine/quietlink/compare/v1.0.0-beta.1...develop
+[1.0.0-beta.1]: https://github.com/marouane-hassine/quietlink/releases/tag/v1.0.0-beta.1

@@ -61,5 +61,8 @@ Must 816: 502 cited by automated tests, 242 manual review or CI check, 72 not ye
 
 - Calibrate Argon2id on real devices (`npm run calibration`); real-device E2E matrix; WCAG audit.
 - Capacity benchmarks on the reference machine (PHP-FPM + Nginx).
-- Build the `fr` word list from Lexique (§19.1); EFF list in the meantime (ADR-0008).
+- Native review of the `fr` word list built from Lexique (§19.1, `tools/wordlists/build-fr.mjs`).
 - Internal security review, external crypto audit, Phase 3 user tests, then the release PR.
+
+- Pre-release `v1.0.0-beta.1` published before the cryptographic review under a written waiver (ADR-0011); the review stays mandatory before `v1.0.0`.
+- Open: passphrase word lists for es, it and ar (English meanwhile); purge benchmark of 100k pastes on the reference machine (EXG-PERF-011).

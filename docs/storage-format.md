@@ -1,6 +1,6 @@
 # QuietLink file storage format (v1)
 
-- Status: Draft for Phase 0 (implementation in TDD)
+- Status: implemented in V1 (format `schema_version` 1); kept in step with the code and the CDC
 - Source of truth: `docs/cahier-des-charges.md` v0.18 — §9.4 (l. 1220–1297), §9.5 (l. 1298–1438), §9.7 (l. 1513–1524), §6.3.1 (l. 428–517)
 - Decision record: `docs/decisions/ADR-0002-storage-format-versioning.md`
 - Schemas: [`schemas/meta.v1.schema.json`](schemas/meta.v1.schema.json), [`schemas/state.v1.schema.json`](schemas/state.v1.schema.json), [`schemas/idempotency.v1.schema.json`](schemas/idempotency.v1.schema.json)
@@ -286,7 +286,7 @@ Whether T6 is evaluated with "reaches the threshold" after incrementing is ambig
 - Directory `storage.idempotency_dir`; one file per key, written once (l. 1235).
 - **Proposed (non-normative):** path `idempotency/<s1>/<key_hash>.json`, `<s1>` = first 2 chars of `key_hash`; schema [`idempotency.v1`](schemas/idempotency.v1.schema.json).
 - Content: `key_hash`, `request_sha256`, `paste_id`, `expires_at` (of the paste), `retain_until`, `schema_version`. No raw key, no plaintext, no raw deletion token (l. 1288).
-- `retain_until` is bounded by `paste.idempotency_max_ttl` (default `24h`, allowed 1 h–7 d, l. 1336, 1424), independently of the paste expiry (l. 1288). Proposed (non-normative): `retain_until = created_at + idempotency_max_ttl`.
+- `retain_until` is bounded by `paste.idempotency_max_ttl` (default `24h`, allowed 1 h–7 d, l. 1336, 1424), independently of the paste expiry (l. 1288). Implemented: `retain_until = min(created_at + idempotency_max_ttl, expires_at)` (no expiry: `created_at + idempotency_max_ttl`).
 
 ### 8.2 Write-once publication with `link()`
 
@@ -363,7 +363,7 @@ Concurrency with reads: the purge never touches a paste without its `LOCK_EX`; r
 | Failure | Behaviour |
 |---|---|
 | Disk full / `ENOSPC` on temp write | temp file unlinked, previous `state.json` intact, generic error; creation rolls back usage. Creation is refused beforehand when below `min_free_bytes` (l. 938). |
-| Inode exhaustion | detected by `health.json` (purge and `app:boot`, since PHP cannot read inode counts, l. 939); creation refusal policy is OQ-08. Idempotency retention is bounded to avoid it (l. 1288). |
+| Inode exhaustion | detected by `health.json` (purge and `app:boot`, since PHP cannot read inode counts, l. 939); creation is refused when `health.json` is stale or reports fewer free inodes than `storage.min_free_inodes_percent` (OQ-08, resolved). Idempotency retention is bounded to avoid it (l. 1288). |
 | Partial / short write | detected by length check before `rename()`; never published. A reader that still finds an invalid JSON fails closed (`404`). |
 | Power loss | supported journaled FS + `fsync()` on files; directory fsync best effort (l. 1279); worst case a recent transition is lost but no torn file is visible. |
 | Crash mid-operation | see §5.6. |
@@ -385,7 +385,7 @@ Concurrency with reads: the purge never touches a paste without its `LOCK_EX`; r
 | OQ-05 | Lock order | §9.4.1 l. 1276, 1291 | No order defined between `state.lock` and `usage.lock`; proposed `purge → state → usage`. |
 | OQ-06 | Lock timeouts | §9.4.1 l. 1276 | Blocking vs non-blocking `flock()` and maximal wait on request paths; response on timeout. |
 | OQ-07 | Clock source and skew | §6.3.1 l. 495, 516; §9.4 l. 1231 | Wall clock assumed; no rule for backward/forward jumps. |
-| OQ-08 | Inode threshold at creation | §9.5 l. 1335, 1371 | Is `min_free_inodes_percent` enforced per creation (using `health.json`, how stale?) or only reported? |
+| OQ-08 | Inode threshold at creation | §9.5 l. 1335, 1371 | Resolved: enforced at creation from `health.json` (stale after 10 min: creation refused). |
 | OQ-09 | Hourly usage recompute | §9.7 l. 1521 | How to "apply the observed difference without overwriting concurrent creations" exactly; scan is not atomic. **Resolved:** applied only when no concurrent change happened (§9). |
 | OQ-10 | Schemas for `usage.json`, `health.json`, `boot.json` | §9.4.1 l. 1259–1261 | ADR-0002 requires schemas for every JSON file; their fields are not specified. |
 | OQ-11 | Delete while `reserved` | §9.4.1 l. 1273; §6.3.1 l. 489–498 | Is manual deletion allowed during an active reservation (assumed yes: T9)? |

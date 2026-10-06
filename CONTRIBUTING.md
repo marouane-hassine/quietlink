@@ -30,7 +30,8 @@ tools/ci/forbidden-patterns.sh
 
 The same checks run in Docker, with the production PHP and Node versions:
 `tools/docker/qa.sh all`. Changes to the Docker files, `compose.yaml` or the deployment also
-need `tools/docker/smoke.sh` to pass (see `docs/README-developer.md`).
+need `tools/docker/smoke.sh` to pass, and interface changes `tools/docker/e2e.sh` (Playwright,
+five browser projects; see `docs/README-developer.md`).
 
 ## Commits
 

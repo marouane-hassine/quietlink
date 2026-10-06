@@ -20,8 +20,8 @@ signed-off review.
       frontend and pattern checks with the production PHP and Node versions) and
       `tools/docker/smoke.sh` (images, users, no database, `app:boot --dry-run`, healthchecks,
       headers, read-only root, CLI round trip with dummy text, purge).
-- [ ] Playwright campaign green on the five projects (`npm run e2e`, run locally: not part of
-      CI), twice in a row with no flaky retry.
+- [ ] Playwright campaign green on the five projects in Docker (`tools/docker/e2e.sh`, run
+      locally: not part of CI), twice in a row with no flaky retry.
 - [ ] `npm run coverage:requirements` regenerated; every Must requirement is either cited by a
       green automated test or has its manual evidence listed in section 2 (§16.4, "all Must
       requirements covered").
@@ -47,8 +47,9 @@ signed-off review.
       public version (§7.5). Findings fixed or accepted in writing.
 - [ ] Native speaker review of the `ar`, `es` and `it` catalogues, including the Arabic
       right-to-left layout on the main screens (ADR-0010).
-- [ ] French word list built from Lexique replaces the interim EFF list for `fr`
-      (ADR-0008 decision 5), or the interim list is accepted for V1 in writing.
+- [ ] Native speaker review of the French word list built from Lexique
+      (`tools/wordlists/build-fr.mjs`; offensive or confusing words go to
+      `tools/wordlists/fr-exclude.txt`, then rebuild).
 
 ## 3. Documentation
 
@@ -65,21 +66,26 @@ signed-off review.
 
 1. In the release pull request, bump `Version::APP` in `src/Version.php` to the release version
    without suffix (for example `1.0.0`) and rename the `CHANGELOG.md` `Unreleased` section
-   (section 3). The release workflow fails unless the tag is `v` + `Version::APP`.
+   (section 3). A pre-release uses a suffix (`1.0.0-beta.2`, tag `v1.0.0-beta.2`): the workflow
+   publishes it as a GitHub pre-release, never marked as the latest release, and the items of
+   sections 1–3 still open are listed in its CHANGELOG entry. The release workflow fails unless the tag is `v` + `Version::APP`.
 2. Open the pull request `develop` → `main` with this checklist; merge only when every box is
    ticked. Never push to `main` directly.
 3. Repository settings (once): protect `main` (required CI checks, no direct push) and add a
    tag ruleset for `v*` so that only maintainers can create, move or delete release tags. The
    release workflow also refuses a tag whose commit is not on `main`.
-4. Tag the merge commit on `main`: `git tag -s v1.0.0 -m "v1.0.0"` and push the tag. The tag
-   triggers `.github/workflows/release.yml`.
+4. Tag the merge commit on `main`: `git tag -s v1.0.0 -m "v1.0.0"` when a signing key is
+   configured (otherwise `git tag -a`; administrators then verify the tag against the release's
+   provenance, README-admin §4) and push the tag. The tag triggers
+   `.github/workflows/release.yml`.
 5. Check the workflow output: three signed linux/amd64 images on GHCR (`quietlink-app`,
    `quietlink-web`, `quietlink-cli`, tag `v1.0.0` only) with SBOM and SLSA provenance
    attestations, the signed PHAR with its provenance, the signed frontend hash list, and the
    image digests in the release notes.
 6. Run the verification procedure of README-admin ("Upgrade and rollback") against the
    published artefacts from a machine that did not build them, including a rebuild of the PHAR
-   from the tag with the same SHA-256 (README-developer, "Reproducible PHAR").
+   from the tag with `tools/release/build-phar.sh` and the same SHA-256 (README-developer,
+   "Reproducible PHAR").
 7. Deploy a staging instance by digest: first run `app:boot --dry-run` on the target with its
    real configuration (no error), then start it, check `app:config:check --format=json`
    (exit `0`, `ready`), `/healthz`, one create/read/delete journey with dummy text, and the

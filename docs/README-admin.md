@@ -60,7 +60,12 @@ Administration happens only through:
   `sodium_crypto_sign_seed_keypair`, `sodium_crypto_sign_verify_detached`, `sodium_crypto_pwhash`,
   `hash_hkdf`, `random_bytes`, `openssl_encrypt`, is missing.
 - PHP-FPM, plus Nginx or Apache in front of it.
-- A local Linux filesystem for the data: **ext4, XFS or Btrfs** (see §7.3).
+- A local Linux filesystem for the data: **ext4 or XFS** (see §7.3).
+- A clock synchronised by NTP that never steps backwards (chrony or systemd-timesyncd with
+  slewing). Access challenges carry the server's issuing time and are refused if they appear to
+  come from the future (zero tolerance, `sp-proto/v1`): a backward step makes valid links answer
+  `404` for a moment (the page retries once) and a large jump can make `health.json` look stale
+  (creation refused until the next purge, at most a minute).
 - `df` available to PHP (free inode measurement).
 - A TLS-terminating reverse proxy, or a web server terminating TLS itself (production instances
   must be served over HTTPS).
@@ -82,6 +87,10 @@ Deployment model:
   failure stops the container. The Symfony container is prewarmed at build time
   (`APP_ENV=prod`). Its healthcheck succeeds only when PHP-FPM listens on port 9000 **and**
   `app:config:check --format=json` exits `0` (configuration valid and booted, §8.3).
+  PHP-FPM listens on TCP 9000 of the Compose network without a client allowlist (the `web`
+  container's address is not fixed): attach only QuietLink's own containers to that network,
+  never the outer reverse proxy or other services, since anything able to reach port 9000 can
+  run PHP code in the container that holds the secret.
 - **`purge`**: same image, runs `app:purge-expired` every 60 seconds in a loop that stops cleanly
   on `SIGTERM` (`stop_signal: SIGTERM`). A host cron job or systemd timer running the same
   command every minute is an equivalent alternative.
@@ -159,13 +168,23 @@ image itself never contains `config.php`, `config.local.php` or the secret (they
 from the build context by `.dockerignore`, together with `datas/`, test reports, coverage
 output, `quietlink.phar` and local tool directories).
 
-After any configuration change: `docker compose up -d --force-recreate app purge` (the
-entrypoint reruns `app:boot`).
+After a configuration change, reload without restarting (§9.5): `docker compose exec app
+quietlink-reload` runs `app:boot` and, **only if it succeeds**, reloads PHP-FPM (`USR2`); on
+failure it prints the errors and the instance keeps serving with the previous configuration.
+Then restart the purge loop, which reads the configuration at each run anyway:
+`docker compose restart purge`. Caveat: Compose mounts `config/config.php` as a single file, and
+a bind-mounted file keeps pointing to the original inode: editors that save by replacing the
+file (write to a temporary file, then rename) are not seen by the container. Edit in place
+(`vim` with `:set backupcopy=yes`, `nano`), or recreate the containers instead
+(`docker compose up -d --force-recreate app purge`; the entrypoint reruns `app:boot`, and a
+failing boot then stops the container).
 
 ### 3.3 Published images
 
-Each release publishes three signed images on GHCR, for **linux/amd64 only**, with one
-immutable tag per version (`vX.Y.Z`); there is no `latest` or floating `X.Y` tag:
+Each release publishes three signed images on GHCR, for **linux/amd64 only**, with one tag per
+version (`vX.Y.Z`); there is no `latest` or floating `X.Y` tag. GHCR does not make tags
+immutable: always deploy by the digest printed in the release notes (§15). Pre-releases
+(`vX.Y.Z-beta.N`) are published the same way and marked as such on GitHub:
 
 - `ghcr.io/marouane-hassine/quietlink-app:vX.Y.Z` (PHP-FPM application)
 - `ghcr.io/marouane-hassine/quietlink-web:vX.Y.Z` (Nginx, static assets)
@@ -194,8 +213,8 @@ are not published: build the images locally from the tagged source as shown abov
 
 ## 4. Installation without Docker (PHP-FPM + Nginx or Apache)
 
-No prebuilt archive is published for this mode: build from a checkout of a signed release tag
-(`git tag -v vX.Y.Z`, then check out the tag). The examples use `/srv/quietlink` for the code,
+No prebuilt archive is published for this mode: build from a checkout of a release tag,
+verified against the release's signed provenance (step 1). The examples use `/srv/quietlink` for the code,
 `/srv/quietlink/datas` for the data (the default `storage.data_dir`), `/etc/quietlink` for the
 secret and the PHP-FPM files, and Debian-style binary names (`/usr/bin/php`,
 `/usr/sbin/php-fpm8.3`); adapt them to your distribution.
@@ -206,7 +225,15 @@ secret and the PHP-FPM files, and Debian-style binary names (`/usr/bin/php`,
    ```sh
    git clone https://github.com/marouane-hassine/quietlink /srv/quietlink
    cd /srv/quietlink
-   git tag -v vX.Y.Z && git checkout vX.Y.Z
+   git checkout vX.Y.Z
+   # Release tags are not GPG-signed: check that the tag is the commit the signed release was
+   # built from (its provenance attestation names the commit; requires gh and jq).
+   gh release download vX.Y.Z --repo marouane-hassine/quietlink -p quietlink.phar -D /tmp/ql-verify
+   gh attestation verify /tmp/ql-verify/quietlink.phar --repo marouane-hassine/quietlink \
+     --signer-workflow marouane-hassine/quietlink/.github/workflows/release.yml \
+     --source-ref refs/tags/vX.Y.Z --format json \
+     | jq -r '.[0].verificationResult.statement.predicate.buildDefinition.resolvedDependencies[0].digest.gitCommit'
+   git rev-parse HEAD   # must print the same commit
    composer install --no-dev --classmap-authoritative
    npm ci && npm run build          # produces public/build/
    APP_ENV=prod php bin/console cache:warmup --no-debug
@@ -490,7 +517,7 @@ Durations use the format `<integer><m|h|d>` (e.g. `30m`, `24h`, `7d`). Expiratio
 | `paste.allow_passphrase` | `true` | Boolean. Automatically disabled when libsodium lacks Argon2id (no silent downgrade). |
 | `paste.max_envelope_bytes` | `1048576` (1 MiB) | Integer 1024–16777216 (16 MiB). Maximum plaintext envelope size; the ciphertext limit is this value + 16. Raise `http.max_request_bytes`, the web server body limit and PHP `post_max_size` with it. |
 | `paste.max_metadata_bytes` | `4096` | Integer 512–4096. Maximum AAD size. |
-| `paste.max_retention` | `'30d'` | Duration or `null` (no upper bound, required by `allow_forever`). |
+| `paste.max_retention` | `'30d'` | Duration or `null` (no upper bound, required by `allow_forever`). Applies to everything stored: lowering it also shortens pastes created before (they expire at creation + new maximum, the expiry shown to readers included); raising it never lengthens them. |
 | `paste.max_unconfirmed_opens` | `3` | Integer 1–10. Reservations of a read-once paste that may expire without confirmation before it is destroyed. |
 | `paste.read_once_reservation_ttl` | `60` | Integer 30–300 (seconds). Lifetime of a read-once reservation. |
 | `paste.idempotency_max_ttl` | `'24h'` | Duration between `1h` and `7d`. Retention of `Idempotency-Key` records. |
@@ -499,7 +526,7 @@ Durations use the format `<integer><m|h|d>` (e.g. `30m`, `24h`, `7d`). Expiratio
 
 | Key | Default | Rule |
 |---|---|---|
-| `http.max_request_bytes` | `1441792` | Integer; must be ≥ `ceil((max_envelope_bytes + 16) × 4/3) + ceil(max_metadata_bytes × 4/3) + 16384` (1,419,969 with the defaults). Keep the web server body limit and PHP `post_max_size` at least as large (`app:boot` warns about `post_max_size`). |
+| `http.max_request_bytes` | `1441792` | Integer; must be ≥ `ceil((max_envelope_bytes + 16) × 4/3) + ceil(max_metadata_bytes × 4/3) + 16384` (1,419,969 with the defaults). Keep the web server body limit and PHP `post_max_size` at least as large (`app:boot` warns about `post_max_size`), and size the application container's `/tmp` tmpfs (where PHP-FPM spools request bodies, 64 MiB by default) for several bodies at once: about `max_request_bytes` × the expected concurrent creations (at the 16 MiB maximum, use 256m or more). The CLI refuses envelopes above 1 MiB unless given `--max-bytes`. |
 | `http.ratelimit_ipv6_prefix` | `64` | Integer 48–64. IPv6 clients are rate limited per prefix. |
 | `http.trusted_proxies` | `[]` | List of IPv4 or IPv6 addresses or CIDR ranges (prefix 0–32 for IPv4, 0–128 for IPv6) whose `X-Forwarded-For` and `X-Forwarded-Proto` headers are honoured. `Forwarded`, `X-Forwarded-Host` and `X-Forwarded-Port` are always ignored. See §9. |
 | `http.cors_allowed_origins` | `[]` | List of exact origins allowed to call `/api/v1` from a browser on another site, written as the browser sends them: lowercase `https://host[:port]`, no path, no trailing slash, no wildcard, no default port (`http://` only for `localhost`, `127.0.0.1`, `[::1]`). Empty = CORS disabled. See §9. |
@@ -680,13 +707,13 @@ makes the purge fail with a message asking to run `app:boot`.
 
 ### 7.3 Supported filesystems
 
-`app:boot` reads `/proc/self/mounts` and accepts **ext4, XFS and Btrfs** for every storage
+`app:boot` reads `/proc/self/mounts` and accepts **ext4 and XFS** (§9.4.1) for every storage
 directory, and verifies that `rename()` and `link()` work atomically in each of them.
 
 Network and overlay filesystems (NFS, SMB/CIFS, FUSE, overlayfs without a volume, etc.) are not
 supported: `flock()` and hard links are unreliable there. `storage.allow_unsupported_fs = true`
 turns the error into a warning for development only. If the type cannot be determined (non-Linux
-hosts), boot emits a warning.
+hosts, unusual mounts) or is Btrfs, boot refuses to start unless that option is set.
 
 ### 7.4 Quotas, disk space and inodes
 
@@ -943,8 +970,9 @@ With `--format=json`, a single JSON document on stdout:
 | `app:purge-expired` | run completed (including `another run is in progress`) | boot marker missing or outdated, missing `purge.lock` | — | — (prints `purge: {…}`) |
 | `app:cache:purge` | done | configuration invalid | — | — |
 
-Behaviour change: `app:config:check` used to exit `0` when the instance was not booted; it now
-exits `2`, so scripts and healthchecks can rely on the exit code. Unknown options or commands
+`app:config:check` exits `2` when the instance is not booted, so scripts and healthchecks can
+rely on the exit code. JSON documents are written verbatim (messages may contain any character)
+and invalid UTF-8 is replaced, so the output always parses. Unknown options or commands
 are reported by the Symfony console itself with a non-zero code (`1`). Messages never contain
 the secret or stored content.
 
@@ -954,16 +982,17 @@ For scripts, prefer the JSON format and the exit code; for example:
 docker compose exec -T app php bin/console app:boot --dry-run --format=json > /tmp/boot.json; echo "exit $?"
 ```
 
-The `quietlink` CLI (§13.2) uses `0` for success, `1` for an error (network, server, decryption)
-and `2` for a usage error (unknown command or option, unexpected argument), without ever
-repeating the offending value.
+The `quietlink` CLI (§13.2) uses `0` for success, `1` for an error (network, server, decryption,
+missing PHP extension) and `2` for a usage error (unknown command or option, unexpected
+argument), without ever repeating the offending value.
 
 ## 9. HTTPS, HSTS and reverse proxy
 
 - Serve the instance **only over HTTPS**; `app.public_url` must be an `https://` origin.
 - Every application response carries a strict CSP (`default-src 'none'; script-src 'self';
   worker-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self';
-  form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'`, plus
+  form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none';
+  require-trusted-types-for 'script'; trusted-types dompurify quietlink-worker`, plus
   `upgrade-insecure-requests` over HTTPS), `X-Content-Type-Options: nosniff`,
   `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, `Permissions-Policy`,
   `Cross-Origin-Opener-Policy` and `Cross-Origin-Resource-Policy: same-origin`,
@@ -1101,7 +1130,7 @@ supported.
   logs app purge`) or the journal (`journalctl -u quietlink-fpm`). Format:
   `{"ts":"…Z","level":"info","message":"request","method":"POST","route":"api_create","status":201,"duration_ms":12,"request_bytes":2048}`.
 - Logged fields are restricted to an allowlist: `method`, `route` (route **name**, never the
-  path), `status`, `duration_ms`, `request_bytes`, `response_bytes`, `exception` (class),
+  path), `status`, `duration_ms`, `request_bytes`, `exception` (class),
   `event`, `count`, `percent`. Messages are sanitized (URLs and long tokens are redacted).
 - **Never logged**: IP addresses, user agents, paste identifiers, paths, query strings, headers
   (including `X-Deletion-Token` and `Idempotency-Key`), bodies, fragments, secrets.
@@ -1228,9 +1257,9 @@ with the CLI image, runs a purge (`"failed":0`), then removes everything. The po
 ### 13.2 Command line client notes
 
 - Links are read only from stdin (`--url-stdin`), never as arguments; passphrases come from the
-  terminal, `--passphrase-file` or `--passphrase-stdin`, never from the command line or the
+  terminal, `--passphrase-file` or (for `create` only) `--passphrase-stdin`, never from the command line or the
   environment. If the terminal cannot hide the passphrase (`stty` unavailable), the CLI refuses
-  to prompt and points to `--passphrase-file` or `--passphrase-stdin`.
+  to prompt and points to `--passphrase-file`.
 - `delete` without a terminal (scripts, pipes) requires `--yes`.
 - `--server` accepts IPv6 literals, e.g. `http://[::1]:8080` for a local test instance.
 - Output files (`decrypt -o`) are created with mode 0600 from the first instant and must not
@@ -1325,7 +1354,16 @@ downtime.
 
    ```sh
    cd /srv/quietlink
-   git fetch --tags && git tag -v vX.Y.Z && git checkout vX.Y.Z
+   git fetch --tags
+   git checkout vX.Y.Z
+   # Release tags are not GPG-signed: check that the tag is the commit the signed release was
+   # built from (its provenance attestation names the commit; requires gh and jq).
+   gh release download vX.Y.Z --repo marouane-hassine/quietlink -p quietlink.phar -D /tmp/ql-verify
+   gh attestation verify /tmp/ql-verify/quietlink.phar --repo marouane-hassine/quietlink \
+     --signer-workflow marouane-hassine/quietlink/.github/workflows/release.yml \
+     --source-ref refs/tags/vX.Y.Z --format json \
+     | jq -r '.[0].verificationResult.statement.predicate.buildDefinition.resolvedDependencies[0].digest.gitCommit'
+   git rev-parse HEAD   # must print the same commit
    composer install --no-dev --classmap-authoritative
    npm ci && npm run build
    APP_ENV=prod php bin/console cache:warmup --no-debug
@@ -1360,7 +1398,9 @@ issuer=https://token.actions.githubusercontent.com
 # Images (repeat for quietlink-web and quietlink-cli); use the digest printed in the release notes.
 cosign verify --certificate-identity-regexp "$id" --certificate-oidc-issuer "$issuer" \
   ghcr.io/marouane-hassine/quietlink-app@sha256:<digest>
-cosign verify-attestation --type spdxjson --certificate-identity-regexp "$id" \
+# SBOM attestation, stored in the classic cosign format. Command for cosign 3.x; with cosign
+# 2.x remove --new-bundle-format=false (older 2.x releases reject that flag).
+cosign verify-attestation --type spdxjson --new-bundle-format=false --certificate-identity-regexp "$id" \
   --certificate-oidc-issuer "$issuer" ghcr.io/marouane-hassine/quietlink-app@sha256:<digest>
 # PHAR and frontend hashes, downloaded from the GitHub release.
 for f in quietlink.phar frontend-sha256sums.txt; do
@@ -1457,17 +1497,18 @@ assumptions:
 
 | Symptom or message | Cause | Fix |
 |---|---|---|
+| Valid links answer `404` for a few seconds, or creation is refused, right after a clock change | The server clock stepped backwards (manual change, VM resume, NTP step) or jumped forwards. | Keep NTP slewing (no steps); the condition clears by itself within a minute. |
 | `QUIETLINK_APP_SECRET_FILE does not point to a readable file.` | Secret file missing, or not readable by the PHP account (e.g. `root:root 0600`). | Docker: `sudo chgrp 10001 secrets/app_secret && chmod 640 secrets/app_secret`. Without Docker: `chgrp quietlink` + `chmod 640` (§6.1). |
 | `QUIETLINK_APP_SECRET (or QUIETLINK_APP_SECRET_FILE) is required…` / `…must be standard base64 decoding to at least 32 bytes.` | Variable not set for this process, or file content wrong (empty, truncated). | Pass the variable (pool, unit, Compose); regenerate the secret (§6). |
 | `config/config.php is missing; copy config/config.php.example.`, and `config/config.php` is a **directory** on the host | Compose was started before `config.php` existed and created a directory at its place. | `docker compose down`, `rmdir config/config.php`, then follow §3.1 step 1 and 4, and start again. |
 | `Unknown configuration key "…"` / `"…" has an invalid type.` | Typo, removed key after an upgrade, or wrong type (e.g. `'60'` instead of `60`). | Fix `config.php`; check with `app:boot --dry-run`. |
-| `storage.… is on an unsupported filesystem (overlay)` (or `nfs`, `fuseblk`, …) | Data not on a supported local filesystem; with Docker, usually the data volume is not mounted where `storage.data_dir` points. | Mount a volume on `/app/datas` (default) or point `storage.data_dir` at a mounted ext4/XFS/Btrfs path. `allow_unsupported_fs` is for development only. |
+| `storage.… is on an unsupported filesystem (overlay)` (or `nfs`, `fuseblk`, …) | Data not on a supported local filesystem; with Docker, usually the data volume is not mounted where `storage.data_dir` points. | Mount a volume on `/app/datas` (default) or point `storage.data_dir` at a mounted ext4 or XFS path. `allow_unsupported_fs` is for development only. |
 | `storage.… does not support atomic rename() and link().` | Network or FUSE mount, or read-only volume. | Use a local filesystem; make the data volume writable. |
 | `storage.… is accessible to other accounts (mode 0755): restore mode 0700 (chmod 700).` | Directory created by hand, restored, or copied with a permissive mode. | `chmod 700` on the four storage directories (Docker: `docker compose run --rm --no-deps --entrypoint chmod app 700 /app/datas/pastes /app/datas/idempotency /app/datas/ratelimit /app/datas/state`). |
 | `storage.… must belong to the application account.` | Files restored or created by another user (often root). | `chown -R quietlink:quietlink` the data directory (Docker: `10001:10001`, from a container run with `--user 0`). |
 | `storage.… cannot be created.` | Parent directory missing or not writable by the account. | Create the parent as in §4 step 3. |
-| `The PHP-FPM pool does not pass QUIETLINK_APP_SECRET or QUIETLINK_APP_SECRET_FILE to the workers.` | `env[QUIETLINK_APP_SECRET_FILE] = …` missing from the pool file named by `QUIETLINK_FPM_POOL_FILE`. | Add the `env[…]` line (§4.1); with the inline variable, adapt the shipped pool. |
-| Every page and API call answers `503`; `/healthz` says `unavailable`; log event `boot_marker_mismatch` | Configuration changed (or invalid) since the last `app:boot`, or the secret changed. | Run `app:boot` and reload PHP-FPM (Docker: `docker compose up -d --force-recreate app purge`; systemd: `systemctl reload quietlink-fpm`). `app:config:check` shows the errors. |
+| `The PHP-FPM pool does not pass QUIETLINK_APP_SECRET(_FILE) to the workers (this instance uses …).` | The pool file named by `QUIETLINK_FPM_POOL_FILE` does not pass the variable this instance uses: `QUIETLINK_APP_SECRET_FILE` with a secret file, `QUIETLINK_APP_SECRET` with an inline secret. Without it the workers would answer `503` while boot succeeded. | Add the matching `env[…]` line (§4.1); the shipped pool passes `QUIETLINK_APP_SECRET_FILE` only. |
+| Every page and API call answers `503`; `/healthz` says `unavailable`; log event `boot_marker_mismatch` | Configuration changed (or invalid) since the last `app:boot`, or the secret changed. | Run `app:boot` and reload PHP-FPM (Docker: `docker compose exec app quietlink-reload`; systemd: `systemctl reload quietlink-fpm`). `app:config:check` shows the errors. |
 | `/healthz` answers `503` `degraded`; creation refused; log event `health_stale` | `health.json` older than 10 minutes: the purge is not running (or failing), or inodes are low. | `docker compose ps purge` / `docker compose logs purge`, or `systemctl list-timers quietlink-purge.timer` / `journalctl -u quietlink-purge`. Check `df -i` (§7.4). |
 | Purge prints `The boot marker is missing or does not match the configuration; run app:boot first.` | Purge started before `app:boot`, or configuration changed. | Run `app:boot` (it is in the `app` entrypoint and the systemd `ExecStartPre`). |
 | `purge.lock is missing; run app:boot.` | Data directory restored without lock files, or a lock file removed. | Run `app:boot` (it recreates missing lock files). |
@@ -1479,7 +1520,7 @@ assumptions:
 | `Free inodes are below storage.min_free_inodes_percent: creation is refused.` | Inode exhaustion of the data volume. | `df -i`; check the purge runs; grow the volume or reformat with more inodes; lower `paste.idempotency_max_ttl`. |
 | `Free inodes could not be measured…` | `df` missing or the filesystem does not report inodes. | Install `df` (coreutils/busybox) for PHP, or accept that the inode threshold is not enforced. |
 | `Free disk space is below storage.min_free_bytes: creation is refused.` | Data volume almost full. | Free space or grow the volume; check the purge runs. |
-| CLI: `Cannot hide the passphrase while typing (stty failed)…` | No usable terminal (e.g. `docker run -i` without `-t`). | Use `docker run -it`, or `--passphrase-file` / `--passphrase-stdin`. |
+| CLI: `Cannot hide the passphrase while typing (stty failed)…` | No usable terminal (e.g. `docker run -i` without `-t`). | Use `docker run -it`, or `--passphrase-file` (`--passphrase-stdin` with `create` only). |
 | CLI: `PHP allow_url_fopen is disabled…` | `allow_url_fopen = Off` in the PHP used by the CLI. | `php -d allow_url_fopen=1 quietlink.phar …`. |
 | CLI Docker: `decrypt -o` fails to write | `/app` is read-only for the CLI user. | Mount a writable directory and write into it (§13.2). |
 | `curl: (52) Empty reply` or `502` from the proxy right after `up` | `app` not healthy yet, or failed to boot. | `docker compose ps`; `docker compose logs app` shows the `app:boot` errors. |

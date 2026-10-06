@@ -6,7 +6,7 @@
 
 - Dépôt : https://github.com/marouane-hassine/quietlink (public)
 - Licence : **AGPL-3.0** (fichier `LICENSE` et en-têtes SPDX à créer à l’initialisation du dépôt).
-- Spécification de référence : `docs/cahier-des-charges.md` (v0.18). Toute décision de conception s’appuie sur ce document ; en cas de doute ou de contradiction, le signaler plutôt que trancher seul.
+- Spécification de référence : `docs/cahier-des-charges.md` (v0.23). Toute décision de conception s’appuie sur ce document ; en cas de doute ou de contradiction, le signaler plutôt que trancher seul.
 - État : **développement V1** — fonctionnalités Must implémentées, revue de sécurité externe à venir. Suivi : `docs/PROGRESS.md` ; décisions : `docs/decisions/ADR-*.md`.
 
 ## Commandes
@@ -22,14 +22,15 @@ bin/console --env=test    # console Symfony
 ```
 
 - Point d’entrée HTTP : `public/index.php` ; noyau : `src/Kernel.php` ; configuration PHP dans `config/` (pas de YAML ni de `.env`).
-- Composants Symfony installés : framework-bundle (requis par MicroKernelTrait), http-foundation, routing, validator, console, rate-limiter, twig-bundle. Ne pas en ajouter sans justification.
+- Composants Symfony installés : framework-bundle (requis par MicroKernelTrait), http-foundation, routing, console, rate-limiter, twig-bundle. Ne pas en ajouter sans justification.
 - Frontend : `npm ci`, `npm run qa` (tsc + Vitest + build Vite vers `public/build/`), `npm run e2e` (Playwright ; `npx playwright install` au préalable).
 - Vecteurs : `composer vectors:check` (générateur `tools/vectors/`). CLI : `bin/quietlink`. Docker : `docker compose up -d --build` (voir `docs/README-admin.md`).
 - Contrôles CI supplémentaires : `tools/ci/forbidden-patterns.sh`.
+- Validation locale **dans Docker** (jamais avec les outils de l’hôte) : `tools/docker/qa.sh all` (PHP + frontend + motifs), `tools/docker/smoke.sh` (pile Compose), `tools/docker/e2e.sh` (Playwright, cinq navigateurs).
 
 ## Stack imposée
 
-- Backend, API et CLI : PHP ≥ 8.3, `declare(strict_types=1)`, Symfony en micro-kernel (HttpFoundation, Routing, Validator, Console, RateLimiter, Twig pour les seuls gabarits HTML). Pas de composant Lock : `flock()` direct sur `state.lock`.
+- Backend, API et CLI : PHP ≥ 8.3, `declare(strict_types=1)`, Symfony en micro-kernel (HttpFoundation, Routing, Console, RateLimiter, Twig pour les seuls gabarits HTML). Pas de composant Lock : `flock()` direct sur `state.lock`.
 - Composer uniquement ; PSR-4, PSR-12, PSR-3 ; PHPUnit ; PHPStan.
 - Frontend : **TypeScript + Vite**, sans framework d’interface, tests unitaires Vitest ; assets statiques hashés servis par l’instance. Markdown : markdown-it (`html: false`) + DOMPurify. Crypto : Web Crypto, repli Ed25519 @noble/ed25519 (JavaScript pur), Argon2id hash-wasm uniquement dans un worker dédié.
 - Crypto PHP : `ext-openssl` pour AES-256-GCM, `ext-sodium` pour Argon2id et Ed25519, `hash_hkdf`, `random_bytes`. Jamais `sodium_crypto_aead_aes256gcm_*`, jamais de primitive réimplémentée.
