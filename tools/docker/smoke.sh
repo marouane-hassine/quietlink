@@ -71,6 +71,10 @@ printf '%s' "$share" | cli decrypt --url-stdin | grep -qx 'smoke test dummy text
 printf '%s' "$manage" | cli delete --url-stdin --yes > /dev/null
 ! printf '%s' "$share" | cli metadata --url-stdin > /dev/null 2>&1
 
+step "reload after a configuration change (app:boot, then USR2 only on success)"
+compose exec -T app quietlink-reload | grep -q 'reload: PHP-FPM reloaded'
+test "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port/healthz")" = "200"
+
 step "purge runs"
 compose exec -T app php bin/console app:purge-expired --no-interaction | grep -q '"failed":0'
 

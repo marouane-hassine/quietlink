@@ -272,4 +272,50 @@ final class HardeningTest extends KernelTestCase
 
         self::assertSame(200, $response->getStatusCode());
     }
+
+    /**
+     * Symfony redirects "/path/" to "/path" with a Location built from the Host header and the
+     * detected scheme: an open redirect, and an http downgrade of "/p/<id>/#key" behind a
+     * misconfigured proxy. Such paths get the uniform 404 instead.
+     */
+    #[Group('EXG-SEC-058')]
+    #[Group('EXG-URL-015')]
+    public function testTrailingSlashIsNotRedirectedFromTheHostHeader(): void
+    {
+        $this->boot();
+        foreach (['/how-it-works/', '/p/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/', '/healthz/', '/api/v1/pastes/x/status/'] as $path) {
+            $response = $this->request('GET', $path, null, [], ['HTTP_HOST' => 'evil.example']);
+            self::assertSame(404, $response->getStatusCode(), $path);
+            self::assertNull($response->headers->get('Location'), $path);
+        }
+        self::assertSame(200, $this->request('GET', '/')->getStatusCode());
+    }
+
+    /**
+     * §10 step 2, §7.5: Idempotency-Key conflicts (422) count against the replay budget, like
+     * replays, so keys cannot be probed at will.
+     */
+    #[Group('EXG-API-018')]
+    public function testIdempotencyConflictsAreRateLimited(): void
+    {
+        $this->boot(['http' => ['rate_limits' => ['create_replay' => ['limit' => 1, 'interval' => 600]]]]);
+        $first = $this->createPaste('{"format":"plain","language":null,"template":null,"text":"a","v":1}');
+        $other = ClientCrypto::prepare('{"format":"plain","language":null,"template":null,"text":"b","v":1}', '1h', false, null, 19456, 2);
+
+        self::assertSame(422, $this->request('POST', '/api/v1/pastes', $other->json(), ['Idempotency-Key' => $first->idempotencyKey])->getStatusCode());
+        self::assertSame(429, $this->request('POST', '/api/v1/pastes', $other->json(), ['Idempotency-Key' => $first->idempotencyKey])->getStatusCode());
+    }
+
+    /** The uniform 404 of a trailing slash keeps HSTS behind a trusted TLS proxy. */
+    #[Group('EXG-SEC-044')]
+    public function testTrailingSlashNotFoundKeepsHstsBehindATrustedProxy(): void
+    {
+        $this->boot(['http' => ['trusted_proxies' => ['10.0.0.0/8']]]);
+        // Static setting left by earlier requests of this process would hide the ordering.
+        \Symfony\Component\HttpFoundation\Request::setTrustedProxies([], 0);
+        $response = $this->request('GET', '/how-it-works/', null, ['X-Forwarded-Proto' => 'https'], ['HTTPS' => '', 'REMOTE_ADDR' => '10.1.2.3']);
+
+        self::assertSame(404, $response->getStatusCode());
+        self::assertStringStartsWith('max-age=', (string) $response->headers->get('Strict-Transport-Security'));
+    }
 }

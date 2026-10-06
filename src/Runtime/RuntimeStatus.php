@@ -64,8 +64,12 @@ final class RuntimeStatus
             return $this->ready = false;
         }
         $files = new StateFiles(self::layout($config));
-
-        return $this->ready = $files->bootMatches($config->fingerprint(), $config->secret->check());
+        try {
+            return $this->ready = $files->bootMatches($config->fingerprint(), $config->secret->check());
+        } catch (\JsonException) {
+            // A value that cannot be fingerprinted: not ready (503), never an internal error.
+            return $this->ready = false;
+        }
     }
 
     public static function layout(InstanceConfig $config): StorageLayout

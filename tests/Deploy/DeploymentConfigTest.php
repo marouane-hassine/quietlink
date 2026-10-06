@@ -105,7 +105,9 @@ final class DeploymentConfigTest extends TestCase
     public function testNginxOwnErrorsAreUniformAndHardened(): void
     {
         $nginx = self::file('docker/nginx/default.conf');
-        foreach ([400, 404, 405, 408, 413, 414] as $status) {
+        // 5xx: nginx answers itself while PHP-FPM is down (boot failure, crash loop); PHP's own
+        // errors pass through untouched (fastcgi_intercept_errors stays off).
+        foreach ([400, 404, 405, 408, 413, 414, 500, 502, 503, 504] as $status) {
             self::assertStringContainsString("error_page {$status} /__errors/{$status}.json;", $nginx);
             $body = json_decode(self::file("docker/nginx/errors/{$status}.json"), true);
             self::assertIsArray($body);
@@ -188,5 +190,75 @@ final class DeploymentConfigTest extends TestCase
         $purge = substr($compose, (int) strpos($compose, "  purge:\n"), 500);
         self::assertStringContainsString('stop_signal: SIGTERM', $purge);
         self::assertContains('.claude', array_map('trim', explode("\n", self::file('.dockerignore'))));
+    }
+
+    /**
+     * Published images describe themselves (source, AGPL licence, version, revision) instead
+     * of carrying no label or the base image's labels.
+     */
+    #[Group('EXG-DEPLOY-001')]
+    public function testImagesCarryTheirOwnOciLabels(): void
+    {
+        foreach (['docker/php/Dockerfile', 'docker/nginx/Dockerfile', 'docker/cli/Dockerfile'] as $dockerfile) {
+            $content = self::file($dockerfile);
+            foreach (['org.opencontainers.image.source="https://github.com/marouane-hassine/quietlink"', 'org.opencontainers.image.licenses="AGPL-3.0-or-later"', 'org.opencontainers.image.version="${VERSION}"', 'org.opencontainers.image.revision="${REVISION}"', 'org.opencontainers.image.title="quietlink-'] as $label) {
+                self::assertStringContainsString($label, $content, $dockerfile);
+            }
+        }
+        self::assertStringContainsString('--build-arg VERSION="${GITHUB_REF_NAME#v}" --build-arg REVISION="$GITHUB_SHA"', self::file('.github/workflows/release.yml'));
+    }
+
+    /** Assertions are compiled out in production (they could only cost time or leak details). */
+    #[Group('EXG-DEPLOY-001')]
+    public function testPhpAssertionsAreDisabled(): void
+    {
+        self::assertMatchesRegularExpression('/^zend\.assertions\s*=\s*-1\s*$/m', self::file('docker/php/php.ini'));
+        self::assertStringNotContainsString('fastcgi_intercept_errors on', self::file('docker/nginx/default.conf'));
+    }
+
+    /**
+     * The local end-to-end image is the Playwright release of package.json (browsers and library
+     * of the same version), pinned by digest.
+     */
+    #[Group('EXG-OPS-008')]
+    public function testEndToEndImageMatchesThePlaywrightVersion(): void
+    {
+        $package = json_decode(self::file('package.json'), true, 8, JSON_THROW_ON_ERROR);
+        self::assertIsArray($package);
+        $dependencies = $package['devDependencies'] ?? null;
+        self::assertIsArray($dependencies);
+        $version = $dependencies['@playwright/test'] ?? null;
+        self::assertIsString($version);
+        self::assertMatchesRegularExpression('#FROM mcr\.microsoft\.com/playwright:v' . preg_quote($version, '#') . '-noble@sha256:[0-9a-f]{64}#', self::file('docker/e2e/Dockerfile'));
+        self::assertStringContainsString('docker/e2e/Dockerfile', self::file('tools/docker/e2e.sh'));
+    }
+
+    /**
+     * §9.5: a reload runs app:boot, then signals PHP-FPM (USR2) only if it succeeded; the
+     * container provides the same sequence as the systemd ExecReload, so a configuration change
+     * never needs a container restart that a failed boot would turn into an outage.
+     */
+    #[Group('EXG-DEPLOY-016')]
+    public function testContainerProvidesTheBootThenReloadSequence(): void
+    {
+        $script = self::file('docker/php/reload.sh');
+        self::assertMatchesRegularExpression('#php /app/bin/console app:boot --no-interaction\s*\|\|\s*exit#', $script);
+        self::assertStringContainsString('kill -USR2 1', $script);
+        self::assertLessThan(strpos($script, 'kill -USR2 1'), strpos($script, 'app:boot'));
+        self::assertStringContainsString('COPY docker/php/reload.sh /usr/local/bin/quietlink-reload', self::file('docker/php/Dockerfile'));
+        self::assertStringContainsString('chmod 0755 /usr/local/bin/quietlink-entrypoint /usr/local/bin/quietlink-reload', self::file('docker/php/Dockerfile'));
+    }
+
+    /**
+     * PHP-FPM spools request bodies above 16 KB to /tmp: the application container needs room
+     * for several maximum-size bodies at once (README-admin, raising the size limits).
+     */
+    #[Group('EXG-OPS-007')]
+    public function testApplicationTmpfsHoldsSeveralRequestBodies(): void
+    {
+        $compose = self::file('compose.yaml');
+        $app = substr($compose, (int) strpos($compose, 'x-app: &app'), (int) strpos($compose, 'services:') - (int) strpos($compose, 'x-app: &app'));
+        self::assertSame(1, preg_match('#"/tmp:size=(\d+)m#', $app, $m), 'x-app must declare its own /tmp tmpfs');
+        self::assertGreaterThanOrEqual(64, (int) $m[1]);
     }
 }

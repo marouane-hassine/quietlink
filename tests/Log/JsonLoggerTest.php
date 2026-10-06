@@ -60,4 +60,23 @@ final class JsonLoggerTest extends TestCase
     {
         self::assertSame('', self::capture('debug detail', [], 'debug'));
     }
+
+    /**
+     * Symfony's router logs every matched route at info: it is debug noise, not the documented
+     * request line, and is dropped at the default level.
+     */
+    #[Group('EXG-OBS-005')]
+    public function testRouterMatchLinesAreDebugLevel(): void
+    {
+        $stream = fopen('php://memory', 'w+');
+        self::assertIsResource($stream);
+        $logger = new \QuietLink\Log\JsonLogger(\Psr\Log\LogLevel::INFO, $stream);
+        $logger->info('Matched route "{route}".', ['route' => 'healthz']);
+        $logger->info('request', ['route' => 'healthz', 'status' => 200]);
+        rewind($stream);
+        $lines = array_values(array_filter(explode("\n", (string) stream_get_contents($stream)), static fn (string $line): bool => $line !== ""));
+
+        self::assertCount(1, $lines);
+        self::assertStringContainsString('"message":"request"', $lines[0]);
+    }
 }

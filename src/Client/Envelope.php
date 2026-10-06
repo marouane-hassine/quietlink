@@ -49,21 +49,33 @@ final class Envelope
 
     /**
      * json_decode() silently keeps the last of duplicate members, so the member names of the
-     * (already validated, flat) document are counted on its tokens: string literals, each
-     * optionally followed by ':' (a member name), and runs of other characters.
+     * (already validated, flat) document are collected by a linear scan: every string literal
+     * followed by ':' is a member name. A regular expression reached PCRE's backtrack limit on
+     * large texts with many escapes.
      */
     private static function hasDuplicateKeys(string $json): bool
     {
-        if (preg_match_all('/("(?:[^"\\\\]++|\\\\.)*+")(\s*+:)?|[^"]++/s', $json, $tokens, PREG_SET_ORDER | PREG_UNMATCHED_AS_NULL) === false) {
-            return true;
-        }
         $names = [];
-        foreach ($tokens as $token) {
-            $literal = $token[1] ?? null;
-            if ($literal === null || ($token[2] ?? null) === null) {
+        $length = strlen($json);
+        for ($i = 0; $i < $length; ++$i) {
+            if ($json[$i] !== '"') {
                 continue;
             }
-            $name = json_decode($literal);
+            $start = $i;
+            for (++$i; $i < $length && $json[$i] !== '"'; ++$i) {
+                if ($json[$i] === '\\') {
+                    ++$i;
+                }
+            }
+            $end = $i;
+            $next = $i + 1;
+            while ($next < $length && strpos(" \t\r\n", $json[$next]) !== false) {
+                ++$next;
+            }
+            if ($next >= $length || $json[$next] !== ':') {
+                continue;
+            }
+            $name = json_decode(substr($json, $start, $end - $start + 1));
             if (!is_string($name) || isset($names[$name])) {
                 return true;
             }

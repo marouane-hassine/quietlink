@@ -16,6 +16,7 @@ use QuietLink\Storage\AtomicFile;
 use QuietLink\Storage\FileLock;
 use QuietLink\Storage\FilesystemPasteStore;
 use QuietLink\Storage\IdempotencyStore;
+use QuietLink\Storage\PasteId;
 use QuietLink\Storage\PasteRecord;
 use QuietLink\Storage\StateFiles;
 use QuietLink\Storage\StateName;
@@ -83,14 +84,13 @@ final class Purger
                 // stops the run: the paste is retried by the next purge (§9.7).
                 try {
                     if ($this->store->isIncomplete($id)) {
-                        $removed = $this->store->removeIncomplete($id);
-                        $stats[$removed ? 'removed' : 'failed'] += 1;
+                        $stats[$this->outcome($this->store->removeIncomplete($id), $id, 'removed')] += 1;
                     } elseif ($this->store->isPendingDeletion($id)) {
-                        $stats[$this->store->remove($id) ? 'removed' : 'failed'] += 1;
+                        $stats[$this->outcome($this->store->remove($id), $id, 'removed')] += 1;
                     } else {
                         $action = $this->store->mutate($id, fn (PasteRecord $r): array => $this->decide($r));
                         if ($action === 'remove' || $action === 'orphan') {
-                            $stats[$this->store->remove($id) ? ($action === 'orphan' ? 'orphans' : 'removed') : 'failed'] += 1;
+                            $stats[$this->outcome($this->store->remove($id), $id, $action === 'orphan' ? 'orphans' : 'removed')] += 1;
                         } elseif ($action === 'released') {
                             ++$stats['released'];
                         }
@@ -126,6 +126,20 @@ final class Purger
         } finally {
             $lock->release();
         }
+    }
+
+    /**
+     * Statistic for one removal: a removal another process completed first (an API deletion
+     * racing the purge) is not a failure; only a directory still present is.
+     */
+    private function outcome(bool $removed, PasteId $id, string $success): string
+    {
+        if ($removed) {
+            return $success;
+        }
+        clearstatcache();
+
+        return is_dir($this->layout->pasteDir($id)) ? 'failed' : $success;
     }
 
     /** Temporary files of interrupted atomic writes of usage, health and boot state. */
@@ -184,7 +198,7 @@ final class Purger
 
             return [null, 'keep'];
         }
-        if ($record->meta->isExpired($now)) {
+        if ($record->meta->isExpired($now, $this->config->paste->maxRetentionSeconds)) {
             return [null, 'remove'];
         }
         $age = $now - $record->meta->createdAt;
@@ -192,7 +206,8 @@ final class Purger
             && !$this->idempotency->designates($record->meta->idempotencyKeyHash, $record->meta->id)) {
             return [null, 'orphan'];
         }
-        $released = $this->pastes->releaseIfExpired($record);
+        // After the late-confirmation grace (one more reservation lifetime, §6.3.1).
+        $released = $this->pastes->releaseIfExpired($record, $this->config->paste->readOnceReservationTtl);
         if ($released !== null) {
             return [$released, 'released'];
         }

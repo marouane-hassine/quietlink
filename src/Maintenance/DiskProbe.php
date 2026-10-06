@@ -11,7 +11,8 @@ namespace QuietLink\Maintenance;
  */
 class DiskProbe
 {
-    public const SUPPORTED_FILESYSTEMS = ['ext4', 'xfs', 'btrfs'];
+    /** Storage filesystems supported in production (§9.4.1). */
+    public const SUPPORTED_FILESYSTEMS = ['ext4', 'xfs'];
 
     public function freeBytes(string $path): int
     {

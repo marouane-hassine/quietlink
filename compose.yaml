@@ -2,7 +2,7 @@
 # Demonstration deployment. No database service: storage is local files only.
 # Before the first start (config.php first, or Compose creates a directory at its place):
 #   cp config/config.php.example config/config.php   # then set app.public_url
-#   mkdir -p secrets && docker compose run --rm --no-deps app php bin/console app:secret:generate > secrets/app_secret
+#   mkdir -p secrets && (umask 077 && docker compose run --rm --no-deps -T app php bin/console app:secret:generate > secrets/app_secret)
 #   sudo chgrp 10001 secrets/app_secret config/config.php && chmod 640 secrets/app_secret config/config.php
 # Put an HTTPS reverse proxy in front of port 8080 (docs/README-admin.md).
 
@@ -19,6 +19,9 @@ x-app: &app
     dockerfile: docker/php/Dockerfile
   image: quietlink/app:dev
   user: "10001:10001"
+  # PHP-FPM spools request bodies above 16 KB here: room for several maximum-size bodies at
+  # once (http.max_request_bytes x concurrent creations; raise it with the size limits).
+  tmpfs: ["/tmp:size=64m,mode=1777"]
   environment:
     QUIETLINK_APP_SECRET_FILE: /run/secrets/app_secret
   secrets: [app_secret]

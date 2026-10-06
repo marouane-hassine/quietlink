@@ -384,6 +384,25 @@ final class ConfigLoaderTest extends TestCase
      * (case-insensitive filesystems) and symbolic links cannot place storage under public/.
      */
     /**
+     * Configuration files saved in Latin-1 would make the fingerprint and JSON outputs fail
+     * (500 on every request): strings must be valid UTF-8, reported with their key.
+     */
+    #[Group('EXG-CONF-008')]
+    public function testNonUtf8StringsAreRefusedWithTheirKey(): void
+    {
+        file_put_contents($this->dir . '/config.php', "<?php\nreturn ['app' => ['public_url' => 'https://paste.example.test', 'name' => \"Partage s\\xe9curis\\xe9\", 'enabled_locales' => ['en', \"f\\xffr\"]]];\n");
+        try {
+            $this->load();
+            self::fail('Invalid UTF-8 was accepted.');
+        } catch (InvalidConfigException $e) {
+            $errors = implode("\n", $e->errors);
+            self::assertStringContainsString('"app.name" must be valid UTF-8', $errors);
+            self::assertStringContainsString('"app.enabled_locales" must be valid UTF-8', $errors);
+            self::assertTrue(mb_check_encoding($errors, 'UTF-8'));
+        }
+    }
+
+    /**
      * A null language list enables every shipped catalogue, so instances configured from the
      * example pick up languages added by later releases.
      */

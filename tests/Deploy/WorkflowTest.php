@@ -74,4 +74,24 @@ final class WorkflowTest extends TestCase
         self::assertStringContainsString("prerelease: \${{ contains(github.ref_name, '-') }}", $release);
         self::assertStringContainsString("make_latest: \${{ !contains(github.ref_name, '-') }}", $release);
     }
+
+    /**
+     * The PHAR is built by the same pinned container in CI, in the release and for anyone
+     * verifying it: a host PHP and Composer produced the same entries in another order.
+     */
+    #[Group('EXG-DEPLOY-001')]
+    public function testPharIsBuiltByThePinnedContainerEverywhere(): void
+    {
+        foreach (['.github/workflows/ci.yml', '.github/workflows/release.yml'] as $workflow) {
+            $content = self::file($workflow);
+            self::assertStringContainsString('tools/release/build-phar.sh', $content, $workflow);
+            self::assertStringNotContainsString('box compile', $content, $workflow);
+        }
+        $script = self::file('tools/release/build-phar.sh');
+        self::assertMatchesRegularExpression('/composer:2@sha256:[0-9a-f]{64}/', $script);
+        self::assertMatchesRegularExpression("/box_sha256='[0-9a-f]{64}'/", $script);
+        self::assertStringContainsString('--no-parallel', $script);
+        self::assertStringContainsString('normalize-phar.php', $script);
+        self::assertStringContainsString('PHAR_BUILD_TMPFS=1 tools/release/build-phar.sh', self::file('.github/workflows/ci.yml'));
+    }
 }

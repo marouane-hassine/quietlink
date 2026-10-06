@@ -11,6 +11,7 @@ use QuietLink\Config\InstanceConfig;
 use QuietLink\Crypto\Challenge;
 use QuietLink\Http\ClientAddress;
 use QuietLink\Http\RequestBody;
+use QuietLink\Paste\IdempotencyConflictException;
 use QuietLink\Paste\PasteService;
 use QuietLink\RateLimit\RateLimiter;
 use QuietLink\Storage\PasteId;
@@ -38,11 +39,17 @@ final class ApiController
     {
         $body = $this->body($request);
         $subject = $this->subject($request);
-        $result = $this->pastes->create(
-            $body,
-            $request->headers->get('Idempotency-Key'),
-            fn () => $this->limit('create', $subject),
-        );
+        try {
+            $result = $this->pastes->create(
+                $body,
+                $request->headers->get('Idempotency-Key'),
+                fn () => $this->limit('create', $subject),
+            );
+        } catch (IdempotencyConflictException $e) {
+            // A conflict counts like a replay (§10 step 2): keys cannot be probed at will.
+            $this->limit('create_replay', $subject);
+            throw $e;
+        }
         if (!$result['created']) {
             // Replays have their own, wider limit per address (§10, creation step 2).
             $this->limit('create_replay', $subject);

@@ -115,7 +115,7 @@ final class BooterTest extends TestCase
         self::assertNotEmpty($booter->boot($config, $pool));
 
         file_put_contents($pool, "[quietlink]\nenv[QUIETLINK_APP_SECRET_FILE] = /run/secrets/app_secret\n");
-        self::assertSame([], $booter->boot($config, $pool));
+        self::assertSame([], $booter->boot($config, $pool, false, '/run/secrets/app_secret'));
     }
 
     #[Group('EXG-SEC-101')]
@@ -239,10 +239,95 @@ final class BooterTest extends TestCase
         self::assertSame(1024 ** 3, Booter::iniBytes('1G'));
         self::assertSame(PHP_INT_MAX, Booter::iniBytes('0'));
         self::assertSame(1000, Booter::iniBytes('1000'));
+        // As PHP reads it: leading digits, then the last character as the unit.
+        self::assertSame(1024 * 1024, Booter::iniBytes('1.5M'));
+        self::assertSame(8 * 1024 * 1024, Booter::iniBytes('8M '));
+        self::assertSame(PHP_INT_MAX, Booter::iniBytes('99999999999G'));
+        self::assertSame(PHP_INT_MAX, Booter::iniBytes('-1'));
+        // Prefixes accepted by PHP 8.2+.
+        self::assertSame(16 * 1024 * 1024, Booter::iniBytes('0x10M'));
+        self::assertSame(8 * 1024, Booter::iniBytes('0o10K'));
+        self::assertSame(2, Booter::iniBytes('0b10'));
 
         $config = TestInstance::config($this->tmp, ['http' => ['max_request_bytes' => 5 * 1024 * 1024], 'paste' => ['max_envelope_bytes' => 3 * 1024 * 1024]]);
         $booter = new Booter($this->tmp->path . '/public', self::probe('ext4'), new SystemClock(), [], '', '2M');
         self::assertSame([], $booter->boot($config, null));
         self::assertStringContainsString('post_max_size (2M) is below http.max_request_bytes', implode("\n", $booter->warnings()));
+    }
+
+    /**
+     * A regular file where a storage directory belongs makes the real boot fail: the dry run
+     * must say so instead of promising to create the directory.
+     */
+    #[Group('EXG-OPS-001')]
+    public function testDryRunReportsAFileInPlaceOfAStorageDirectory(): void
+    {
+        $config = TestInstance::config($this->tmp);
+        @mkdir(dirname($config->storage->stateDir), 0700, true);
+        file_put_contents($config->storage->stateDir, 'not a directory');
+        $booter = new Booter($this->tmp->path . '/public', self::probe('ext4'), new SystemClock());
+
+        self::assertContains('storage.state_dir cannot be created.', $booter->boot($config, null, true));
+        self::assertContains('storage.state_dir cannot be created.', $booter->boot($config, null));
+    }
+
+    /**
+     * Failing to write the state files is a reported error, not an uncaught exception that
+     * would bypass the JSON output of app:boot.
+     */
+    #[Group('EXG-OPS-003')]
+    public function testUnwritableStateFilesAreReportedAsAnError(): void
+    {
+        $config = TestInstance::config($this->tmp);
+        $booter = new Booter($this->tmp->path . '/public', self::probe('ext4'), new SystemClock());
+        self::assertSame([], $booter->boot($config, null));
+        unlink($config->storage->stateDir . '/boot.json');
+        mkdir($config->storage->stateDir . '/boot.json');
+
+        self::assertSame(['Unable to write the state files (health.json, boot.json).'], $booter->boot($config, null));
+    }
+
+    /**
+     * The pool must pass the variable this instance actually uses: with an inline secret, a pool
+     * passing only QUIETLINK_APP_SECRET_FILE leaves the workers without a secret (503 forever
+     * while boot said ok).
+     */
+    #[Group('EXG-CONF-016')]
+    public function testThePoolMustPassTheSecretVariableInUse(): void
+    {
+        $config = TestInstance::config($this->tmp);
+        $pool = $this->tmp->path . '/pool.conf';
+        file_put_contents($pool, "[quietlink]\nenv[QUIETLINK_APP_SECRET_FILE] = /run/secrets/app_secret\n");
+        $booter = new Booter($this->tmp->path . '/public', self::probe('ext4'), new SystemClock());
+
+        self::assertSame(['The PHP-FPM pool does not pass QUIETLINK_APP_SECRET to the workers (this instance uses an inline secret).'], $booter->boot($config, $pool, false, null));
+        self::assertSame([], $booter->boot($config, $pool, false, $this->tmp->path . '/app_secret'));
+
+        file_put_contents($pool, "[quietlink]\nenv[QUIETLINK_APP_SECRET] = \$QUIETLINK_APP_SECRET\n");
+        self::assertSame([], $booter->boot($config, $pool, false, null));
+        self::assertSame(['The PHP-FPM pool does not pass QUIETLINK_APP_SECRET_FILE to the workers (this instance uses a secret file).'], $booter->boot($config, $pool, false, $this->tmp->path . '/app_secret'));
+    }
+
+    /**
+     * §9.4.1: only ext4 and XFS are supported; an undetermined type or Btrfs is refused like
+     * any other, unless storage.allow_unsupported_fs is set (development).
+     */
+    #[Group('EXG-STORE-029')]
+    #[Group('EXG-STORE-032')]
+    public function testUnknownFilesystemsAndBtrfsAreRefusedUnlessAllowed(): void
+    {
+        foreach ([null, 'btrfs'] as $type) {
+            $config = TestInstance::config($this->tmp);
+            $errors = (new Booter($this->tmp->path . '/public', self::probe($type), new SystemClock()))->boot($config, null);
+            self::assertNotEmpty($errors, (string) $type);
+            self::assertStringContainsString($type === null ? 'could not be determined' : 'unsupported filesystem (btrfs)', implode("\n", $errors));
+
+            $allowed = TestInstance::config($this->tmp, ['storage' => ['allow_unsupported_fs' => true]]);
+            $booter = new Booter($this->tmp->path . '/public', self::probe($type), new SystemClock());
+            self::assertSame([], $booter->boot($allowed, null), (string) $type);
+            self::assertNotSame([], $booter->warnings());
+        }
+        $xfs = TestInstance::config($this->tmp);
+        self::assertSame([], (new Booter($this->tmp->path . '/public', self::probe('xfs'), new SystemClock()))->boot($xfs, null));
     }
 }

@@ -49,7 +49,7 @@ final class ConfigCheckCommand extends Command
                 OutputFormat::json($output, ['status' => 'invalid', 'errors' => $e->errors]);
             } else {
                 foreach ($e->errors as $error) {
-                    $output->writeln('<error>' . $error . '</error>');
+                    OutputFormat::line($output, 'error', $error);
                 }
             }
 
@@ -68,7 +68,7 @@ final class ConfigCheckCommand extends Command
                 'config' => $config->describe(),
             ]);
         } else {
-            $output->writeln((string) json_encode($config->describe(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+            $output->writeln((string) json_encode($config->describe(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE), OutputInterface::OUTPUT_RAW);
             $output->writeln('secret: present (not shown)');
             $output->writeln('fingerprint: ' . $config->fingerprint());
             $output->writeln('boot marker: ' . ($ready ? 'matches' : 'missing or outdated, run app:boot'));

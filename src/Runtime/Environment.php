@@ -30,7 +30,7 @@ final readonly class Environment
     {
         $name = $variables['APP_ENV'] ?? '';
         $name = is_string($name) && $name !== '' ? $name : 'prod';
-        if (preg_match('/^[a-z]{1,16}$/', $name) !== 1) {
+        if (preg_match('/^[a-z]{1,16}$/D', $name) !== 1) {
             throw new InvalidArgumentException('APP_ENV must contain 1 to 16 lowercase letters.');
         }
 

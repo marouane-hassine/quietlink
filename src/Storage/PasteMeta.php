@@ -22,8 +22,25 @@ final readonly class PasteMeta
     ) {
     }
 
-    public function isExpired(int $now): bool
+    /**
+     * Expiry under the current paste.max_retention (§7.5): lowering it also shortens pastes
+     * created before, never lengthens them.
+     */
+    public function effectiveExpiresAt(?int $maxRetentionSeconds): ?int
     {
-        return $this->expiresAt !== null && $now >= $this->expiresAt;
+        $cap = $maxRetentionSeconds === null ? null : $this->createdAt + $maxRetentionSeconds;
+
+        return match (true) {
+            $cap === null => $this->expiresAt,
+            $this->expiresAt === null => $cap,
+            default => min($this->expiresAt, $cap),
+        };
+    }
+
+    public function isExpired(int $now, ?int $maxRetentionSeconds = null): bool
+    {
+        $expiresAt = $this->effectiveExpiresAt($maxRetentionSeconds);
+
+        return $expiresAt !== null && $now >= $expiresAt;
     }
 }

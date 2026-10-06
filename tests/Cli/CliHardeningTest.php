@@ -81,4 +81,32 @@ final class CliHardeningTest extends TestCase
         self::assertStringContainsString('allow_url_fopen', implode("\n", $output));
         self::assertTrue(class_exists(TransportException::class));
     }
+
+    /**
+     * A missing PHP extension is an environment error (exit 1), not a usage error (exit 2).
+     * `php -n` loads no php.ini, so shared extensions such as intl are absent.
+     */
+    #[Group('EXG-CLI-001')]
+    public function testMissingExtensionExitsWithOne(): void
+    {
+        exec(escapeshellarg(PHP_BINARY) . ' -n ' . escapeshellarg(dirname(__DIR__, 2) . '/bin/quietlink') . ' --version 2>&1', $output, $code);
+        if (!str_contains(implode("\n", $output), 'is required')) {
+            self::markTestSkipped('Every required extension is compiled in on this PHP.');
+        }
+        self::assertSame(1, $code);
+    }
+
+    #[Group('EXG-CLI-010')]
+    public function testEchoFailureHintNamesAnOptionEveryCommandAccepts(): void
+    {
+        $tty = $this->tmp->path . '/tty';
+        file_put_contents($tty, "x\n");
+        try {
+            (new TtyPrompt($tty, 'false'))->secret('Passphrase: ');
+            self::fail('No exception.');
+        } catch (CliException $e) {
+            // decrypt refuses --passphrase-stdin (stdin carries the link).
+            self::assertStringNotContainsString('--passphrase-stdin', $e->getMessage());
+        }
+    }
 }

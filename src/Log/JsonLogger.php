@@ -43,6 +43,10 @@ final class JsonLogger extends AbstractLogger
     public function log($level, string|Stringable $message, array $context = []): void
     {
         $level = is_string($level) && isset(self::LEVELS[$level]) ? $level : LogLevel::ERROR;
+        // Symfony's router reports every match at info: debug noise next to the request line.
+        if ((string) $message === 'Matched route "{route}".') {
+            $level = LogLevel::DEBUG;
+        }
         if (self::LEVELS[$level] < self::LEVELS[$this->minLevel]) {
             return;
         }

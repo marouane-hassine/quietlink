@@ -31,10 +31,14 @@ final class Catalogs
         $candidates = [];
         foreach (explode(',', (string) $acceptLanguage) as $index => $part) {
             $pieces = explode(';', trim($part));
-            $code = strtolower(substr(trim($pieces[0]), 0, 2));
+            // Primary subtag only, exactly two letters: "fry" is not French, "arn" not Arabic.
+            $primary = strtolower(explode('-', trim($pieces[0]))[0]);
+            $code = preg_match('/^[a-z]{2}$/D', $primary) === 1 ? $primary : '';
             $quality = 1.0;
-            if (isset($pieces[1]) && preg_match('/q=([0-9.]+)/', $pieces[1], $match) === 1) {
-                $quality = (float) $match[1];
+            foreach (array_slice($pieces, 1) as $parameter) {
+                if (preg_match('/^\s*q\s*=\s*([0-9.]+)\s*$/iD', $parameter, $match) === 1) {
+                    $quality = (float) $match[1];
+                }
             }
             if ($code !== '' && $quality > 0) {
                 $candidates[] = [$code, $quality, $index];

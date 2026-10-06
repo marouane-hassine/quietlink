@@ -78,7 +78,12 @@ final class RateLimiter
             if ($count >= $settings->limit) {
                 return new RateLimit(0, $retry, false, $settings->limit);
             }
-            $this->store($key, $windowStart, $windowEnd, $this->count($key, $windowStart) + 1);
+            try {
+                $this->store($key, $windowStart, $windowEnd, $this->count($key, $windowStart) + 1);
+            } catch (StorageException) {
+                // Disk full or unwritable: fail open rather than answer 503 to every route,
+                // reads and deletions included (they are what frees space, §7.5).
+            }
 
             return new RateLimit($settings->limit - $count - 1, $retry, true, $settings->limit);
         } finally {

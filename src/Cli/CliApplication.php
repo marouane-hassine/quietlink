@@ -57,7 +57,8 @@ final class CliApplication extends Application
                 $errors->writeln('<error>' . $error . '</error>');
             }
 
-            return 2;
+            // An environment problem, not a usage error.
+            return 1;
         }
 
         try {

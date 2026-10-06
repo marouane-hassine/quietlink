@@ -155,4 +155,30 @@ final class RateLimiterTest extends TestCase
         }
         self::assertSame(1, $limiter->purgeExpired());
     }
+
+    /**
+     * A counter that cannot be written (disk full) lets the request through: otherwise every
+     * route, reads and deletions included, answers 503 and nothing can free space (§7.5).
+     */
+    #[Group('EXG-STORE-006')]
+    public function testUnwritableCountersFailOpen(): void
+    {
+        if (function_exists('posix_getuid') && posix_getuid() === 0) {
+            self::markTestSkipped('Permissions are not enforced for root.');
+        }
+        $limiter = $this->limiter(new FrozenClock(), 1);
+        for ($i = 0; $i < 256; ++$i) {
+            $shard = sprintf('%s/%02x', $this->tmp->path, $i);
+            @mkdir($shard, 0500);
+            @chmod($shard, 0500);
+        }
+        try {
+            self::assertTrue($limiter->consume('open', 'subject')->isAccepted());
+            self::assertTrue($limiter->consume('open', 'subject')->isAccepted());
+        } finally {
+            for ($i = 0; $i < 256; ++$i) {
+                @chmod(sprintf('%s/%02x', $this->tmp->path, $i), 0700);
+            }
+        }
+    }
 }

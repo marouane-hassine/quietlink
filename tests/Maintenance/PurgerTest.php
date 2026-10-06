@@ -137,11 +137,14 @@ final class PurgerTest extends TestCase
     {
         [$prepared, $id] = $this->create(readOnce: true);
         $this->open($prepared, $id);
+        // Within the grace period a late confirmation is still accepted: not released yet.
         $this->clock->advance(61);
+        $early = $this->purger->run();
+        self::assertSame(0, $early['released'] ?? null);
+        $this->clock->advance(60);
 
-        $stats = $this->purger->run();
-        self::assertNotNull($stats);
-        self::assertSame(1, $stats['released']);
+        $late = $this->purger->run();
+        self::assertSame(1, $late['released'] ?? null);
         $record = $this->store->find($id);
         self::assertNotNull($record);
         self::assertSame(1, $record->state->unconfirmedOpens);
@@ -155,6 +158,9 @@ final class PurgerTest extends TestCase
             $this->open($prepared, $id);
             $this->clock->advance(61);
         }
+        // The last reservation is released (third unconfirmed open: consumed) after the
+        // late-confirmation grace of one more reservation lifetime.
+        $this->clock->advance(60);
         $this->purger->run();
         self::assertNotNull($this->store->find($id), 'consumed paste must be kept for idempotent replays');
 
@@ -299,6 +305,34 @@ final class PurgerTest extends TestCase
         self::assertNotNull($this->store->find($id));
         self::assertSame(['bytes' => 5000, 'items' => 1], $this->usage->read());
         self::assertSame([], glob($this->layout->stateDir . '/creating/*'));
+    }
+
+    /**
+     * When the commit cannot be recorded (usage.lock busy), the creation marker stays and ages
+     * out after an hour: a scan that missed the new paste must not be applied meanwhile.
+     */
+    #[Group('EXG-STORE-043')]
+    public function testCreationMarkerStaysWhenTheCommitCannotBeRecorded(): void
+    {
+        $usage = new \QuietLink\Storage\UsageCounter($this->layout, 1 << 30, 1000, 1);
+        $store = new \QuietLink\Storage\FilesystemPasteStore($this->layout, $usage, $this->clock);
+        $lock = $this->layout->usageLock();
+        $holder = null;
+        $store->create(
+            static function (PasteId $id) use ($lock, &$holder): \QuietLink\Storage\PasteMeta {
+                // Holds usage.lock from after the reservation until after the commit attempt.
+                $holder = proc_open([PHP_BINARY, '-r', '$h = fopen($argv[1], "r+"); flock($h, LOCK_EX); echo "locked\\n"; usleep(3000000);', $lock], [1 => ['pipe', 'w']], $pipes);
+                self::assertSame("locked\n", fgets($pipes[1]));
+
+                return new \QuietLink\Storage\PasteMeta($id, '{}', 1, null, false, str_repeat("\0", 32), str_repeat("\0", 32));
+            },
+            static fn (): PasteId => PasteId::fromBytes(random_bytes(24)),
+            'payload',
+        );
+        self::assertIsResource($holder);
+        proc_close($holder);
+
+        self::assertCount(1, (array) glob($this->layout->stateDir . "/creating/*"));
     }
 
     /**

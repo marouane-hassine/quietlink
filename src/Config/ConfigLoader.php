@@ -268,7 +268,7 @@ final class ConfigLoader
         foreach ($override as $key => $value) {
             $path = $prefix === '' ? (string) $key : $prefix . '.' . $key;
             if (!array_key_exists($key, $base)) {
-                $errors[] = sprintf('Unknown configuration key "%s".', $path);
+                $errors[] = sprintf('Unknown configuration key "%s".', mb_scrub($path, 'UTF-8'));
                 continue;
             }
             $default = $base[$key];
@@ -284,6 +284,12 @@ final class ConfigLoader
             $typed = $default === null && in_array($path, self::LISTS, true) ? [] : $default;
             if ($value === null ? !in_array($path, self::NULLABLE, true) : !self::sameType($typed, $value)) {
                 $errors[] = sprintf('"%s" has an invalid type.', $path);
+                continue;
+            }
+            // Files saved in another encoding would break the fingerprint and JSON outputs.
+            if ((is_string($value) && !mb_check_encoding($value, 'UTF-8'))
+                || (is_array($value) && array_filter($value, static fn (mixed $v): bool => is_string($v) && !mb_check_encoding($v, 'UTF-8')) !== [])) {
+                $errors[] = sprintf('"%s" must be valid UTF-8 (save the configuration file as UTF-8).', $path);
                 continue;
             }
             $base[$key] = $value;

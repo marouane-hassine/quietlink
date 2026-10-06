@@ -77,4 +77,19 @@ final class EnvelopeTest extends TestCase
         $this->expectException(InvalidEnvelopeException::class);
         Envelope::parse($json);
     }
+
+    /**
+     * Large texts with many escapes (logs, code) are parsed in linear time: a regular expression
+     * reached PCRE's backtrack limit and the CLI reported valid content as invalid.
+     */
+    #[Group('EXG-CLI-001')]
+    public function testLargeTextsWithManyEscapesAreParsed(): void
+    {
+        $text = str_repeat("x\n", 1_000_000);
+        $json = json_encode(['format' => 'plain', 'language' => null, 'template' => null, 'text' => $text, 'v' => 1], JSON_THROW_ON_ERROR);
+        self::assertSame($text, Envelope::parse($json)['text']);
+
+        $this->expectException(InvalidEnvelopeException::class);
+        Envelope::parse('{"format":"plain","language":null,"template":null,"text":"' . str_repeat('a\\n', 1000) . '","text":"b","v":1}');
+    }
 }

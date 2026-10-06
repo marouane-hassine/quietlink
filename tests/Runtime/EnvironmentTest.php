@@ -60,4 +60,15 @@ final class EnvironmentTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         Environment::fromVariables(['APP_ENV' => '../etc']);
     }
+
+    /**
+     * "prod\n" (a trailing newline from an env file) must not pass as a valid name that is not
+     * "prod" and silently enable debug.
+     */
+    #[Group('EXG-SEC-058')]
+    public function testEnvironmentNameWithTrailingNewlineIsRefused(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        Environment::fromVariables(['APP_ENV' => "prod\n"]);
+    }
 }

@@ -20,5 +20,14 @@ COPY --from=vendor /src/vendor ./vendor
 COPY src ./src
 COPY bin/quietlink ./bin/quietlink
 COPY LICENSE ./
+# Release metadata last: a new version or revision rebuilds no other layer.
+ARG VERSION=dev
+ARG REVISION=unknown
+LABEL org.opencontainers.image.title="quietlink-cli" \
+      org.opencontainers.image.description="QuietLink command line client" \
+      org.opencontainers.image.source="https://github.com/marouane-hassine/quietlink" \
+      org.opencontainers.image.licenses="AGPL-3.0-or-later" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${REVISION}"
 USER 10002
 ENTRYPOINT ["php", "/app/bin/quietlink"]

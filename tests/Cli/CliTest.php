@@ -256,6 +256,30 @@ final class CliTest extends KernelTestCase
         self::assertStringContainsString('do not match', $err);
     }
 
+    /**
+     * Instances may allow up to 16 MiB: --max-bytes raises the local limit to the instance's
+     * paste.max_envelope_bytes (bounded like the server setting).
+     */
+    #[Group('EXG-CLI-001')]
+    public function testMaxBytesRaisesTheLocalEnvelopeLimit(): void
+    {
+        [$code, , $err] = $this->cli(['create', '--server=https://paste.example.test', '--max-bytes=4194304'], str_repeat('a', 2_000_000));
+        self::assertStringNotContainsString('exceeds', $err);
+        self::assertSame(1, $this->requests > 0 ? 1 : 0);
+
+        $this->requests = 0;
+        [$code, , $err] = $this->cli(['create', '--server=https://paste.example.test', '--max-bytes=4194304'], str_repeat('a', 4_194_305));
+        self::assertSame(1, $code);
+        self::assertStringContainsString('4 MiB', $err);
+        self::assertSame(0, $this->requests);
+
+        foreach (['1000', '16777217', 'abc'] as $invalid) {
+            [$code, , $err] = $this->cli(['create', '--server=https://paste.example.test', '--max-bytes=' . $invalid], 'x');
+            self::assertSame(1, $code, $invalid);
+            self::assertStringNotContainsString($invalid, $err);
+        }
+    }
+
     #[Group('EXG-CRYPTO-042')]
     #[Group('EXG-CLI-001')]
     public function testSizeLimitAppliesToTheSerializedEnvelope(): void

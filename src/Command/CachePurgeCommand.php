@@ -32,7 +32,7 @@ final class CachePurgeCommand extends Command
             $config = $this->status->config();
         } catch (InvalidConfigException $e) {
             foreach ($e->errors as $error) {
-                $output->writeln('<error>' . $error . '</error>');
+                OutputFormat::line($output, 'error', $error);
             }
 
             return Command::FAILURE;

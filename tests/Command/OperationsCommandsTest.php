@@ -80,6 +80,29 @@ final class OperationsCommandsTest extends KernelTestCase
         self::assertStringNotContainsString('not-base64!', $failing->getDisplay());
     }
 
+    /**
+     * JSON is written raw: console markup characters in messages (backslashes, <tags>) and
+     * invalid UTF-8 never corrupt the document; text mode shows them literally.
+     */
+    #[Group('EXG-OPS-003')]
+    public function testJsonOutputSurvivesConsoleMarkupAndInvalidUtf8(): void
+    {
+        $this->bootInstance(self::ANY_FS, false);
+        file_put_contents($this->tmp->path . '/config/config.local.php', "<?php\nreturn ['a\\\\<b' => 1, '<fg=red>x</>' => 1, \"bad\\xff\" => 1];\n");
+        $tester = $this->command('app:boot');
+
+        self::assertSame(1, $tester->execute(['--format' => 'json']));
+        $list = self::report($tester)['errors'];
+        self::assertIsArray($list);
+        $errors = implode("\n", array_map(strval(...), array_filter($list, is_string(...))));
+        self::assertStringContainsString('a\\<b', $errors);
+        self::assertStringContainsString('<fg=red>x</>', $errors);
+
+        $text = $this->command('app:boot');
+        self::assertSame(1, $text->execute([]));
+        self::assertStringContainsString('<fg=red>x</>', $text->getDisplay());
+    }
+
     #[Group('EXG-OPS-003')]
     public function testUnknownFormatIsAUsageError(): void
     {
@@ -201,5 +224,25 @@ final class OperationsCommandsTest extends KernelTestCase
         self::assertFalse($application->has('secrets:set'));
         self::assertFalse($application->has('secrets:list'));
         self::assertTrue($application->has('app:secret:generate'));
+    }
+
+    /**
+     * A symbolic link at the target is refused, with or without --force: replacing it would
+     * leave its real target holding the old secret, and a dangling link is not "missing".
+     */
+    #[Group('EXG-OPS-006')]
+    public function testSecretOutputRefusesSymbolicLinks(): void
+    {
+        $this->bootInstance();
+        $link = $this->tmp->path . '/app_secret';
+        symlink($this->tmp->path . '/nowhere', $link);
+
+        foreach ([[], ['--force' => true]] as $options) {
+            $tester = $this->command('app:secret:generate');
+            self::assertSame(1, $tester->execute(['--output' => $link] + $options));
+            self::assertStringContainsString('symbolic link', $tester->getDisplay());
+            self::assertTrue(is_link($link));
+            self::assertFileDoesNotExist($this->tmp->path . '/nowhere');
+        }
     }
 }

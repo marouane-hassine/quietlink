@@ -16,3 +16,4 @@
 /vendor/
 /datas/*
 !/datas/.gitkeep
+/frontend/node_modules/

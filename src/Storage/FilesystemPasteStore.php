@@ -42,18 +42,24 @@ final class FilesystemPasteStore implements PasteStore
     {
         $size = strlen($payload);
         $marker = $this->usage->beginCreation();
+        $committed = true;
         try {
-            return $this->createMarked($meta, $drawId, $payload, $size);
+            return $this->createMarked($meta, $drawId, $payload, $size, $committed);
         } finally {
-            $this->usage->endCreation($marker);
+            // Kept when the commit could not be recorded: it ages out after an hour, and a
+            // recomputation that missed the new paste is not applied meanwhile.
+            if ($committed) {
+                $this->usage->endCreation($marker);
+            }
         }
     }
 
     /**
      * @param Closure(PasteId): PasteMeta $meta
      * @param Closure(): PasteId          $drawId
+     * @param bool                        $committed set to false when the commit was not recorded
      */
-    private function createMarked(Closure $meta, Closure $drawId, string $payload, int $size): PasteId
+    private function createMarked(Closure $meta, Closure $drawId, string $payload, int $size, bool &$committed): PasteId
     {
         $this->usage->reserve($size);
 
@@ -106,7 +112,8 @@ final class FilesystemPasteStore implements PasteStore
             AtomicFile::syncDirectory(dirname($this->layout->pasteDir($published)));
             $this->usage->committed();
         } catch (StorageException) {
-            // Already published.
+            // Already published; the creation marker stays (see create()).
+            $committed = false;
         }
 
         return $published;
@@ -193,7 +200,15 @@ final class FilesystemPasteStore implements PasteStore
                 return false;
             }
             if ($decoded !== null && $decoded->name !== StateName::Deleted) {
-                AtomicFile::write($dir . '/state.json', RecordCodec::encodeState($decoded->deleted($this->clock->now())));
+                $marker = RecordCodec::encodeState($decoded->deleted($this->clock->now()));
+                try {
+                    AtomicFile::write($dir . '/state.json', $marker);
+                } catch (StorageException) {
+                    // Full filesystem: the payload goes first to make room for the marker
+                    // (the paste is being deleted anyway; readers are excluded by the lock).
+                    $this->unlinkPayload($dir);
+                    AtomicFile::write($dir . '/state.json', $marker);
+                }
             }
 
             return $this->removeDirectory($dir);

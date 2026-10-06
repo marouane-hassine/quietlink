@@ -287,6 +287,71 @@ final class PasteServiceTest extends TestCase
     #[Group('EXG-LIFE-012')]
     #[Group('EXG-LIFE-015')]
     #[Group('EXG-READ-021')]
+    /**
+     * §7.5: paste.max_retention bounds everything stored, pastes created before the operator
+     * lowered it included: the shorter expiry is reported, then the paste is unavailable.
+     */
+    #[Group('EXG-LIFE-020')]
+    public function testLoweredMaxRetentionAppliesToExistingPastes(): void
+    {
+        $prepared = ClientCrypto::prepare('{"format":"plain","language":null,"template":null,"text":"x","v":1}', '30d', false);
+        $id = $this->service->create($prepared->json(), $prepared->idempotencyKey)['id']->encoded();
+        $created = $this->clock->now();
+
+        $this->build(['paste' => ['allowed_expirations' => ['1h', '1d', '7d'], 'default_expiration' => '1d', 'max_retention' => '7d']]);
+        $status = $this->service->status($id, $this->proofBody($prepared, $id, 'status'));
+        self::assertSame($created + 7 * 86400, $status['expires_at']);
+
+        $this->clock->advance(8 * 86400);
+        $this->expectException(PasteUnavailableException::class);
+        $this->service->status($id, $this->proofBody($prepared, $id, 'status'));
+    }
+
+    /**
+     * The reservation clock runs while a large response downloads: a confirmation arriving after
+     * the reservation lapsed is accepted for one more reservation lifetime as long as nobody
+     * else took the paste (only the reader who decrypted can sign the consume challenge).
+     */
+    #[Group('EXG-READ-020')]
+    public function testLateConfirmationAfterASlowDownloadIsAccepted(): void
+    {
+        [$prepared, $id] = $this->createPaste(readOnce: true);
+        $rid = Base64Url::encode(random_bytes(16));
+        $opened = $this->service->open($id, $this->proofBody($prepared, $id, 'open', ['reservation_id' => $rid]));
+        self::assertNotNull($opened['consume_challenge']);
+
+        $this->clock->advance(75);
+        $consume = $this->consumeBody($prepared, $rid, $opened['consume_challenge']);
+        $this->service->consume($id, $consume);
+        // Consumed: the exact replay succeeds, a new reader gets the uniform 404.
+        $this->service->consume($id, $consume);
+        $this->expectException(PasteUnavailableException::class);
+        $this->service->open($id, $this->proofBody($prepared, $id, 'open', ['reservation_id' => Base64Url::encode(random_bytes(16))]));
+    }
+
+    /** Beyond the grace period, or once another reader holds the paste, a late one is refused. */
+    #[Group('EXG-READ-020')]
+    public function testLateConfirmationIsRefusedAfterTheGraceOrAnotherReservation(): void
+    {
+        [$prepared, $id] = $this->createPaste(readOnce: true);
+        $rid = Base64Url::encode(random_bytes(16));
+        $opened = $this->service->open($id, $this->proofBody($prepared, $id, 'open', ['reservation_id' => $rid]));
+        $this->clock->advance(121);
+        try {
+            $this->service->consume($id, $this->consumeBody($prepared, $rid, (string) $opened['consume_challenge']));
+            self::fail('A confirmation after twice the reservation lifetime must be refused.');
+        } catch (PasteUnavailableException) {
+        }
+
+        [$prepared2, $id2] = $this->createPaste(readOnce: true);
+        $first = Base64Url::encode(random_bytes(16));
+        $opened2 = $this->service->open($id2, $this->proofBody($prepared2, $id2, 'open', ['reservation_id' => $first]));
+        $this->clock->advance(61);
+        $this->service->open($id2, $this->proofBody($prepared2, $id2, 'open', ['reservation_id' => Base64Url::encode(random_bytes(16))]));
+        $this->expectException(PasteUnavailableException::class);
+        $this->service->consume($id2, $this->consumeBody($prepared2, $first, (string) $opened2['consume_challenge']));
+    }
+
     #[Group('EXG-TEST-036')]
     #[Group('EXG-TEST-039')]
     public function testReadOnceReservationConsumptionAndReplay(): void

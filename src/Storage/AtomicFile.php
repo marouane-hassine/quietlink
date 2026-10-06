@@ -38,8 +38,8 @@ final class AtomicFile
         try {
             @chmod($path, 0600);
             $length = strlen($content);
-            $written = $length === 0 ? 0 : fwrite($handle, $content);
-            if ($written !== $length || !fflush($handle) || ($sync && !fsync($handle))) {
+            $written = $length === 0 ? 0 : @fwrite($handle, $content);
+            if ($written !== $length || !@fflush($handle) || ($sync && !@fsync($handle))) {
                 throw new StorageException('Short or failed write.');
             }
         } catch (StorageException $e) {

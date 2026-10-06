@@ -39,4 +39,6 @@ tools_dir="$root/tools/dev"
 "$tools_dir/purge-loop.sh" &
 # Several workers so that parallel browser requests never stall a navigation.
 export PHP_CLI_SERVER_WORKERS=4
-exec php -S localhost:8090 -t "$root/public" "$root/tools/dev/router.php"
+# 127.0.0.1, not "localhost": in the Linux e2e container localhost resolves to ::1 first, while
+# Node and the browsers also reach the URLs below (http://localhost:8090) over IPv4.
+exec php -S 127.0.0.1:8090 -t "$root/public" "$root/tools/dev/router.php"

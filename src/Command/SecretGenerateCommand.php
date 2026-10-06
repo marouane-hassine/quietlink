@@ -39,6 +39,11 @@ final class SecretGenerateCommand extends Command
 
             return Command::SUCCESS;
         }
+        if (is_link($file)) {
+            $output->writeln('<error>The secret file path is a symbolic link: give the real path.</error>');
+
+            return Command::FAILURE;
+        }
         if (file_exists($file) && $input->getOption('force') !== true) {
             $output->writeln('<error>The secret file already exists; rotating the secret has consequences (README-admin): pass --force to replace it.</error>');
 

@@ -24,9 +24,10 @@ final class CreateCommand extends Command
     public const MAX_ENVELOPE_BYTES = 1048576;
 
     /** Largest raw input that can still fit once line endings are normalized ("\r\n" to "\n"). */
-    private const MAX_INPUT_BYTES = 2 * self::MAX_ENVELOPE_BYTES;
+    /** Upper bound of --max-bytes, as paste.max_envelope_bytes on the server. */
+    private const MAX_ENVELOPE_CEILING = 16777216;
 
-    private const TOO_LARGE = 'The serialized envelope (text and its JSON escaping) exceeds the 1 MiB limit.';
+    private const TOO_LARGE = 'The serialized envelope (text and its JSON escaping) exceeds the %s limit (--max-bytes, the instance paste.max_envelope_bytes).';
 
     public function __construct(private readonly CliContext $context)
     {
@@ -44,7 +45,8 @@ final class CreateCommand extends Command
             ->addOption('passphrase', null, InputOption::VALUE_NONE, 'Protect with a passphrase asked on the terminal')
             ->addOption('passphrase-file', null, InputOption::VALUE_REQUIRED, 'Read the passphrase from a file readable by its owner only')
             ->addOption('passphrase-stdin', null, InputOption::VALUE_NONE, 'Read the passphrase from stdin (requires --input)')
-            ->addOption('input', null, InputOption::VALUE_REQUIRED, 'Read the text from this file instead of stdin');
+            ->addOption('input', null, InputOption::VALUE_REQUIRED, 'Read the text from this file instead of stdin')
+            ->addOption('max-bytes', null, InputOption::VALUE_REQUIRED, 'Envelope size limit of the instance (paste.max_envelope_bytes), 1024 to 16777216', (string) self::MAX_ENVELOPE_BYTES);
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -69,20 +71,27 @@ final class CreateCommand extends Command
 
         $file = Options::string($input, 'input');
         $passphraseFile = Options::string($input, 'passphrase-file');
+        $maxOption = Options::string($input, 'max-bytes') ?? (string) self::MAX_ENVELOPE_BYTES;
+        $maxBytes = ctype_digit($maxOption) ? (int) $maxOption : 0;
+        if ($maxBytes < 1024 || $maxBytes > self::MAX_ENVELOPE_CEILING) {
+            throw new CliException('--max-bytes must be an integer from 1024 to 16777216.');
+        }
+        $maxInput = 2 * $maxBytes;
+        $tooLarge = sprintf(self::TOO_LARGE, $maxBytes % 1048576 === 0 ? ($maxBytes / 1048576) . ' MiB' : $maxBytes . ' bytes');
         $passphraseStdin = Options::flag($input, 'passphrase-stdin');
         if ($passphraseStdin && $file === null) {
             throw new CliException('--passphrase-stdin requires --input: only one value can be read from stdin.');
         }
         if ($file !== null) {
-            $text = @file_get_contents($file, false, null, 0, self::MAX_INPUT_BYTES + 1);
+            $text = @file_get_contents($file, false, null, 0, $maxInput + 1);
             if ($text === false) {
                 throw new CliException('The input file cannot be read.');
             }
         } else {
-            $text = $this->context->readStdin(self::MAX_INPUT_BYTES);
+            $text = $this->context->readStdin($maxInput);
         }
-        if (strlen($text) > self::MAX_INPUT_BYTES) {
-            throw new CliException(self::TOO_LARGE);
+        if (strlen($text) > $maxInput) {
+            throw new CliException($tooLarge);
         }
         if ($text === '' || !mb_check_encoding($text, 'UTF-8')) {
             throw new CliException('The text must be non-empty UTF-8.');
@@ -98,9 +107,9 @@ final class CreateCommand extends Command
             'text' => $text,
             'v' => 1,
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_LINE_TERMINATORS | JSON_THROW_ON_ERROR);
-        if (strlen($envelope) > self::MAX_ENVELOPE_BYTES) {
+        if (strlen($envelope) > $maxBytes) {
             sodium_memzero($envelope);
-            throw new CliException(self::TOO_LARGE);
+            throw new CliException($tooLarge);
         }
 
         $passphrase = null;

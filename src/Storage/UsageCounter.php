@@ -11,13 +11,16 @@ namespace QuietLink\Storage;
  */
 final class UsageCounter
 {
-    /** Decrements and commits wait this many times for usage.lock (bounded waits of ~2 s each). */
-    private const PATIENT_ATTEMPTS = 10;
-
+    /**
+     * @param int $patientAttempts bounded waits of ~2 s for usage.lock before a decrement or a
+     *                             commit gives up: 5 keeps a deletion (two decrements) within
+     *                             the 30 s request timeout
+     */
     public function __construct(
         private readonly StorageLayout $layout,
         private readonly int $maxTotalBytes,
         private readonly int $maxItems,
+        private readonly int $patientAttempts = 5,
     ) {
     }
 
@@ -229,7 +232,7 @@ final class UsageCounter
             try {
                 return $this->lock(true);
             } catch (StorageException $e) {
-                if ($attempt >= self::PATIENT_ATTEMPTS || $e->getMessage() !== 'Lock wait timeout.') {
+                if ($attempt >= $this->patientAttempts || $e->getMessage() !== 'Lock wait timeout.') {
                     throw $e;
                 }
             }

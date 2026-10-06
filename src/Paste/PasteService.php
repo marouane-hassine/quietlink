@@ -208,7 +208,7 @@ final class PasteService
 
         return [
             'aad' => Base64Url::encode($record->meta->aad),
-            'expires_at' => $record->meta->expiresAt,
+            'expires_at' => $record->meta->effectiveExpiresAt($this->config->paste->maxRetentionSeconds),
             'read_once' => $record->meta->readOnce,
             'state' => $record->meta->readOnce ? $record->state->name->value : null,
             'retry_after' => $reservation === null ? null : max(0, $reservation->expiresAt - $this->clock->now()),
@@ -244,7 +244,7 @@ final class PasteService
 
         $result = $this->store->mutate($id, function (PasteRecord $r) use ($id, $reservationHash): array {
             $now = $this->clock->now();
-            if ($r->meta->isExpired($now)) {
+            if ($r->meta->isExpired($now, $this->config->paste->maxRetentionSeconds)) {
                 return [null, null];
             }
             $state = $this->releaseIfExpired($r) ?? $r->state;
@@ -331,11 +331,14 @@ final class PasteService
             if ($r->state->name !== StateName::Reserved) {
                 return [null, false];
             }
-            if ($reservation->expiresAt <= $now) {
+            // The reservation clock also runs while a large response downloads: a lapsed
+            // reservation nobody else took still accepts its confirmation for one more lifetime
+            // (only the reader who decrypted can sign the consume challenge).
+            if ($reservation->expiresAt + $this->config->paste->readOnceReservationTtl <= $now) {
                 return [$this->releaseIfExpired($r), false];
             }
             $aad = Aad::fromBytes($r->meta->aad);
-            if ($r->meta->isExpired($now) || $aad->consumePk === null || !AccessProof::verify($aad->consumePk, $challenge, $signature)) {
+            if ($r->meta->isExpired($now, $this->config->paste->maxRetentionSeconds) || $aad->consumePk === null || !AccessProof::verify($aad->consumePk, $challenge, $signature)) {
                 return [null, false];
             }
 
@@ -365,7 +368,7 @@ final class PasteService
             throw new PasteUnavailableException();
         }
         $now = $this->clock->now();
-        if ($record->state->name !== StateName::Consumed && $record->meta->isExpired($now)) {
+        if ($record->state->name !== StateName::Consumed && $record->meta->isExpired($now, $this->config->paste->maxRetentionSeconds)) {
             $this->store->remove($id);
             throw new PasteUnavailableException();
         }
@@ -380,10 +383,10 @@ final class PasteService
     /**
      * Applies the release of an expired reservation (T5) or the threshold destruction (T6).
      */
-    public function releaseIfExpired(PasteRecord $record): ?PasteState
+    public function releaseIfExpired(PasteRecord $record, int $grace = 0): ?PasteState
     {
         $state = $record->state;
-        if ($state->name !== StateName::Reserved || $state->reservation === null || $state->reservation->expiresAt > $this->clock->now()) {
+        if ($state->name !== StateName::Reserved || $state->reservation === null || $state->reservation->expiresAt + $grace > $this->clock->now()) {
             return null;
         }
         if ($state->unconfirmedOpens + 1 >= $this->config->paste->maxUnconfirmedOpens) {
@@ -437,7 +440,7 @@ final class PasteService
         $record = $this->store->find($id) ?? throw new PasteUnavailableException();
         $now = $this->clock->now();
         $consumed = $record->state->name === StateName::Consumed;
-        if (($consumed && !$allowConsumed) || (!$consumed && $record->meta->isExpired($now))) {
+        if (($consumed && !$allowConsumed) || (!$consumed && $record->meta->isExpired($now, $this->config->paste->maxRetentionSeconds))) {
             throw new PasteUnavailableException();
         }
         try {
@@ -454,7 +457,7 @@ final class PasteService
 
     private function current(PasteRecord $record): ?PasteRecord
     {
-        if ($record->meta->isExpired($this->clock->now())) {
+        if ($record->meta->isExpired($this->clock->now(), $this->config->paste->maxRetentionSeconds)) {
             return null;
         }
         $state = $this->releaseIfExpired($record) ?? $record->state;
@@ -483,7 +486,7 @@ final class PasteService
             'aad' => Base64Url::encode($record->meta->aad),
             'nonce' => Base64Url::encode(substr($payload, 0, Protocol::NONCE_BYTES)),
             'ciphertext' => Base64Url::encode(substr($payload, Protocol::NONCE_BYTES)),
-            'expires_at' => $record->meta->expiresAt,
+            'expires_at' => $record->meta->effectiveExpiresAt($this->config->paste->maxRetentionSeconds),
             'read_once' => $record->meta->readOnce,
             'consume_challenge' => $consumeChallenge,
             'unconfirmed_opens' => $unconfirmedOpens,

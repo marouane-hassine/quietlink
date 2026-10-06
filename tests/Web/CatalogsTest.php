@@ -85,4 +85,21 @@ final class CatalogsTest extends TestCase
         self::assertSame(['en'], ConfigLoader::availableLocales($empty));
         self::assertSame(['en', 'ar', 'fr'], ConfigLoader::availableLocales($this->tmp->path));
     }
+
+    /**
+     * Only two-letter primary subtags count ("fry" is not French, "arn" not Arabic) and q is read
+     * case-insensitively in any parameter position.
+     */
+    #[Group('EXG-I18N-005')]
+    public function testAcceptLanguageIsParsedStrictly(): void
+    {
+        $catalogs = new Catalogs(dirname(__DIR__, 2) . '/translations');
+        $enabled = ['en', 'ar', 'es', 'fr', 'it'];
+
+        self::assertSame('en', $catalogs->negotiate('frisian, fry, arn, fil', $enabled));
+        self::assertSame('es', $catalogs->negotiate('fr;Q=0, es;q=0.5', $enabled));
+        self::assertSame('es', $catalogs->negotiate('fr;x=1;q=0, es;q=0.5', $enabled));
+        self::assertSame('fr', $catalogs->negotiate('fr-CA;q=0.9, en;q=0.1', $enabled));
+        self::assertSame('ar', $catalogs->negotiate('AR-eg', $enabled));
+    }
 }

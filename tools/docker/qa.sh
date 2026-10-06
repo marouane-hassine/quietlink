@@ -12,6 +12,8 @@ target=${1:-all}
 image=quietlink/qa:local
 docker build -q -f docker/qa/Dockerfile -t "$image" docker/qa > /dev/null
 user="$(id -u):$(id -g)"
+# Mount points created by dockerd would belong to root in the working copy (Linux hosts).
+mkdir -p var vendor node_modules
 run() {
   docker run --rm -t -u "$user" \
     -v "$PWD:/src" \
@@ -19,6 +21,7 @@ run() {
     -v quietlink-qa-node:/src/node_modules \
     -v quietlink-qa-home:/home/quietlink \
     --tmpfs "/src/var:uid=$(id -u),gid=$(id -g)" \
+    --tmpfs "/small:size=2m,uid=$(id -u),gid=$(id -g)" -e QUIETLINK_SMALL_TMPFS=/small \
     -e HOME=/home/quietlink \
     "$image" bash -c "$1"
 }

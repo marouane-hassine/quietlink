@@ -68,9 +68,12 @@ final class Booter
         if ($fpmPoolFile === null) {
             $this->warnings[] = 'QUIETLINK_FPM_POOL_FILE is not set: the PHP-FPM pool was not checked for the secret variable.';
         } else {
+            // The workers start with a cleared environment: the pool must pass the variable this
+            // instance uses, or boot succeeds while every request answers 503.
             $pool = @file_get_contents($fpmPoolFile);
-            if ($pool === false || preg_match('/^\s*env\[QUIETLINK_APP_SECRET(_FILE)?\]\s*=/m', $pool) !== 1) {
-                return ['The PHP-FPM pool does not pass QUIETLINK_APP_SECRET or QUIETLINK_APP_SECRET_FILE to the workers.'];
+            [$variable, $mode] = $secretFile !== null ? ['QUIETLINK_APP_SECRET_FILE', 'a secret file'] : ['QUIETLINK_APP_SECRET', 'an inline secret'];
+            if ($pool === false || preg_match('/^\s*env\[' . $variable . '\]\s*=/m', $pool) !== 1) {
+                return [sprintf('The PHP-FPM pool does not pass %s to the workers (this instance uses %s).', $variable, $mode)];
             }
         }
 
@@ -86,8 +89,8 @@ final class Booter
         $measured = self::existingAncestor($config->storage->rootDir);
         $freeBytes = $this->disk->freeBytes($measured);
         $inodes = $this->disk->freeInodesPercent($measured);
-        if (!$dryRun) {
-            (new StateFiles($layout))->writeHealth($now, $freeBytes, $inodes);
+        if (!$dryRun && !$this->writeState(static fn () => (new StateFiles($layout))->writeHealth($now, $freeBytes, $inodes))) {
+            return ['Unable to write the state files (health.json, boot.json).'];
         }
         if ($freeBytes < $config->storage->minFreeBytes) {
             $this->warnings[] = 'Free disk space is below storage.min_free_bytes: creation is refused.';
@@ -115,8 +118,8 @@ final class Booter
             $this->warnings[] = 'http.trusted_proxies is empty: behind a reverse proxy all clients share one rate limiting key.';
         }
 
-        if (!$dryRun) {
-            (new StateFiles($layout))->writeBoot($now, $config->fingerprint(), $config->secret->check());
+        if (!$dryRun && !$this->writeState(static fn () => (new StateFiles($layout))->writeBoot($now, $config->fingerprint(), $config->secret->check()))) {
+            return ['Unable to write the state files (health.json, boot.json).'];
         }
 
         return [];
@@ -180,12 +183,12 @@ final class Booter
             }
             if ($dryRun && !is_dir($dir)) {
                 // Checked through the closest existing parent, which app:boot would create it in.
-                $this->warnings[] = sprintf('%s does not exist yet: app:boot will create it.', $name);
                 $parent = self::existingAncestor($dir);
-                if (!is_writable($parent)) {
+                if (file_exists($dir) || !is_dir($parent) || !is_writable($parent)) {
                     $errors[] = sprintf('%s cannot be created.', $name);
                     continue;
                 }
+                $this->warnings[] = sprintf('%s does not exist yet: app:boot will create it.', $name);
                 $error = $this->checkFilesystem($name, $parent, $storage->allowUnsupportedFs);
                 if ($error !== null) {
                     $errors[] = $error;
@@ -227,8 +230,12 @@ final class Booter
     private function checkFilesystem(string $name, string $path, bool $allowUnsupported): ?string
     {
         $type = $this->disk->filesystemType($path);
+        // §9.4.1: an undetermined type is refused like an unsupported one.
         if ($type === null) {
-            $this->warnings[] = sprintf('The filesystem type of %s could not be determined.', $name);
+            if (!$allowUnsupported) {
+                return sprintf('The filesystem type of %s could not be determined (ext4 or XFS required); set storage.allow_unsupported_fs only for development.', $name);
+            }
+            $this->warnings[] = sprintf('The filesystem type of %s could not be determined, allowed by storage.allow_unsupported_fs.', $name);
         } elseif (!in_array($type, DiskProbe::SUPPORTED_FILESYSTEMS, true)) {
             if (!$allowUnsupported) {
                 return sprintf('%s is on an unsupported filesystem (%s); set storage.allow_unsupported_fs only for development.', $name, $type);
@@ -239,21 +246,46 @@ final class Booter
         return null;
     }
 
-    /** Bytes of a php.ini size such as "2M"; "0" (no limit) gives PHP_INT_MAX. */
+    /**
+     * @param callable(): void $write
+     */
+    private function writeState(callable $write): bool
+    {
+        try {
+            $write();
+
+            return true;
+        } catch (StorageException) {
+            return false;
+        }
+    }
+
+    /**
+     * Bytes of a php.ini size as PHP reads it: leading digits (0x, 0o and 0b prefixes as in
+     * PHP 8.2+), the last character as unit
+     * (k, m, g); "0", no digits or an overflow means no limit (PHP_INT_MAX).
+     */
     public static function iniBytes(string $value): int
     {
         $value = trim($value);
-        if (preg_match('/^(\d+)\s*([kmg]?)$/i', $value, $m) !== 1) {
+        if (preg_match('/^(?:0x([0-9a-f]+)|0o([0-7]+)|0b([01]+)|(\d+))/i', $value, $m) !== 1) {
             return PHP_INT_MAX;
         }
-        $bytes = (int) $m[1] * match (strtolower($m[2])) {
+        [$hex, $octal, $binary, $decimal] = array_pad(array_slice($m, 1), 4, '');
+        $number = match (true) {
+            $hex !== '' => (float) hexdec($hex),
+            $octal !== '' => (float) octdec($octal),
+            $binary !== '' => (float) bindec($binary),
+            default => (float) $decimal,
+        };
+        $bytes = $number * match (strtolower(substr($value, -1))) {
             'k' => 1024,
             'm' => 1024 ** 2,
             'g' => 1024 ** 3,
             default => 1,
         };
 
-        return $bytes === 0 ? PHP_INT_MAX : $bytes;
+        return $bytes === 0.0 || $bytes >= PHP_INT_MAX ? PHP_INT_MAX : (int) $bytes;
     }
 
     /** The path itself or its closest existing parent, for disk measurements before creation. */

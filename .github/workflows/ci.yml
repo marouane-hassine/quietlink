@@ -69,15 +69,10 @@ jobs:
         with:
           php-version: '8.3'
           extensions: intl, sodium, openssl, mbstring
-          ini-values: phar.readonly=0
-          tools: box:4.7.0
-      - run: composer install --no-dev --classmap-authoritative --no-interaction
-      - name: Reproducible PHAR (fixed alias, commit timestamp, two identical builds)
+      - name: Reproducible PHAR (pinned container, sorted entries, same hash on two filesystems)
         run: |
-          jq --arg ts "$(git log -1 --format=%cI)" '.timestamp = $ts' box.json > box.release.json
-          box compile --config=box.release.json --no-interaction
-          sha256sum quietlink.phar > /tmp/first.txt
-          box compile --config=box.release.json --no-interaction
+          PHAR_BUILD_TMPFS=1 tools/release/build-phar.sh | tee /tmp/first.txt
+          tools/release/build-phar.sh > /dev/null
           sha256sum --check /tmp/first.txt
       - name: The PHAR starts outside the source tree
         run: cd /tmp && php "$GITHUB_WORKSPACE/quietlink.phar" list | grep -q decrypt

@@ -37,7 +37,7 @@ final class TtyPrompt implements Prompt
         if (!$this->stty('-echo')) {
             fwrite($tty, "\n");
             fclose($tty);
-            throw new CliException('Cannot hide the passphrase while typing (stty failed); use --passphrase-file or --passphrase-stdin.');
+            throw new CliException('Cannot hide the passphrase while typing (stty failed); use --passphrase-file.');
         }
         // PHP skips `finally` when a signal kills the process: restore echo on Ctrl-C as well.
         $restore = function (int $signal): never {

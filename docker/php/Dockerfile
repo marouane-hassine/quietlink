@@ -31,6 +31,7 @@ COPY docker/php/php.ini /usr/local/etc/php/conf.d/zz-quietlink.ini
 COPY docker/php/php-fpm.conf /usr/local/etc/php-fpm.conf
 COPY docker/php/pool.conf /usr/local/etc/php-fpm.d/quietlink.conf
 COPY docker/php/entrypoint.sh /usr/local/bin/quietlink-entrypoint
+COPY docker/php/reload.sh /usr/local/bin/quietlink-reload
 
 WORKDIR /app
 COPY --from=vendor /src/vendor ./vendor
@@ -47,7 +48,7 @@ COPY --from=assets /src/public/build ./public/build
 RUN APP_ENV=prod php bin/console cache:warmup --no-debug \
  && rm -f config/reference.php \
  && chown -R root:root /app && chmod -R a+rX,go-w /app \
- && chmod 0755 /usr/local/bin/quietlink-entrypoint \
+ && chmod 0755 /usr/local/bin/quietlink-entrypoint /usr/local/bin/quietlink-reload \
  && install -d -o 10001 -g 10001 -m 0700 /app/datas \
  && install -d -o 10001 -g 10001 -m 0755 /var/lib/quietlink-generated
 
@@ -55,6 +56,15 @@ ENV APP_ENV=prod \
     QUIETLINK_CONFIG_DIR=/app/config \
     QUIETLINK_FPM_POOL_FILE=/usr/local/etc/php-fpm.d/quietlink.conf
 
+# Release metadata last: a new version or revision rebuilds no other layer.
+ARG VERSION=dev
+ARG REVISION=unknown
+LABEL org.opencontainers.image.title="quietlink-app" \
+      org.opencontainers.image.description="QuietLink application (PHP-FPM)" \
+      org.opencontainers.image.source="https://github.com/marouane-hassine/quietlink" \
+      org.opencontainers.image.licenses="AGPL-3.0-or-later" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${REVISION}"
 USER 10001:10001
 EXPOSE 9000
 STOPSIGNAL SIGQUIT

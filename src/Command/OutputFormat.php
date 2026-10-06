@@ -7,6 +7,7 @@ declare(strict_types=1);
 namespace QuietLink\Command;
 
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -41,6 +42,13 @@ final class OutputFormat
      */
     public static function json(OutputInterface $output, array $document): void
     {
-        $output->writeln(json_encode($document, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+        // Raw: the console formatter would rewrite backslashes and <tags> inside the document.
+        $output->writeln(json_encode($document, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR), OutputInterface::OUTPUT_RAW);
+    }
+
+    /** Text line with a style: the message is shown literally, never read as console markup. */
+    public static function line(OutputInterface $output, string $style, string $message): void
+    {
+        $output->writeln(sprintf('<%s>%s</%1$s>', $style, OutputFormatter::escape(mb_scrub($message, 'UTF-8'))));
     }
 }

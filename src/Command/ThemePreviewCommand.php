@@ -43,7 +43,7 @@ final class ThemePreviewCommand extends Command
     {
         $target = $input->getOption('output');
         if (!is_string($target) || $target === '') {
-            $output->writeln('<error>Use --output=<directory>.</error>');
+            OutputFormat::line($output, 'error', 'Use --output=<directory>.');
 
             return Command::FAILURE;
         }
@@ -51,7 +51,7 @@ final class ThemePreviewCommand extends Command
             $config = $this->status->config();
         } catch (InvalidConfigException $e) {
             foreach ($e->errors as $error) {
-                $output->writeln('<error>' . $error . '</error>');
+                OutputFormat::line($output, 'error', $error);
             }
 
             return Command::FAILURE;
@@ -81,7 +81,7 @@ final class ThemePreviewCommand extends Command
                 file_put_contents($target . '/tokens.css', TokenThemeBuilder::compile(is_array($data) ? $data : []));
                 $styles[] = 'tokens.css';
             } catch (Throwable $e) {
-                $output->writeln('<error>Invalid theme tokens: ' . $e->getMessage() . '</error>');
+                OutputFormat::line($output, 'error', 'Invalid theme tokens: ' . $e->getMessage());
 
                 return Command::FAILURE;
             }

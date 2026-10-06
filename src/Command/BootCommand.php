@@ -80,10 +80,10 @@ final class BootCommand extends Command
             OutputFormat::json($output, ['status' => $errors === [] ? 'ok' : 'failed', 'dry_run' => $dryRun, 'errors' => $errors, 'warnings' => $warnings]);
         } else {
             foreach ($warnings as $warning) {
-                $output->writeln('<comment>warning: ' . $warning . '</comment>');
+                OutputFormat::line($output, 'comment', 'warning: ' . $warning);
             }
             foreach ($errors as $error) {
-                $output->writeln('<error>' . $error . '</error>');
+                OutputFormat::line($output, 'error', $error);
             }
             if ($errors === []) {
                 $output->writeln($dryRun ? 'boot: ok (dry run: nothing was written)' : 'boot: ok');

@@ -60,5 +60,12 @@ final class RuntimeGuardSubscriber implements EventSubscriberInterface
         // Only the client address and the scheme: links use app.public_url, never the Host header,
         // and a client-sent Forwarded header must not conflict with X-Forwarded-For.
         Request::setTrustedProxies($this->status->config()->http->trustedProxies, Request::HEADER_X_FORWARDED_FOR | Request::HEADER_X_FORWARDED_PROTO);
+        // "/path/" would be redirected by the router to a Location built from the Host header and
+        // the detected scheme (open redirect, http downgrade of a key URL): uniform 404 instead.
+        $path = $event->getRequest()->getPathInfo();
+        if ($path !== '/' && str_ends_with($path, '/')) {
+            $request = $event->getRequest();
+            $event->setResponse(ErrorPage::appliesTo($request) ? $this->errorPage->response($request, 404) : Problem::response(404));
+        }
     }
 }

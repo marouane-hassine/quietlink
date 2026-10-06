@@ -74,8 +74,6 @@ jobs:
         with:
           php-version: '8.3'
           extensions: intl, sodium, openssl, mbstring
-          ini-values: phar.readonly=0
-          tools: box:4.7.0
       - uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
       - uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
@@ -89,12 +87,8 @@ jobs:
           npm ci --ignore-scripts && npx vite build
           (cd public/build && find . -type f -exec sha256sum {} + | sort) > frontend-sha256sums.txt
 
-      - name: Reproducible PHAR of the CLI (fixed alias, timestamp of the tagged commit)
-        run: |
-          composer install --no-dev --classmap-authoritative --no-interaction --no-scripts
-          jq --arg ts "$(git log -1 --format=%cI)" '.timestamp = $ts' box.json > box.release.json
-          box compile --config=box.release.json --no-interaction
-          sha256sum quietlink.phar > quietlink.phar.sha256
+      - name: Reproducible PHAR of the CLI (pinned container, timestamp of the tagged commit)
+        run: tools/release/build-phar.sh > quietlink.phar.sha256
 
       - name: Build and push images (linux/amd64, immutable version tag)
         id: images
@@ -103,7 +97,7 @@ jobs:
             case "$image" in app) dir=php ;; web) dir=nginx ;; *) dir=cli ;; esac
             dockerfile=docker/$dir/Dockerfile
             name="$REGISTRY/quietlink-$image"
-            docker build --platform linux/amd64 -f "$dockerfile" -t "$name:${GITHUB_REF_NAME}" .
+            docker build --platform linux/amd64 --build-arg VERSION="${GITHUB_REF_NAME#v}" --build-arg REVISION="$GITHUB_SHA" -f "$dockerfile" -t "$name:${GITHUB_REF_NAME}" .
             docker push "$name:${GITHUB_REF_NAME}"
             ref=$(docker inspect --format='{{index .RepoDigests 0}}' "$name:${GITHUB_REF_NAME}")
             {
