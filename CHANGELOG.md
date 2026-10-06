@@ -7,6 +7,11 @@ a removed API version is announced at least one minor version in advance.
 
 ## [Unreleased]
 
+## [1.0.0-beta.2] - 2026-10-06
+
+Evaluation pre-release: the `sp-proto/v1` protocol has not yet been independently reviewed (ADR-0011);
+do not use it for real secrets.
+
 ### Added
 
 - French passphrase word list (4096 words derived from Lexique 3.83, CC BY-SA 4.0): no
@@ -177,5 +182,6 @@ pending (docs/release-checklist.md).
 - The shipped Nginx error log keeps only `emerg` entries: lower levels recorded the client
   address and the request line.
 
-[Unreleased]: https://github.com/marouane-hassine/quietlink/compare/v1.0.0-beta.1...develop
+[Unreleased]: https://github.com/marouane-hassine/quietlink/compare/v1.0.0-beta.2...develop
+[1.0.0-beta.2]: https://github.com/marouane-hassine/quietlink/compare/v1.0.0-beta.1...v1.0.0-beta.2
 [1.0.0-beta.1]: https://github.com/marouane-hassine/quietlink/releases/tag/v1.0.0-beta.1

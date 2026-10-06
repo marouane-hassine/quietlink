@@ -12,5 +12,5 @@ namespace QuietLink;
  */
 final class Version
 {
-    public const APP = '1.0.0-beta.1';
+    public const APP = '1.0.0-beta.2';
 }
