@@ -37,6 +37,10 @@ export function buildTemplateForm(template: ParsedTemplate, onChange: (text: str
   const form = el('div', { class: 'template-form' }, el('h2', {}, template.title));
   for (const section of template.sections) {
     const group = el('fieldset', { class: 'template-section' }, el('legend', {}, section.title));
+    const notesId = nextId('tpl-notes');
+    const notes = el('textarea', { id: notesId, rows: section.fields.length > 0 ? '2' : '4', spellcheck: 'false', autocomplete: 'off' });
+    // Announces a multi-line paste moved from a field to the notes.
+    const moved = el('p', { class: 'hint', role: 'status' });
     for (const field of section.fields) {
       const id = nextId('tpl-field');
       const input = el('input', { id, type: 'text', class: 'passphrase', autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: 'false' });
@@ -45,11 +49,21 @@ export function buildTemplateForm(template: ParsedTemplate, onChange: (text: str
         field.value = input.value.replace(/[\r\n]+/g, ' ');
         emit();
       });
+      input.addEventListener('paste', (event) => {
+        // A field is one "- Label: value" line: a multi-line value (a private key) would lose
+        // its line breaks. It goes to the section notes, which keep them.
+        const pasted = (event as ClipboardEvent).clipboardData?.getData('text') ?? '';
+        if (!/[\r\n]/.test(pasted.trim())) return;
+        event.preventDefault();
+        const kept = notes.value.replace(/\s+$/, '');
+        const text = pasted.replace(/\r\n?/g, '\n').replace(/\s+$/, '');
+        notes.value = kept === '' ? text : `${kept}\n${text}`;
+        notes.dispatchEvent(new Event('input'));
+        moved.textContent = t('tpl.field.multilineMoved');
+      });
       if (isSensitiveLabel(field.label)) sensitiveInputs.push(input);
       group.append(el('div', { class: 'field' }, el('label', { for: id }, field.label), input));
     }
-    const notesId = nextId('tpl-notes');
-    const notes = el('textarea', { id: notesId, rows: section.fields.length > 0 ? '2' : '4', spellcheck: 'false', autocomplete: 'off' });
     notes.value = noteTexts(section.notes).join('\n');
     notes.addEventListener('input', () => {
       // Kept as typed (nothing is dropped silently); trailing blank lines only are trimmed.
@@ -61,7 +75,7 @@ export function buildTemplateForm(template: ParsedTemplate, onChange: (text: str
       section.notes = lines;
       emit();
     });
-    group.append(el('div', { class: 'field' }, el('label', { for: notesId }, t('tpl.notes', { section: section.title })), notes));
+    group.append(el('div', { class: 'field' }, el('label', { for: notesId }, t('tpl.notes', { section: section.title })), notes), moved);
     form.append(group);
   }
   if (sensitiveInputs.length > 0) form.insertBefore(toggle, form.children[1] ?? null);

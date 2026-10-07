@@ -311,6 +311,7 @@
   "tpl.field.show": "إظهار {label}",
   "tpl.field.hide": "إخفاء {label}",
   "tpl.field.masked": "قيمة حساسة مخفية",
+  "tpl.field.multilineMoved": "نُقل النص متعدد الأسطر إلى ملاحظات هذا القسم: يحتوي الحقل على سطر واحد فقط. لا تُخفى الملاحظات عند القراءة.",
   "editor.mode.label": "وضع التحرير",
   "editor.mode.text": "نص",
   "editor.mode.form": "نموذج",

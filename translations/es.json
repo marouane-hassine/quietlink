@@ -311,6 +311,7 @@
   "tpl.field.show": "Mostrar {label}",
   "tpl.field.hide": "Ocultar {label}",
   "tpl.field.masked": "Valor sensible oculto",
+  "tpl.field.multilineMoved": "Texto de varias líneas movido a las notas de esta sección: un campo solo contiene una línea. Las notas no se ocultan al leer.",
   "editor.mode.label": "Modo de edición",
   "editor.mode.text": "Texto",
   "editor.mode.form": "Formulario",

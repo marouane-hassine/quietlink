@@ -114,4 +114,31 @@ describe('template form', () => {
     setLocale('en');
     expect(buildTemplateForm(parseTemplateText(text)!, () => undefined).querySelector('input[type=password]')).not.toBeNull();
   });
+
+  it('moves a multi-line paste into the section notes instead of joining its lines (SSH key)', () => {
+    setLocale('en');
+    let text = renderTemplate('ssh-key');
+    const form = buildTemplateForm(parseTemplateText(text)!, (written) => (text = written));
+    document.body.replaceChildren(form);
+    const label = [...form.querySelectorAll('label')].find((l) => l.textContent === t('tpl.field.keyOrPath')) as HTMLLabelElement;
+    const input = form.querySelector(`#${label.htmlFor}`) as HTMLInputElement;
+    const key = '-----BEGIN DUMMY KEY-----\nZHVtbXkta2V5LWxpbmUtb25l\nZHVtbXkta2V5LWxpbmUtdHdv\n-----END DUMMY KEY-----';
+    const paste = new Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(paste, 'clipboardData', { value: { getData: () => key } });
+    input.dispatchEvent(paste);
+
+    expect(paste.defaultPrevented).toBe(true);
+    expect(input.value).toBe('');
+    const notes = input.closest('fieldset')?.querySelector('textarea') as HTMLTextAreaElement;
+    expect(notes.value).toBe(key);
+    expect(text).toContain(key);
+    expect(parseTemplateText(text)).not.toBeNull();
+    expect(input.closest('fieldset')?.querySelector('[role=status]')?.textContent).toBe(t('tpl.field.multilineMoved'));
+
+    // A single-line paste stays in the field.
+    const single = new Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(single, 'clipboardData', { value: { getData: () => '~/.ssh/id_dummy' } });
+    input.dispatchEvent(single);
+    expect(single.defaultPrevented).toBe(false);
+  });
 });

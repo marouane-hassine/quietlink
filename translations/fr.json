@@ -311,6 +311,7 @@
   "tpl.field.show": "Afficher {label}",
   "tpl.field.hide": "Masquer {label}",
   "tpl.field.masked": "Valeur sensible masquée",
+  "tpl.field.multilineMoved": "Texte sur plusieurs lignes déplacé dans les notes de cette section : un champ ne contient qu’une ligne. Les notes ne sont pas masquées à la lecture.",
   "editor.mode.label": "Mode d’édition",
   "editor.mode.text": "Texte",
   "editor.mode.form": "Formulaire",

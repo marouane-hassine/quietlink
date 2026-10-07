@@ -311,6 +311,7 @@
   "tpl.field.show": "Show {label}",
   "tpl.field.hide": "Hide {label}",
   "tpl.field.masked": "Hidden sensitive value",
+  "tpl.field.multilineMoved": "Multi-line text moved to the notes of this section: a field holds a single line. Notes are not masked when reading.",
   "editor.mode.label": "Editing mode",
   "editor.mode.text": "Text",
   "editor.mode.form": "Form",

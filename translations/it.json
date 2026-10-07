@@ -311,6 +311,7 @@
   "tpl.field.show": "Mostra {label}",
   "tpl.field.hide": "Nascondi {label}",
   "tpl.field.masked": "Valore sensibile nascosto",
+  "tpl.field.multilineMoved": "Testo su più righe spostato nelle note di questa sezione: un campo contiene una sola riga. Le note non sono nascoste in lettura.",
   "editor.mode.label": "Modalità di modifica",
   "editor.mode.text": "Testo",
   "editor.mode.form": "Modulo",
