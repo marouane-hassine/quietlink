@@ -196,6 +196,11 @@ tools/docker/smoke.sh         # build the images and smoke test the Compose stac
 tools/docker/e2e.sh           # Playwright campaign, five browser projects (arguments passed on)
 ```
 
+Production archive (zip, built in Docker from a commit; `dist/` is git-ignored):
+`tools/release/build-archive.sh <ref> <version> [--locales en,fr]`. It ships vendor/ without
+development dependencies, the built frontend, `public/.htaccess`, the Docker files and a
+`config/config.php` whose `app.public_url` is null (boot refuses until it is set).
+
 - `qa.sh` builds the validation image `docker/qa/Dockerfile` (PHP 8.3 with the production
   extensions, Composer and Node, same pinned base digests; never deployed) and runs the commands
   with your uid/gid, so files written to the working copy (`public/build/`) keep their owner.

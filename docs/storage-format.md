@@ -49,7 +49,7 @@ datas/                                    # storage.data_dir: project root by de
     └── creating/                         # markers of creations in progress (§9.1)
         └── <16 hex chars>                # empty file, random name, one per creation
 
-/var/lib/quietlink-generated/             # storage.generated_assets_dir, separate volume
+var/generated/                            # storage.generated_assets_dir (default; outside public/)
 └── tokens.<hash>.css
 ```
 

@@ -100,8 +100,9 @@ Deployment model:
   of it (§9). Its `/tmp` tmpfs (128 MiB) holds request bodies larger than the in-memory buffer
   (`/tmp/client_temp`) and large responses (`/tmp/fastcgi_temp`).
 - Volumes: **`data`** mounted on `/app/datas` (pastes, idempotency, rate limiting, state; the
-  default `storage.data_dir`) and **`generated`** mounted on `/var/lib/quietlink-generated`
-  (generated theme assets, shared read-only with `web`). Docker names them
+  default `storage.data_dir`) and **`generated`** mounted on `/app/var/generated` (the default
+  `storage.generated_assets_dir`) and on `/var/lib/quietlink-generated` (former default, kept for
+  existing configurations); generated theme assets, shared read-only with `web`. Docker names them
   `<project>_data` and `<project>_generated`, where `<project>` is the Compose project name
   (by default the name of the directory holding `compose.yaml`; `docker volume ls` shows them).
 - Secret: `QUIETLINK_APP_SECRET_FILE=/run/secrets/app_secret`, provided as a Docker secret from
@@ -115,7 +116,8 @@ Run these commands from the repository root (a checkout of a release tag):
 # 1. Configuration first: Compose would otherwise create a *directory* named config.php.
 cp config/config.php.example config/config.php
 # Edit config/config.php: set app.public_url to your https origin, e.g.
-# https://quietlink.example.test (and http.trusted_proxies, see §9).
+# https://quietlink.example.test (and http.trusted_proxies, see §9). The purge service runs
+# every minute: set storage.health_max_age to '10m' so that a stopped purge shows quickly.
 
 # 2. Build the images (or use the published ones, §3.3).
 docker compose build
@@ -261,7 +263,9 @@ secret and the PHP-FPM files, and Debian-style binary names (`/usr/bin/php`,
 4. Copy and edit the configuration (§5), then restrict it:
 
    ```sh
-   sudo cp config/config.php.example config/config.php      # set app.public_url
+   sudo cp config/config.php.example config/config.php
+   # set app.public_url, storage.health_max_age = '10m' and, because the code tree is
+   # read-only for the service, storage.generated_assets_dir = '/var/lib/quietlink-generated'
    sudo chown root:quietlink config/config.php && sudo chmod 640 config/config.php
    ```
 
@@ -443,6 +447,59 @@ sees the real client address and `HTTPS=on` (from `fastcgi_params`): leave
 With Apache, reproduce the same rules (`mod_proxy_fcgi`, `mod_headers`), disable `.htaccess`
 overrides and make sure no `CustomLog` applies to the virtual host (§9.3).
 
+### 4.3 Shared hosting (Apache, no root)
+
+The default configuration targets shared hosting (lessons from a staging installation on OVH).
+Install from the production archive (vendor/ and the frontend already built):
+
+1. Upload the archive contents, then make the site's **document root the `public/` directory**
+   (never the project directory: it holds `config/`, `.env` and `datas/`). `public/.htaccess`
+   is shipped: HTTPS redirect (except for `localhost`), front controller, asset headers, the
+   Argon2id worker policy, hidden files refused (`404`; Apache itself usually answers `403` for
+   `.ht*` files), no compression. It needs `mod_rewrite`, `mod_headers` and `AllowOverride`
+   permitting `Options`, `FileInfo`, `Indexes` and `Limit` (otherwise the site answers `500`).
+2. Select PHP ≥ 8.3 for the website (OVH: `app.engine.version=8.3` in `.ovhconfig`), with the
+   `intl`, `mbstring`, `openssl` and `sodium` extensions (`app:boot` names a missing one).
+3. Write the secret to `.env` at the project root (outside `public/`), without printing it:
+   `php bin/console app:secret:generate --output .env --dotenv` (mode 0600). Every process
+   finds it there: the console, the website and the scheduled purge; no `SetEnv`,
+   `.user.ini` or wrapper script is needed. A `QUIETLINK_APP_SECRET(_FILE)` variable, when
+   set, takes precedence (Docker, systemd).
+4. Edit `config/config.php` (`app.public_url`; the defaults suit shared hosting: data in
+   `datas/`, theme files in `var/generated/`), then `chmod 600 config/config.php .env`. Mode
+   600 assumes PHP runs as the account owning the files (OVH and most shared hosts); if the web
+   server runs PHP under another account, give that account read access instead.
+5. `php bin/console app:boot --dry-run`, then **`php bin/console app:boot`** (the dry run
+   writes nothing: the site answers `503` until `app:boot` itself has run, and again after
+   every configuration change), then `php bin/console app:config:check --format=json`.
+6. Schedule `php /path/to/quietlink/bin/console app:purge-expired` as often as the host allows
+   (hourly is enough with the default `storage.health_max_age` of `2h`). Without a CLI cron,
+   `storage.web_purge` (default `true`) lets web requests run an overdue purge: an HTTP cron
+   calling `https://<host>/healthz` every 5 minutes keeps it regular even without visitors.
+7. Check HSTS: `curl -sI https://<host>/ | grep -i strict-transport-security` must print one
+   line. The header comes from the application, which must see the request as HTTPS; if it is
+   missing behind the host's TLS proxy, set `http.trusted_proxies` (§9).
+
+Defaults chosen for shared hosting, and what they cost:
+
+- **Network filesystems (NFS) are accepted** (`storage.allow_unsupported_fs = true`), with a
+  warning at each boot. Over NFS, `flock()` and atomic `link()`/`rename()` may not be reliable:
+  under concurrent requests a read-once text could be read twice, quota counters could drift
+  and an interrupted creation could leave a duplicate. On a dedicated server with a local ext4
+  or XFS disk, set `storage.allow_unsupported_fs = false` to refuse other filesystems.
+- **Hourly purge tolerated.** `health.json` (refreshed by the purge) counts as stale after
+  `storage.health_max_age` (default `2h`), so an hourly cron keeps `/healthz` at `ok`; it turns
+  `degraded` only when the purge has not run for two hours. Creation always measures the free
+  disk space itself; the free inode threshold, which only the CLI purge can measure (`df`),
+  applies to its last measurement. Expired pastes are removed only when a purge runs (CLI cron,
+  or a web request when the last one is overdue, `storage.web_purge`).
+- `app:boot` cannot check a PHP-FPM pool there (`QUIETLINK_FPM_POOL_FILE` warning) nor measure
+  inodes without `df` (warning): both are expected on shared hosting.
+
+When the site answers `503` (`/healthz`: `unavailable`), `app:config:check` prints the reason
+(`config_invalid`, `marker_missing`, `fingerprint_differs`, `secret_differs`) and the project
+root it sees; the web side logs the same reason with the `boot_marker_mismatch` event.
+
 ## 5. Configuration
 
 ### 5.1 Files and loading order
@@ -499,12 +556,14 @@ Durations use the format `<integer><m|h|d>` (e.g. `30m`, `24h`, `7d`). Expiratio
 | `storage.idempotency_dir` | `null` (`<data_dir>/idempotency`) | Same rules; mode 0700. |
 | `storage.ratelimit_dir` | `null` (`<data_dir>/ratelimit`) | Same rules; mode 0700. |
 | `storage.state_dir` | `null` (`<data_dir>/state`) | Same rules; mode 0700. |
-| `storage.generated_assets_dir` | `'/var/lib/quietlink-generated'` | Same path rules; mode 0755, readable by the web server. |
+| `storage.generated_assets_dir` | `'var/generated'` | Generated theme CSS. Same path rules; mode 0755, readable by the web server (the Docker image mounts its volume on `/app/var/generated`). |
 | `storage.max_total_bytes` | `10737418240` (10 GiB) | Integer ≥ 1. Total ciphertext quota. |
 | `storage.max_items` | `100000` | Integer ≥ 1. Maximum number of stored pastes. |
 | `storage.min_free_bytes` | `1073741824` (1 GiB) | Integer ≥ 1. Creation is refused below this free space. |
 | `storage.min_free_inodes_percent` | `10` | Integer 0–50. Creation is refused below this free inode percentage. |
-| `storage.allow_unsupported_fs` | `false` | Boolean. Turns the unsupported-filesystem error into a warning. **Development only.** |
+| `storage.health_max_age` | `'2h'` | Duration between `10m` and `24h`. Age after which `health.json` (written by `app:boot` and every purge run) counts as stale: `/healthz` answers `degraded` (log event `health_stale`). `2h` (default) tolerates the hourly cron of shared hosting; set `'10m'` when the purge runs every minute (Docker Compose, systemd timer) so that a stopped purge is detected quickly. |
+| `storage.web_purge` | `true` | Boolean. When the last purge (`health.json`) is more than 5 minutes old, a web request runs it once its response has been sent (no dedicated endpoint, no token). For hosts without a CLI cron: an HTTP cron (the host's, or an external one) calling `/healthz` every few minutes is enough. Such a purge cannot run `df`: it keeps the last inode measurement. Never triggers with a per-minute purge. `false` disables it. |
+| `storage.allow_unsupported_fs` | `true` | Boolean. `true` (default, shared hosting): filesystems other than ext4/XFS (NFS…) are accepted with a boot warning, at the cost of locking guarantees (§4.3). `false`: refused, as recommended on a dedicated server. |
 
 #### `paste`
 
@@ -593,6 +652,13 @@ never written to configuration files, never printed by the operations commands
 used to encrypt pastes: the content keys live only in the share links.
 
 ### 6.1 Generating it
+
+On shared hosting, write it to `.env` at the project root: `php bin/console app:secret:generate
+--output .env --dotenv` (a `QUIETLINK_APP_SECRET=…` line, mode 0600, never printed). QuietLink
+reads `.env` only for `QUIETLINK_APP_SECRET` and `QUIETLINK_APP_SECRET_FILE` (a relative file
+path is resolved from the project root), and only when the environment sets neither: Docker and
+systemd keep using the variable. `.env` must stay outside `public/` (the shipped `.htaccess` and
+the Nginx configuration refuse hidden files anyway), mode 0600; `app:boot` warns otherwise.
 
 The file must be readable by the account running PHP (and `app:boot`), and by nobody else.
 `app:boot` warns when the secret file is readable by every account.
@@ -712,19 +778,20 @@ directory, and verifies that `rename()` and `link()` work atomically in each of 
 
 Network and overlay filesystems (NFS, SMB/CIFS, FUSE, overlayfs without a volume, etc.) are not
 supported: `flock()` and hard links are unreliable there. `storage.allow_unsupported_fs = true`
-turns the error into a warning for development only. If the type cannot be determined (non-Linux
-hosts, unusual mounts) or is Btrfs, boot refuses to start unless that option is set.
+turns the error into a warning and is the **default** (shared hosting, §4.3); set it to `false` on
+a dedicated server so that an undetermined type, Btrfs or a network filesystem stops boot.
 
 ### 7.4 Quotas, disk space and inodes
 
 Creation is refused with `503` (`Retry-After: 300`) when `max_total_bytes` or `max_items` would
-be exceeded, and also when free space is below `min_free_bytes` (default 1 GiB), free inodes
-are below `min_free_inodes_percent` (default 10 %), or `state/health.json` is missing or older
-than 10 minutes. Reading and deleting existing pastes keeps working.
+be exceeded, and also when free space (measured at each creation) is below `min_free_bytes`
+(default 1 GiB), or the last measurement of free inodes (however old) is below
+`min_free_inodes_percent` (default 10 %). Reading and deleting existing pastes keeps working.
 
 `health.json` holds the last measurement of free bytes and free inode percentage of the data
 volume (PHP cannot read inode counts itself: they come from `df -P -i`). It is written by
-`app:boot` and by every purge run, so a stopped purge blocks creation after 10 minutes and
+`app:boot` and by every purge run. Older than `storage.health_max_age` (default `2h`; `10m`
+recommended with a per-minute purge), it is stale and
 `/healthz` turns `degraded` (log event `health_stale`, §11). `app:config:check` shows its age
 and content (§8.3).
 
@@ -1152,7 +1219,7 @@ carries an identifier, a path or an address. Alert on them:
 | `event` | Level | Emitted by | Meaning and action |
 |---|---|---|---|
 | `boot_marker_mismatch` | warning | any request | Configuration invalid or different from `boot.json`: every request answers `503`. Run `app:boot` and reload PHP-FPM (§18). |
-| `health_stale` | warning | `/healthz` | `health.json` missing or older than 10 minutes: creation is refused. Check that the purge runs (§8.2). |
+| `health_stale` | warning | `/healthz` | `health.json` missing or older than `storage.health_max_age`. Check that the purge runs (§8.2). |
 | `purge_failures` | warning (`count`) | purge | Items left for the next run. Check storage ownership, modes and free space. |
 | `quota_alert` | warning (`percent`) | purge | Storage use above 80 % of `max_total_bytes` or `max_items`. Raise quotas, add space or shorten expirations. |
 | `storage` | info (`count`, `percent`) | purge, only with `metrics.enabled` | Aggregated metrics line: number of pastes and quota use. |
@@ -1206,7 +1273,7 @@ the user's explicit choice, then the browser preference, then English.
 ## 13. Health check and diagnostics
 
 - `GET /healthz` returns `{"status":"ok"}` (`200`), `{"status":"degraded"}` (`503`: health data
-  missing/stale or inodes low, creation refused) or `{"status":"unavailable"}` (`503`: invalid
+  missing or older than `storage.health_max_age`, or inodes low) or `{"status":"unavailable"}` (`503`: invalid
   configuration or boot marker mismatch). It exposes no version or configuration detail and is
   rate limited (`health` bucket).
 - `app:config:check` shows the effective configuration, whether the boot marker matches and the
@@ -1285,7 +1352,7 @@ for security updates, and never mount the Docker socket.
 ### 14.1 Operating with a read-only root filesystem
 
 - Writable paths: the data volume (`/app/datas`), the generated assets volume
-  (`/var/lib/quietlink-generated`, read-only for `web`), and the tmpfs mounts (`/tmp`; for
+  (`/app/var/generated`, also mounted on `/var/lib/quietlink-generated`; read-only for `web`), and the tmpfs mounts (`/tmp`; for
   `web` also `/var/cache/nginx`). Everything else, including `/app` and `/app/var/cache`, is
   read-only.
 - The Symfony container is compiled at image build time (`cache:warmup`); it is never rebuilt at
@@ -1497,19 +1564,22 @@ assumptions:
 
 | Symptom or message | Cause | Fix |
 |---|---|---|
+| `/healthz` answers `{"status":"unavailable"}` | The web side finds the configuration invalid (often: the secret does not reach PHP, `config_invalid`) or different from the last `app:boot` (`fingerprint_differs`: configuration changed, or only `--dry-run` was run; `marker_missing`). | Run `app:boot` (not only `--dry-run`) after every change; `app:config:check` shows `reason`; on shared hosting see §4.3. |
+| `storage.… is on an unsupported filesystem (nfs)` (error) | `storage.allow_unsupported_fs = false` on a network filesystem. | Use a local ext4/XFS disk, or accept the risks of §4.3 with `true` (the default). |
+| Creation refused ("temporarily unavailable") | Not enough free disk space (`storage.min_free_bytes`), quota reached, or the last inode measurement below `storage.min_free_inodes_percent`. | Free space, raise the quotas, or wait for the purge; `app:config:check` shows the health block. |
 | Valid links answer `404` for a few seconds, or creation is refused, right after a clock change | The server clock stepped backwards (manual change, VM resume, NTP step) or jumped forwards. | Keep NTP slewing (no steps); the condition clears by itself within a minute. |
 | `QUIETLINK_APP_SECRET_FILE does not point to a readable file.` | Secret file missing, or not readable by the PHP account (e.g. `root:root 0600`). | Docker: `sudo chgrp 10001 secrets/app_secret && chmod 640 secrets/app_secret`. Without Docker: `chgrp quietlink` + `chmod 640` (§6.1). |
 | `QUIETLINK_APP_SECRET (or QUIETLINK_APP_SECRET_FILE) is required…` / `…must be standard base64 decoding to at least 32 bytes.` | Variable not set for this process, or file content wrong (empty, truncated). | Pass the variable (pool, unit, Compose); regenerate the secret (§6). |
 | `config/config.php is missing; copy config/config.php.example.`, and `config/config.php` is a **directory** on the host | Compose was started before `config.php` existed and created a directory at its place. | `docker compose down`, `rmdir config/config.php`, then follow §3.1 step 1 and 4, and start again. |
 | `Unknown configuration key "…"` / `"…" has an invalid type.` | Typo, removed key after an upgrade, or wrong type (e.g. `'60'` instead of `60`). | Fix `config.php`; check with `app:boot --dry-run`. |
-| `storage.… is on an unsupported filesystem (overlay)` (or `nfs`, `fuseblk`, …) | Data not on a supported local filesystem; with Docker, usually the data volume is not mounted where `storage.data_dir` points. | Mount a volume on `/app/datas` (default) or point `storage.data_dir` at a mounted ext4 or XFS path. `allow_unsupported_fs` is for development only. |
+| `storage.… is on an unsupported filesystem (overlay)` (or `nfs`, `fuseblk`, …) | Data not on a supported local filesystem; with Docker, usually the data volume is not mounted where `storage.data_dir` points. | Mount a volume on `/app/datas` (default) or point `storage.data_dir` at a mounted ext4 or XFS path. Or accept it with `storage.allow_unsupported_fs = true` (the default; locking guarantees lost, §4.3). |
 | `storage.… does not support atomic rename() and link().` | Network or FUSE mount, or read-only volume. | Use a local filesystem; make the data volume writable. |
 | `storage.… is accessible to other accounts (mode 0755): restore mode 0700 (chmod 700).` | Directory created by hand, restored, or copied with a permissive mode. | `chmod 700` on the four storage directories (Docker: `docker compose run --rm --no-deps --entrypoint chmod app 700 /app/datas/pastes /app/datas/idempotency /app/datas/ratelimit /app/datas/state`). |
 | `storage.… must belong to the application account.` | Files restored or created by another user (often root). | `chown -R quietlink:quietlink` the data directory (Docker: `10001:10001`, from a container run with `--user 0`). |
 | `storage.… cannot be created.` | Parent directory missing or not writable by the account. | Create the parent as in §4 step 3. |
 | `The PHP-FPM pool does not pass QUIETLINK_APP_SECRET(_FILE) to the workers (this instance uses …).` | The pool file named by `QUIETLINK_FPM_POOL_FILE` does not pass the variable this instance uses: `QUIETLINK_APP_SECRET_FILE` with a secret file, `QUIETLINK_APP_SECRET` with an inline secret. Without it the workers would answer `503` while boot succeeded. | Add the matching `env[…]` line (§4.1); the shipped pool passes `QUIETLINK_APP_SECRET_FILE` only. |
 | Every page and API call answers `503`; `/healthz` says `unavailable`; log event `boot_marker_mismatch` | Configuration changed (or invalid) since the last `app:boot`, or the secret changed. | Run `app:boot` and reload PHP-FPM (Docker: `docker compose exec app quietlink-reload`; systemd: `systemctl reload quietlink-fpm`). `app:config:check` shows the errors. |
-| `/healthz` answers `503` `degraded`; creation refused; log event `health_stale` | `health.json` older than 10 minutes: the purge is not running (or failing), or inodes are low. | `docker compose ps purge` / `docker compose logs purge`, or `systemctl list-timers quietlink-purge.timer` / `journalctl -u quietlink-purge`. Check `df -i` (§7.4). |
+| `/healthz` answers `503` `degraded`; log event `health_stale` | `health.json` older than `storage.health_max_age` (default `2h`): the purge is not running (or failing, or scheduled less often than that), or inodes are low. | `docker compose ps purge` / `docker compose logs purge`, or `systemctl list-timers quietlink-purge.timer` / `journalctl -u quietlink-purge`. Check `df -i` (§7.4). |
 | Purge prints `The boot marker is missing or does not match the configuration; run app:boot first.` | Purge started before `app:boot`, or configuration changed. | Run `app:boot` (it is in the `app` entrypoint and the systemd `ExecStartPre`). |
 | `purge.lock is missing; run app:boot.` | Data directory restored without lock files, or a lock file removed. | Run `app:boot` (it recreates missing lock files). |
 | Purge output shows `"failed":N` with N > 0 on every run; log event `purge_failures` | Permission problem or full disk on some paste directories. | Check ownership and modes (§7.6) and free space. |

@@ -464,7 +464,7 @@ Decisions already recorded in §19.1 are applied: Playwright for E2E tests, JSON
 | EXG-STORE-005 | 7.5 | Global max_total_bytes and max_items quotas, 503 + Retry-After via usage.json | Must | MUST | PHPUnit integration: quota exceeded 503 |
 | EXG-STORE-006 | 7.5 | usage.json updated under lock, recalculated by purge; no storage scan per request | Must | MUST | PHPUnit integration: usage drift correction |
 | EXG-STORE-007 | 7.5 | min_free_bytes checked with disk_free_space before each creation | Must | MUST | PHPUnit integration: low disk 503 |
-| EXG-STORE-008 | 7.5 | Free inodes measured in CLI into health.json; stale file blocks creation | Must | MUST | PHPUnit integration: stale health.json |
+| EXG-STORE-008 | 7.5 | Free inodes measured in CLI into health.json; a recent measurement below the threshold blocks creation; a stale one does not (free space then measured live at creation); staleness after storage.health_max_age (default 2h) | Must | MUST | PHPUnit integration: stale health.json |
 | EXG-LIFE-018 | 7.5 | Global max_retention applies to all content, incompatible with never | Must | MUST | PHPUnit unit: config validation |
 | EXG-CONF-001 | 7.5 | paste.max_unconfirmed_opens between 1 and 10 | Must | MUST | PHPUnit unit: config bounds |
 | EXG-OBS-001 | 7.5 | Documented operational alert at 80% of a quota | Must | MUST | PHPUnit integration: quota warning log |
@@ -656,6 +656,7 @@ Decisions already recorded in §19.1 are applied: Playwright for E2E tests, JSON
 | EXG-SEC-101 | 9.5 | Config files readable only by PHP process user | Must | MUST | PHPUnit integration: perms check in boot |
 | EXG-STORE-041 | 9.5 | Storage dirs outside web root, app-owned, no outward symlinks | Must | MUST | PHPUnit integration: path validation |
 | EXG-STORE-046 | 9.4.1 | Data directory configurable (storage.data_dir), default datas/ at the project root; storage dirs derive from it and stay configurable (spec v0.19) | Must | MUST | PHPUnit unit: config defaults and derivation |
+| EXG-STORE-047 | 9.7 | Web-triggered purge (storage.web_purge, default true): an overdue purge (>5 min) runs after a web response, no endpoint or token, keeps the last inode measurement | Should | SHOULD | PHPUnit integration: web purge |
 | EXG-STORE-042 | 9.5 | Storage paths validated at boot; auto-created with restrictive perms | Must | MUST | PHPUnit integration: dir creation mode |
 | EXG-SEC-102 | 9.5 | Only token files under config/themes/ without absolute path, .. or outward symlink | Must | MUST | PHPUnit unit: token path validation |
 | EXG-CONF-022 | 9.5 | Config change requires explicit restart or reload | Must | MUST | PHPUnit integration: fingerprint enforcement |
@@ -873,7 +874,7 @@ Decisions already recorded in §19.1 are applied: Playwright for E2E tests, JSON
 | EXG-TEST-043 | 16.1 | Tests: per-id limit counts valid proofs only; trusted proxy handling | Must | MUST | PHPUnit integration |
 | EXG-TEST-044 | 16.1 | Tests: IPv4-mapped normalisation, IPv6 /64 grouping, UTC day rollover | Must | MUST | PHPUnit integration |
 | EXG-TEST-045 | 16.1 | Tests: usage.json quotas without scan, purge recalculation, near-quota concurrency | Must | MUST | PHPUnit integration |
-| EXG-TEST-046 | 16.1 | Tests: stale health.json blocks creation and degrades /healthz | Must | MUST | PHPUnit integration |
+| EXG-TEST-046 | 16.1 | Tests: stale health.json degrades /healthz; creation then relies on the live free space | Must | MUST | PHPUnit integration |
 | EXG-TEST-047 | 16.1 | Tests: storage CRUD without DB, flock concurrency, inode re-check | Must | MUST | PHPUnit integration |
 | EXG-TEST-048 | 16.1 | Tests: incomplete dirs removed, no per-request or recreated lock files | Must | MUST | PHPUnit integration |
 | EXG-TEST-049 | 16.1 | Tests: payload removal, temp/rename recovery, path and symlink refusal | Must | MUST | PHPUnit integration |

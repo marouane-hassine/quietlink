@@ -7,6 +7,34 @@ a removed API version is announced at least one minor version in advance.
 
 ## [Unreleased]
 
+### Upgrade notes
+
+- Docker: the `generated` volume is mounted at `/app/var/generated` (new default) and still at
+  `/var/lib/quietlink-generated`, so an existing `config.php` keeps working. Systemd
+  installations: set `storage.generated_assets_dir` explicitly (README-admin §4) or create
+  `var/generated` writable by the service account.
+- Instances purging every minute (Docker, systemd): set `storage.health_max_age` to `'10m'`.
+
+### Changed
+
+- The default configuration targets shared hosting:
+  - the secret can come from a `.env` file at the project root (only `QUIETLINK_APP_SECRET`
+    and `QUIETLINK_APP_SECRET_FILE`, when the environment sets neither); `app:secret:generate
+    --output .env --dotenv` writes it without printing it, and `app:boot` warns if it is
+    readable by every account;
+  - unsupported filesystems (NFS) are accepted with a boot warning
+    (`storage.allow_unsupported_fs = true`); set `false` on a dedicated server;
+  - a stale `health.json` no longer blocks creation: free disk space is measured at creation,
+    so an hourly purge is enough; the new `storage.health_max_age` (default `2h`, `10m`
+    recommended with a per-minute purge) sets when `/healthz` reports the measurement stale;
+  - generated theme files default to `var/generated` in the project;
+  - without a CLI cron, a web request runs an overdue purge (more than 5 minutes) after its
+    response (`storage.web_purge`, default `true`; an HTTP cron calling `/healthz` is enough);
+  - `public/.htaccess` is shipped for Apache (same rules as the Nginx image).
+- `app:config:check` prints why the instance is not ready (`config_invalid`, `marker_missing`,
+  `fingerprint_differs`, `secret_differs`) and the project root it sees; the
+  `boot_marker_mismatch` log event carries the same reason.
+
 ## [1.0.0-beta.2] - 2026-10-06
 
 Evaluation pre-release: the `sp-proto/v1` protocol has not yet been independently reviewed (ADR-0011);

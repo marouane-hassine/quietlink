@@ -86,7 +86,9 @@ signed-off review.
    published artefacts from a machine that did not build them, including a rebuild of the PHAR
    from the tag with `tools/release/build-phar.sh` and the same SHA-256 (README-developer,
    "Reproducible PHAR").
-7. Deploy a staging instance by digest: first run `app:boot --dry-run` on the target with its
+7. For installations without Docker, build the archive from the tagged commit with
+   `tools/release/build-archive.sh vX.Y.Z X.Y.Z` and attach it with its `.sha256`.
+8. Deploy a staging instance by digest: first run `app:boot --dry-run` on the target with its
    real configuration (no error), then start it, check `app:config:check --format=json`
    (exit `0`, `ready`), `/healthz`, one create/read/delete journey with dummy text, and the
    response headers (CSP, HSTS, `Referrer-Policy`, no third-party request), following

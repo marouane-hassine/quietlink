@@ -1,6 +1,6 @@
 # Cahier des charges — QuietLink, outil de partage de textes confidentiels
 
-**Statut :** version 0.23 — projet de cahier des charges produit et technique  
+**Statut :** version 0.24 — projet de cahier des charges produit et technique  
 **Périmètre :** V1  
 **Technologie obligatoire :** PHP avec Symfony pour le backend, l’API et la CLI ; TypeScript avec Vite pour le frontend  
 **Licence :** GNU Affero General Public License v3.0 (AGPL-3.0)  
@@ -9,6 +9,7 @@
 
 **Historique :**
 
+- 0.24 — configuration par défaut orientée hébergement mutualisé (décisions du porteur, staging OVH) : secret lu aussi depuis un fichier `.env` à la racine du projet (clés `QUIETLINK_APP_SECRET`/`QUIETLINK_APP_SECRET_FILE` uniquement, si l’environnement ne les définit pas, mode 0600) ; systèmes de fichiers non pris en charge (NFS) acceptés par défaut avec avertissement (`storage.allow_unsupported_fs = true`) ; un `health.json` périmé ne bloque plus la création, qui mesure alors l’espace libre elle-même ; seuil de péremption configurable `storage.health_max_age` (défaut `2h` pour une purge horaire, `10m` recommandé avec une purge chaque minute) ; purge déclenchée par une requête web lorsque la dernière date de plus de 5 minutes (`storage.web_purge`, défaut `true`, exécutée après l’envoi de la réponse, sans endpoint dédié ni jeton, sans mesure d’inodes) pour les hébergements sans cron CLI ; répertoire de thème `var/generated` ; `public/.htaccess` fourni pour Apache ; raison de non-disponibilité affichée par `app:config:check`.
 - 0.23 — alignements sur l’implémentation : suppression immédiate d’un contenu `consumed` (ADR-0008), fenêtre de détection des orphelins de 15 min à 1 h, `400` de `open` sans `reservation_id`, champ de phrase secrète `type="password"` (ADR-0009), tailles en unités décimales localisées ; séquence de rechargement en conteneur (`quietlink-reload`) ; liste de mots française dérivée de Lexique ; délai de grâce d’une durée de réservation pour une confirmation tardive (téléchargement lent) ; `max_retention` appliquée aux contenus existants ; système de fichiers indéterminé ou Btrfs refusé par `app:boot` sauf `allow_unsupported_fs` ; dérogation écrite pour la préversion publiée avant la revue cryptographique (ADR-0011).
 - 0.22 — outillage d’exploitation (§15.1) : `app:boot --dry-run`, sorties JSON et codes de sortie documentés de `app:boot` et `app:config:check`, `app:secret:generate --output`, événements d’exploitation journalisés sans identifiant, validation locale et test de fumée en Docker ; marqueurs de création en cours dans `state/creating/` ; correction : seule la purge retire les répertoires `<id>/` incomplets (et non `app:boot`).
 - 0.21 — logo QuietLink : symbole bouclier et maillons, mot-symbole, versions claire et sombre en SVG, intégration en ligne colorée par les tokens et favicon.
@@ -945,7 +946,7 @@ Le déploiement Docker doit appliquer, autant que possible :
 - aucun quota utilisateur, mais des limites techniques anti-abus obligatoires ;
 - quota global de stockage (`storage.max_total_bytes`) et nombre maximal de contenus actifs (`storage.max_items`) : au-delà, la création est refusée avec une réponse `503` générique accompagnée d’un en-tête `Retry-After` ; ces quotas reposent sur un compteur persistant (`usage.json`) mis à jour sous verrou à chaque création et suppression, et recalculé intégralement par la purge (§9.7) pour corriger toute dérive ; aucun parcours du stockage n’est effectué pendant une requête ;
 - seuil minimal d’espace disque libre (`storage.min_free_bytes`) vérifié avant chaque création avec `disk_free_space()` ;
-- seuil minimal d’inodes libres (`storage.min_free_inodes_percent`) vérifié par la purge et par `app:boot`, PHP n’exposant pas ce nombre : la mesure utilise `df -P -i` sur le volume de stockage, exécuté uniquement en CLI ; le résultat est écrit dans `health.json`, horodaté et lu par la création, qui refuse les nouveaux contenus tant que le seuil n’est pas respecté ; un `health.json` de plus de 10 minutes est signalé comme dégradé par `/healthz` et dans les logs, et la création est alors refusée (`503`) jusqu’à sa mise à jour, l’état réel de l’espace et des inodes étant inconnu ; `storage.max_items` borne par ailleurs le nombre d’inodes consommés (au plus 8 par contenu en comptant le fichier d’état temporaire et la part des répertoires de partition) ;
+- seuil minimal d’inodes libres (`storage.min_free_inodes_percent`) vérifié par la purge et par `app:boot`, PHP n’exposant pas ce nombre : la mesure utilise `df -P -i` sur le volume de stockage, exécuté uniquement en CLI ; le résultat est écrit dans `health.json`, horodaté et lu par la création, qui refuse les nouveaux contenus tant que le seuil n’est pas respecté ; un `health.json` plus ancien que `storage.health_max_age` (durée de `10m` à `24h`, défaut `2h` afin qu’une purge horaire ne soit pas signalée ; `10m` recommandé lorsque la purge s’exécute chaque minute) est signalé comme dégradé par `/healthz` et dans les logs ; la création mesure alors elle-même l’espace libre avec `disk_free_space()` et ne refuse que sous `storage.min_free_bytes`, le seuil d’inodes s’appliquant au dernier relevé, même ancien (une purge horaire, seule possible sur un hébergement mutualisé, suffit ainsi au fonctionnement) ; `storage.max_items` borne par ailleurs le nombre d’inodes consommés (au plus 8 par contenu en comptant le fichier d’état temporaire et la part des répertoires de partition) ;
 - durée maximale de conservation globale (`paste.max_retention`) appliquée à tous les contenus, y compris ceux créés avant une réduction de cette durée : un contenu expire au plus tard à sa création plus la durée en vigueur, à la lecture comme à la purge, et l’expiration renvoyée aux lecteurs en tient compte ; elle est incompatible avec l’option « jamais » (§9.5) ;
 - `paste.max_unconfirmed_opens` est compris entre 1 et 10 ;
 - alerte opérationnelle documentée lorsque 80 % d’un quota est atteint.
@@ -1292,7 +1293,7 @@ Règles obligatoires :
 - au démarrage, l’application vérifie que `storage.root_dir` est sur un système de fichiers local de la liste supportée (par exemple via `/proc/mounts` sous Linux) et refuse de démarrer sinon, sauf dérogation explicite `storage.allow_unsupported_fs` journalisée en avertissement ;
 - les répertoires et fichiers appartiennent à un compte système dédié au processus PHP et ne sont pas accessibles directement par le serveur web statique ;
 - le répertoire racine de stockage doit être hors de `public/`, interdit à l’indexation et monté avec les permissions minimales ;
-- le stockage V1 doit reposer sur un système de fichiers local supportant correctement `flock()` et `rename()` atomique ; NFS, SMB et tout stockage réseau sans garanties équivalentes sont hors support V1 ;
+- le stockage V1 doit reposer sur un système de fichiers local supportant correctement `flock()` et `rename()` atomique ; NFS, SMB et tout stockage réseau sans garanties équivalentes ne garantissent pas ces propriétés ; ils sont acceptés par défaut avec un avertissement à chaque amorçage (`storage.allow_unsupported_fs = true`, hébergement mutualisé, v0.24) et refusés lorsque l’exploitant fixe cette option à `false`, ce qui est recommandé sur un serveur dédié ;
 - le déploiement V1 supporte une instance applicative et un volume de stockage local ; la réplication horizontale et le partage du stockage entre plusieurs instances sont hors périmètre V1 ;
 - aucun fichier temporaire ne doit être créé dans un répertoire partagé ou exposé au web ;
 - après un redémarrage, les fichiers temporaires orphelins ne peuvent être supprimés qu’après vérification de leur ancienneté et de l’absence de verrou actif ; un verrou `flock()` est libéré automatiquement à la fin du processus ;
@@ -1379,12 +1380,13 @@ return [
         'idempotency_dir' => null,   // datas/idempotency
         'ratelimit_dir' => null,     // datas/ratelimit
         'state_dir' => null,         // datas/state
-        'generated_assets_dir' => '/var/lib/quietlink-generated',
+        'generated_assets_dir' => 'var/generated',
         'max_total_bytes' => 10737418240,
         'max_items' => 100000,
         'min_free_bytes' => 1073741824,
         'min_free_inodes_percent' => 10,
-        'allow_unsupported_fs' => false,
+        'allow_unsupported_fs' => true,
+        'health_max_age' => '2h',
     ],
     'paste' => [
         'default_expiration' => '1d',
@@ -1534,7 +1536,7 @@ La V1 doit fournir la commande Symfony suivante :
 php bin/console app:purge-expired
 ```
 
-Cette commande doit être idempotente, limitée aux contenus expirés ou consommés, aux réservations échues, aux enregistrements d’idempotence échus et aux entrées de rate limiting expirées, et exécutable par Cron ou systemd (fréquence recommandée : toutes les minutes, afin que les réservations échues soient libérées rapidement même sans nouvelle requête). Elle s’exécute sous le verrou global `purge.lock` (§9.4.1), applique ses suppressions à `usage.json` par décréments sous verrou, recalcule entièrement `usage.json` au plus une fois par heure (en appliquant sous verrou l’écart constaté, sans écraser les créations concurrentes), met à jour `health.json` (espace et inodes libres, horodatage), supprime les contenus expirés, termine la suppression des contenus en état `deleted` et supprime les contenus `consumed` depuis plus de 10 minutes. Elle refuse de s’exécuter si le marqueur d’amorçage `state/boot.json` est absent ou ne correspond pas à la configuration chargée, afin qu’une configuration non validée ne puisse jamais piloter des suppressions. Le nettoyage opportuniste sur les requêtes reste un filet de sécurité, mais ne remplace pas la tâche planifiée.
+Cette commande doit être idempotente, limitée aux contenus expirés ou consommés, aux réservations échues, aux enregistrements d’idempotence échus et aux entrées de rate limiting expirées, et exécutable par Cron ou systemd (fréquence recommandée : toutes les minutes, afin que les réservations échues soient libérées rapidement même sans nouvelle requête). Elle s’exécute sous le verrou global `purge.lock` (§9.4.1), applique ses suppressions à `usage.json` par décréments sous verrou, recalcule entièrement `usage.json` au plus une fois par heure (en appliquant sous verrou l’écart constaté, sans écraser les créations concurrentes), met à jour `health.json` (espace et inodes libres, horodatage), supprime les contenus expirés, termine la suppression des contenus en état `deleted` et supprime les contenus `consumed` depuis plus de 10 minutes. Elle refuse de s’exécuter si le marqueur d’amorçage `state/boot.json` est absent ou ne correspond pas à la configuration chargée, afin qu’une configuration non validée ne puisse jamais piloter des suppressions. Le nettoyage opportuniste sur les requêtes reste un filet de sécurité ; sur un hébergement sans cron CLI, `storage.web_purge` (défaut `true`, v0.24) fait exécuter la purge complète par une requête web, après l’envoi de sa réponse, lorsque la dernière purge date de plus de 5 minutes (sans endpoint dédié ni jeton : un cron HTTP appelant `/healthz` suffit) ; cette purge ne mesure pas les inodes (`df` réservé au CLI) et conserve le dernier relevé (`EXG-STORE-047`).
 
 Symfony Messenger ou Scheduler pourra être étudié ultérieurement, mais n’est pas requis pour la V1.
 
@@ -1884,7 +1886,7 @@ Règles obligatoires :
 - création refusée pour une `access_pk` ou une `consume_pk` d’ordre faible ou non canonique ;
 - corps de création contenant un champ `id` : refusé (`400`) ;
 - verrou obtenu sur un `state.lock` supprimé puis recréé : contrôle d’inode et abandon ;
-- purge refusée sans marqueur d’amorçage valide ; création refusée (`503`) avec un `health.json` périmé ;
+- purge refusée sans marqueur d’amorçage valide ; avec un `health.json` périmé, la création mesure elle-même l’espace libre (refus `503` sous `storage.min_free_bytes`) et seul un relevé récent sous le seuil d’inodes la refuse ;
 - rate limiting derrière un reverse proxy : adresse client prise uniquement depuis un proxy de confiance, `X-Forwarded-For` ignoré sinon, adresses IPv4 mappées en IPv6 normalisées ;
 - `open` et `status` avec une preuve invalide : aucun accès au stockage ;
 - nouvelle tentative unique sur tout `404` d’`open` ou de `status` ;
