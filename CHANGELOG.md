@@ -13,7 +13,8 @@ a removed API version is announced at least one minor version in advance.
   `/var/lib/quietlink-generated`, so an existing `config.php` keeps working. Systemd
   installations: set `storage.generated_assets_dir` explicitly (README-admin §4) or create
   `var/generated` writable by the service account.
-- Instances purging every minute (Docker, systemd): set `storage.health_max_age` to `'10m'`.
+- Instances purging every minute (Docker, systemd): set `storage.health_max_age` to `'10m'`,
+  and `storage.allow_unsupported_fs` to `false` on a local ext4/XFS disk.
 
 ### Changed
 

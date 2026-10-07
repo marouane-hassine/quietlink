@@ -118,6 +118,7 @@ cp config/config.php.example config/config.php
 # Edit config/config.php: set app.public_url to your https origin, e.g.
 # https://quietlink.example.test (and http.trusted_proxies, see §9). The purge service runs
 # every minute: set storage.health_max_age to '10m' so that a stopped purge shows quickly.
+# The data volume is a local disk: set storage.allow_unsupported_fs to false (§7.3).
 
 # 2. Build the images (or use the published ones, §3.3).
 docker compose build
@@ -264,8 +265,9 @@ secret and the PHP-FPM files, and Debian-style binary names (`/usr/bin/php`,
 
    ```sh
    sudo cp config/config.php.example config/config.php
-   # set app.public_url, storage.health_max_age = '10m' and, because the code tree is
-   # read-only for the service, storage.generated_assets_dir = '/var/lib/quietlink-generated'
+   # set app.public_url, storage.health_max_age = '10m', storage.allow_unsupported_fs = false
+   # (local ext4/XFS disk) and, because the code tree is read-only for the service,
+   # storage.generated_assets_dir = '/var/lib/quietlink-generated'
    sudo chown root:quietlink config/config.php && sudo chmod 640 config/config.php
    ```
 
