@@ -452,6 +452,7 @@ Decisions already recorded in §19.1 are applied: Playwright for E2E tests, JSON
 | EXG-MD-027 | 7.5 | Sanitiser allowlist explicit and tested; libraries versioned in SBOM | Should | MUST | Vitest: allowlist test; CI check SBOM |
 | EXG-SEC-072 | 7.5 | Scripts, iframes, objects, event handlers forbidden in rendered output | Must | MUST | Vitest: XSS corpus |
 | EXG-MD-028 | 7.5 | No images rendered from Markdown; alt text plus plain non-clickable URL | Should | MUST | Vitest: image rendering |
+| EXG-MD-029 | 6.2 | Built-in templates: empty fields and sections without content are removed before encryption and not shown in the field view; an entirely blank template cannot be created | Should | MUST | Vitest: template compaction and field view |
 | EXG-SEC-073 | 7.5 | No automatic network preview | Must | MUST | Playwright E2E: no outbound requests |
 | EXG-TEST-007 | 7.5 | Dedicated XSS tests on Markdown, templates, decryption errors | Must | MUST | Vitest: XSS suite |
 | EXG-SEC-074 | 7.5 | Separate rate limits per endpoint; per-id limit counts only valid proofs | Must | MUST | PHPUnit integration: rate limiter |

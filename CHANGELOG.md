@@ -18,6 +18,8 @@ a removed API version is announced at least one minor version in advance.
 
 ### Changed
 
+- Templates: empty fields and sections left without content are no longer encrypted nor shown
+  in the field view; a template with nothing filled in cannot be created.
 - The default configuration targets shared hosting:
   - the secret can come from a `.env` file at the project root (only `QUIETLINK_APP_SECRET`
     and `QUIETLINK_APP_SECRET_FILE`, when the environment sets neither); `app:secret:generate
@@ -31,10 +33,14 @@ a removed API version is announced at least one minor version in advance.
   - generated theme files default to `var/generated` in the project;
   - without a CLI cron, a web request runs an overdue purge (more than 5 minutes) after its
     response (`storage.web_purge`, default `true`; an HTTP cron calling `/healthz` is enough;
-    PHP-FPM or LiteSpeed only, 15-second budget);
+    PHP-FPM or LiteSpeed only, 15-second budget, resuming where the previous run stopped);
+  - `public/.htaccess` is shipped for Apache (same rules as the Nginx image; a declared
+    oversized body is refused before PHP runs).
 - Production archives carry their commit (`BUILD`): each build compiles its own Symfony cache,
   so a rebuilt archive of the same version never boots on a stale container.
-  - `public/.htaccess` is shipped for Apache (same rules as the Nginx image).
+- `app:boot` checks the secret where it really comes from: with a `.env` secret, the PHP-FPM
+  pool no longer has to pass a secret variable, and a secret file named there gets the mode
+  check.
 - `app:config:check` prints why the instance is not ready (`config_invalid`, `marker_missing`,
   `fingerprint_differs`, `secret_differs`) and the project root it sees; the
   `boot_marker_mismatch` log event carries the same reason.

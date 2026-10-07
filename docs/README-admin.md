@@ -564,7 +564,7 @@ Durations use the format `<integer><m|h|d>` (e.g. `30m`, `24h`, `7d`). Expiratio
 | `storage.min_free_bytes` | `1073741824` (1 GiB) | Integer ≥ 1. Creation is refused below this free space. |
 | `storage.min_free_inodes_percent` | `10` | Integer 0–50. Creation is refused below this free inode percentage. |
 | `storage.health_max_age` | `'2h'` | Duration between `10m` and `24h`. Age after which `health.json` (written by `app:boot` and every purge run) counts as stale: `/healthz` answers `degraded` (log event `health_stale`). `2h` (default) tolerates the hourly cron of shared hosting; set `'10m'` when the purge runs every minute (Docker Compose, systemd timer) so that a stopped purge is detected quickly. |
-| `storage.web_purge` | `true` | Boolean. When the last purge (`health.json`) is more than 5 minutes old, a web request runs it once its response has been sent (no dedicated endpoint, no token). For hosts without a CLI cron: an HTTP cron (the host's, or an external one) calling `/healthz` every few minutes is enough. Such a purge cannot run `df`: it keeps the last inode measurement; it spends at most 15 seconds on pastes (the rest waits for the next run) and runs only under PHP-FPM or LiteSpeed, which end the response first (never under mod_php or CGI, where the visitor would wait). Never triggers with a per-minute purge. `false` disables it. |
+| `storage.web_purge` | `true` | Boolean. When the last purge (`health.json`) is more than 5 minutes old, a web request runs it once its response has been sent (no dedicated endpoint, no token). For hosts without a CLI cron: an HTTP cron (the host's, or an external one) calling `/healthz` every few minutes is enough. Such a purge cannot run `df`: it keeps the last inode measurement; it spends at most 15 seconds on pastes (the next run resumes where it stopped, `state/purge.cursor`; the hourly usage recomputation waits for a run that finishes in time) and runs only under PHP-FPM or LiteSpeed, which end the response first (never under mod_php or CGI, where the visitor would wait). Never triggers with a per-minute purge. `false` disables it. |
 | `storage.allow_unsupported_fs` | `true` | Boolean. `true` (default, shared hosting): filesystems other than ext4/XFS (NFS…) are accepted with a boot warning, at the cost of locking guarantees (§4.3). `false`: refused, as recommended on a dedicated server. |
 
 #### `paste`
@@ -746,9 +746,9 @@ datas/                              # storage.data_dir (project root by default;
 ├── ratelimit/                      # storage.ratelimit_dir
 └── state/                          # storage.state_dir
     ├── usage.json  health.json  boot.json
-    ├── usage.lock  purge.lock
+    ├── usage.lock  purge.lock  purge.cursor (optional, web purge)
     └── creating/                   # empty, randomly named markers of creations in progress
-/var/lib/quietlink-generated/       # storage.generated_assets_dir
+var/generated/                      # storage.generated_assets_dir (default)
 ├── tokens.json                     # theme manifest
 └── tokens.<hash>.css
 ```
@@ -940,7 +940,7 @@ running).
 | `app:secret:generate [--output=<file> [--group-readable] [--force]]` | Prints a new secret (32 random bytes, standard base64), or writes it to a new file without printing it. See §6. |
 | `app:purge-expired` | See §8.2. |
 | `app:theme:preview --output=<dir>` | Writes `index.html` (light) and `dark.html` (dark) showing every component and state with the configured theme tokens, dummy content only, no script. Open them locally before activating a theme. |
-| `app:cache:purge` | Controlled purge of non-sensitive caches: removes generated theme stylesheets no longer referenced after a theme change and `app:boot`. Hashed frontend assets change name with each release; the Symfony container is compiled per release under `var/cache/<env>/<version>/`, so an upgrade never boots on the previous one (remove older version directories after a non-Docker upgrade). Pastes, keys and secrets are never cached. |
+| `app:cache:purge` | Controlled purge of non-sensitive caches: removes generated theme stylesheets no longer referenced after a theme change and `app:boot`. Hashed frontend assets change name with each release; the Symfony container is compiled per release under `var/cache/<env>/<version>/` (`<version>-<commit>` for a production archive, which carries its commit in `BUILD`), so an upgrade never boots on the previous one (remove older directories after a non-Docker upgrade). Pastes, keys and secrets are never cached. |
 
 Built-in Symfony commands that write to `var/` (`cache:clear`, `cache:warmup`, `assets:install`)
 do **not** apply to a running instance: the code and its prewarmed cache are read-only (§14).
@@ -1449,7 +1449,7 @@ downtime.
 
 6. Start: `sudo systemctl start quietlink-fpm quietlink-purge.timer` (`ExecStartPre` runs
    `app:boot`; a start, not a reload, so that OPcache only holds the new code).
-7. Verify (§13.1); remove the `var/cache/prod/<version>/` directories of older versions and run
+7. Verify (§13.1); remove the `var/cache/prod/<version>/` (or `<version>-<commit>/`) directories of older versions and run
    `app:cache:purge`.
 
 Rollback: stop both units, `git checkout <previous tag>`, rebuild as in step 4, start again,

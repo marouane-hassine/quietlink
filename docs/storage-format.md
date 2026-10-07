@@ -46,6 +46,7 @@ datas/                                    # storage.data_dir: project root by de
     ├── boot.json                         # boot marker (validated config fingerprint)
     ├── usage.lock                        # created by app:boot
     ├── purge.lock                        # global purge lock
+    ├── purge.cursor                      # optional: id where a budget-limited web purge stopped
     └── creating/                         # markers of creations in progress (§9.1)
         └── <16 hex chars>                # empty file, random name, one per creation
 
