@@ -288,6 +288,9 @@ final class DeploymentConfigTest extends TestCase
         self::assertStringContainsString('RewriteCond %{HTTP_HOST} !^(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?$ [NC]', $apache);
         // mod_dir would otherwise redirect /build to a Location built from the Host header.
         self::assertStringContainsString('DirectorySlash Off', $apache);
+        // A declared oversized body is refused before PHP runs (mod_php would otherwise append
+        // the application's answer to Apache's error page).
+        self::assertStringContainsString('RewriteCond expr "%{HTTP:Content-Length} -gt 1441792"' . "\n    RewriteRule ^ - [R=413,L]", $apache);
         // Hosts allowing only some Options in .htaccess reject MultiViews (500 everywhere).
         self::assertStringNotContainsString('MultiViews', preg_replace('/^#.*$/m', '', $apache) ?? '');
         // HSTS comes from the application only (http.hsts_max_age): an Apache header would be

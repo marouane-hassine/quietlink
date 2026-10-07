@@ -13,8 +13,11 @@ DirectoryIndex index.php
 # the Host header. Such paths go to the front controller (404).
 DirectorySlash Off
 
-# Request body limit = http.max_request_bytes (1408 KiB by default).
+# Request body limit = http.max_request_bytes (1408 KiB by default). A declared oversized body
+# is refused below before PHP runs (under mod_php, LimitRequestBody alone lets the application
+# answer after Apache's error page, in the same response).
 LimitRequestBody 1441792
+ErrorDocument 413 "Payload too large"
 
 # No compression: responses mix secrets and attacker-controlled data (BREACH).
 SetEnv no-gzip 1
@@ -35,6 +38,9 @@ AddType text/css .css
     RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1|\[::1\])(:[0-9]+)?$ [NC]
     RewriteCond %{REQUEST_URI} !^/\.well-known/acme-challenge/
     RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+
+    RewriteCond expr "%{HTTP:Content-Length} -gt 1441792"
+    RewriteRule ^ - [R=413,L]
 
     # Hidden files and directories (.env, .user.ini, build/.vite/manifest.json): 404. Apache's
     # own configuration usually answers 403 for .ht* files before these rules apply.
