@@ -436,6 +436,46 @@ final class PurgerTest extends TestCase
         self::assertNull($this->store->find($id));
     }
 
+    /**
+     * Successive budget-limited runs resume where the previous one stopped (state/purge.cursor):
+     * expired pastes behind many live ones are reached instead of being skipped forever.
+     */
+    #[Group('EXG-STORE-047')]
+    public function testBudgetLimitedRunsResumeWhereThePreviousOneStopped(): void
+    {
+        $expired = [];
+        for ($i = 0; $i < 12; ++$i) {
+            $this->create('1h');
+            if ($i % 2 === 0) {
+                $expired[] = $this->create('5m')[1];
+            }
+        }
+        $this->clock->advance(301);
+        // Every reading of the clock costs one second: a 6-second budget covers a few pastes.
+        $clock = new class ($this->clock) implements \QuietLink\Clock\Clock {
+            public function __construct(private readonly FrozenClock $inner)
+            {
+            }
+
+            public function now(): int
+            {
+                $this->inner->advance(1);
+
+                return $this->inner->now();
+            }
+        };
+        $limiter = new RateLimiter($this->config->storage->ratelimitDir, $this->config->http->rateLimits, $this->config->secret, $clock);
+        $purger = new Purger($this->config, $this->layout, new FilesystemPasteStore($this->layout, $this->usage, $clock), new IdempotencyStore($this->layout, $clock), $this->usage, new StateFiles($this->layout), $limiter, $this->service, new DiskProbe(), $clock);
+
+        for ($run = 0; $run < 12; ++$run) {
+            self::assertNotNull($purger->run(false, $clock->now() + 6));
+        }
+        foreach ($expired as $id) {
+            self::assertNull($this->store->find($id));
+        }
+        self::assertCount(12, iterator_to_array($this->store->ids(), false));
+    }
+
     #[Group('EXG-STORE-037')]
     #[Group('EXG-TEST-051')]
     public function testConcurrentPurgeExitsImmediately(): void

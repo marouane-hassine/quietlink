@@ -84,8 +84,11 @@ final class Purger
 
         try {
             $stats = ['removed' => 0, 'released' => 0, 'orphans' => 0, 'failed' => 0, 'idempotency' => 0, 'ratelimit' => 0];
-            foreach ($this->store->ids() as $id) {
+            $cursor = $deadline === null ? null : $this->readCursor();
+            $stopped = null;
+            foreach ($this->orderedIds($cursor) as $id) {
                 if ($deadline !== null && $this->clock->now() > $deadline) {
+                    $stopped = $id;
                     break;
                 }
                 // A failure on one paste (busy lock, unwritable directory, full disk) never
@@ -109,7 +112,10 @@ final class Purger
                 }
             }
 
-            foreach ($this->store->orphanStagingDirectories(self::TEMP_MIN_AGE) as $staging) {
+            $this->writeCursor($stopped);
+            // A run cut short by its deadline leaves the full scans below to a later run.
+            $late = $deadline !== null && $this->clock->now() > $deadline;
+            foreach ($late ? [] : $this->store->orphanStagingDirectories(self::TEMP_MIN_AGE) as $staging) {
                 $this->store->removeOrphan($staging);
             }
             $this->usage->purgeCreationMarkers($this->clock->now() - self::TEMP_MIN_AGE);
@@ -122,7 +128,7 @@ final class Purger
             $this->stateFiles->writeHealth($now, $this->disk->freeBytes($this->layout->rootDir), $inodes);
 
             $recomputedAt = $this->usage->recomputedAt();
-            if ($recomputedAt === null || $now - $recomputedAt >= self::RECOMPUTE_INTERVAL) {
+            if (!$late && ($recomputedAt === null || $now - $recomputedAt >= self::RECOMPUTE_INTERVAL)) {
                 $this->recomputeUsage($now);
             }
 
@@ -134,6 +140,59 @@ final class Purger
             return $stats;
         } finally {
             $lock->release();
+        }
+    }
+
+    /**
+     * Identifiers starting after the cursor (where the previous budget-limited run stopped),
+     * then from the beginning up to it: every paste is eventually reached.
+     *
+     * @return \Generator<PasteId>
+     */
+    private function orderedIds(?string $cursor): \Generator
+    {
+        if ($cursor === null) {
+            yield from $this->store->ids();
+
+            return;
+        }
+        foreach ($this->store->ids() as $id) {
+            if (strcmp($id->encoded(), $cursor) >= 0) {
+                yield $id;
+            }
+        }
+        foreach ($this->store->ids() as $id) {
+            if (strcmp($id->encoded(), $cursor) < 0) {
+                yield $id;
+            }
+        }
+    }
+
+    private function cursorPath(): string
+    {
+        return $this->layout->stateDir . '/purge.cursor';
+    }
+
+    private function readCursor(): ?string
+    {
+        $cursor = AtomicFile::read($this->cursorPath());
+
+        return $cursor !== null && preg_match('/^[A-Za-z0-9_-]{32}$/D', $cursor) === 1 ? $cursor : null;
+    }
+
+    /**
+     * Remembers the first paste a cut-short run did not handle; a complete run clears it.
+     */
+    private function writeCursor(?PasteId $stopped): void
+    {
+        try {
+            if ($stopped !== null) {
+                AtomicFile::write($this->cursorPath(), $stopped->encoded());
+            } elseif (is_file($this->cursorPath())) {
+                @unlink($this->cursorPath());
+            }
+        } catch (StorageException) {
+            // Only an optimisation: the next run starts from the beginning.
         }
     }
 
@@ -151,13 +210,13 @@ final class Purger
         return is_dir($this->layout->pasteDir($id)) ? 'failed' : $success;
     }
 
-    /** Temporary files of interrupted atomic writes of usage, health and boot state. */
+    /** Temporary files of interrupted atomic writes of usage, health, boot state and the cursor. */
     private function removeStaleTemporaryStateFiles(int $before): void
     {
         $names = @scandir($this->layout->stateDir);
         foreach ($names === false ? [] : $names as $name) {
             $path = $this->layout->stateDir . '/' . $name;
-            $mtime = preg_match('/^\.(usage|health|boot)\.json\.tmp-[0-9a-f]{16}$/D', $name) === 1 ? @filemtime($path) : false;
+            $mtime = preg_match('/^\.((usage|health|boot)\.json|purge\.cursor)\.tmp-[0-9a-f]{16}$/D', $name) === 1 ? @filemtime($path) : false;
             if ($mtime !== false && $mtime < $before) {
                 @unlink($path);
             }
