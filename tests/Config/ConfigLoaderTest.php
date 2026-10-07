@@ -174,6 +174,8 @@ final class ConfigLoaderTest extends TestCase
         yield 'reservation too long' => [$base + ['paste' => ['read_once_reservation_ttl' => 301]], 'read_once_reservation_ttl'];
         yield 'idempotency too short' => [$base + ['paste' => ['idempotency_max_ttl' => '59m']], 'idempotency_max_ttl'];
         yield 'idempotency too long' => [$base + ['paste' => ['idempotency_max_ttl' => '8d']], 'idempotency_max_ttl'];
+        yield 'log file in the web root' => [$base + ['log' => ['file' => 'public/x.log']], 'log.file'];
+        yield 'log file traversal' => [$base + ['log' => ['file' => 'var/../../x.log']], 'log.file'];
         yield 'health age too short' => [$base + ['storage' => ['health_max_age' => '9m']], 'health_max_age'];
         yield 'health age too long' => [$base + ['storage' => ['health_max_age' => '25h']], 'health_max_age'];
         yield 'health age malformed' => [$base + ['storage' => ['health_max_age' => '600']], 'health_max_age'];
@@ -402,6 +404,16 @@ final class ConfigLoaderTest extends TestCase
      * Shared hosting first: the purge may run only hourly, so a disk measurement is considered
      * stale after 2 hours by default; instances purging every minute set 10m.
      */
+    #[Group('EXG-OPS-010')]
+    public function testLogFileDefaultsToTheProjectVarDirectory(): void
+    {
+        $this->writeConfig(['app' => ['public_url' => 'https://paste.example.test']]);
+        self::assertSame(dirname(__DIR__, 2) . '/var/log/quietlink.log', $this->load()->observability->logFile);
+
+        $this->writeConfig(['app' => ['public_url' => 'https://paste.example.test'], 'log' => ['file' => null]]);
+        self::assertNull($this->load()->observability->logFile);
+    }
+
     #[Group('EXG-STORE-008')]
     public function testHealthMaxAgeDefaultsToTwoHours(): void
     {

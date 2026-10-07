@@ -29,7 +29,7 @@ return [
     // Local export and printing (Could, off by default) are enabled so local-output.spec.ts can
     // exercise them; they only add buttons to the reading screen.
     'ui' => ['allow_export' => true, 'allow_print' => true],
-    'log' => ['level' => 'warning'],
+    'log' => ['level' => 'warning', 'file' => null],
 ];
 PHP
 export APP_ENV=dev QUIETLINK_CONFIG_DIR="$dir/config" QUIETLINK_GENERATED_DIR="$dir/generated"

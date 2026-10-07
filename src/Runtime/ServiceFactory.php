@@ -48,10 +48,13 @@ final class ServiceFactory
     {
         try {
             $level = $status->config()->observability->logLevel;
+            $file = $status->config()->observability->logFile;
         } catch (InvalidConfigException) {
+            // The reason must still reach the default log file (shared hosting reads it there).
             $level = 'warning';
+            $file = RuntimeStatus::projectRoot() . '/var/log/quietlink.log';
         }
 
-        return new JsonLogger($level);
+        return new JsonLogger($level, null, $file);
     }
 }

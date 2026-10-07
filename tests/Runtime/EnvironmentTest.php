@@ -55,6 +55,30 @@ final class EnvironmentTest extends TestCase
         self::assertFalse(Environment::fromVariables(['APP_ENV' => 'prod', 'APP_DEBUG' => '1'])->debug);
     }
 
+    /**
+     * Shared hosting: APP_ENV and APP_DEBUG may come from the .env file at the project root when
+     * the process does not set them; production still never enables debug.
+     */
+    #[Group('EXG-OPS-009')]
+    #[Group('EXG-SEC-068')]
+    public function testEnvironmentCanComeFromTheDotEnvFile(): void
+    {
+        $file = sys_get_temp_dir() . '/ql-env-' . bin2hex(random_bytes(4));
+        file_put_contents($file, "APP_ENV=dev\nAPP_DEBUG=0\nOTHER=x\nQUIETLINK_APP_SECRET=ignored-here\n");
+        try {
+            $variables = Environment::withDotEnv(['PATH' => '/bin'], $file);
+            self::assertSame(['PATH' => '/bin', 'APP_ENV' => 'dev', 'APP_DEBUG' => '0'], $variables);
+            self::assertFalse(Environment::fromVariables($variables)->debug);
+            // The process wins over the file.
+            self::assertSame('prod', Environment::withDotEnv(['APP_ENV' => 'prod'], $file)['APP_ENV']);
+            file_put_contents($file, "APP_ENV=prod\nAPP_DEBUG=1\n");
+            self::assertFalse(Environment::fromVariables(Environment::withDotEnv([], $file))->debug);
+            self::assertSame([], Environment::withDotEnv([], $file . '-missing'));
+        } finally {
+            @unlink($file);
+        }
+    }
+
     public function testRejectsUnknownEnvironmentName(): void
     {
         $this->expectException(\InvalidArgumentException::class);

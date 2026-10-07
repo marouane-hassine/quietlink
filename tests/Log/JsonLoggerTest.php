@@ -79,4 +79,74 @@ final class JsonLoggerTest extends TestCase
         self::assertCount(1, $lines);
         self::assertStringContainsString('"message":"request"', $lines[0]);
     }
+
+    /**
+     * Shared hosting: log.file writes the same JSON lines to a file outside public/, rotated by
+     * size (one archive), created with restricted permissions; falls back to stderr when the
+     * file cannot be opened (read-only container).
+     */
+    #[Group('EXG-OPS-010')]
+    public function testFileOutputRotatesBySize(): void
+    {
+        $dir = sys_get_temp_dir() . '/ql-log-' . bin2hex(random_bytes(4));
+        $file = $dir . '/log/quietlink.log';
+        try {
+            $logger = new JsonLogger('info', null, $file, 300);
+            $logger->info('first line', ['event' => 'boot_ok']);
+            self::assertFileExists($file);
+            self::assertSame(0640, fileperms($file) & 0777);
+            $line = json_decode(trim((string) file_get_contents($file)), true);
+            self::assertIsArray($line);
+            self::assertSame('first line', $line['message']);
+            self::assertSame('boot_ok', $line['event']);
+            for ($i = 0; $i < 10; ++$i) {
+                $logger->info('line ' . $i);
+            }
+            self::assertFileExists($file . '.1');
+            self::assertLessThan(600, filesize($file));
+            self::assertFileDoesNotExist($file . '.2');
+        } finally {
+            foreach ([$file, $file . '.1'] as $path) {
+                @unlink($path);
+            }
+            @rmdir($dir . '/log');
+            @rmdir($dir);
+        }
+    }
+
+    /**
+     * Another worker (or logger) rotated the file: a handle still open on the archive must not
+     * keep writing there, where the next rotation would erase the lines.
+     */
+    #[Group('EXG-OPS-010')]
+    public function testAnotherLoggerRotationIsFollowed(): void
+    {
+        $dir = sys_get_temp_dir() . '/ql-log-' . bin2hex(random_bytes(4));
+        $file = $dir . '/quietlink.log';
+        try {
+            $first = new JsonLogger('info', null, $file, 400);
+            $second = new JsonLogger('info', null, $file, 400);
+            $first->info('opened');
+            for ($i = 0; $i < 12; ++$i) {
+                $second->info('filler ' . $i);
+            }
+            $first->info('marker after rotation');
+            self::assertStringContainsString('marker after rotation', (string) file_get_contents($file));
+        } finally {
+            foreach ([$file, $file . '.1'] as $path) {
+                @unlink($path);
+            }
+            @rmdir($dir);
+        }
+    }
+
+    #[Group('EXG-OPS-010')]
+    public function testUnwritableFileFallsBackToTheStream(): void
+    {
+        $stream = fopen('php://memory', 'w+');
+        self::assertIsResource($stream);
+        (new JsonLogger('info', $stream, '/proc/quietlink-not-writable/x.log'))->warning('still logged');
+        rewind($stream);
+        self::assertStringContainsString('still logged', (string) stream_get_contents($stream));
+    }
 }

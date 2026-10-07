@@ -77,6 +77,8 @@ Shared hosting (Apache, no root) - docs/README-admin.md section 4.3:
    nothing), then php bin/console app:config:check --format=json (exit 0 = ready).
 5. Schedule php bin/console app:purge-expired as often as the host allows (hourly is enough).
 6. curl -sI https://<host>/ must show one Strict-Transport-Security header (section 4.3).
+Logs: var/log/quietlink.log (tail -f var/log/quietlink.log): configuration errors, app:boot
+outcome, purge runs. APP_ENV=dev may be put in .env briefly for tests; never leave it there.
 Upgrade: back up datas/, keep .env and config/config.php, replace the other files, then run
 php bin/console app:boot. Each archive compiles its own cache (BUILD file); older directories
 under var/cache/prod/ can be removed.

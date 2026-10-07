@@ -24,12 +24,17 @@ final class OperationsLog
     {
     }
 
-    public function warnOnce(string $event, string $message, int $now): void
+    /**
+     * @param string $variant distinguishes occurrences of one event throttled separately (one
+     *                        line per configuration error)
+     */
+    public function warnOnce(string $event, string $message, int $now, string $variant = ''): void
     {
-        if (isset(self::$last[$event]) && $now - self::$last[$event] < self::INTERVAL) {
+        $key = $event . "\0" . $variant;
+        if (isset(self::$last[$key]) && $now - self::$last[$key] < self::INTERVAL) {
             return;
         }
-        self::$last[$event] = $now;
+        self::$last[$key] = $now;
         $this->logger->warning($message, ['event' => $event]);
     }
 

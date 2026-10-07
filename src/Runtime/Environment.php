@@ -7,6 +7,7 @@ declare(strict_types=1);
 namespace QuietLink\Runtime;
 
 use InvalidArgumentException;
+use QuietLink\Config\ConfigLoader;
 
 /**
  * Kernel environment and debug flag resolved from process variables.
@@ -54,6 +55,26 @@ final readonly class Environment
      */
     public static function processVariables(): array
     {
-        return $_SERVER + getenv();
+        return self::withDotEnv($_SERVER + getenv(), RuntimeStatus::projectRoot() . '/.env');
+    }
+
+    /**
+     * Adds APP_ENV and APP_DEBUG from the .env file when the process does not set them (shared
+     * hosting, where the web server passes no variable). fromVariables() still never enables
+     * debug in production.
+     *
+     * @param array<array-key, mixed> $variables
+     *
+     * @return array<array-key, mixed>
+     */
+    public static function withDotEnv(array $variables, string $dotEnvFile): array
+    {
+        $missing = array_values(array_filter(['APP_ENV', 'APP_DEBUG'], static fn (string $key): bool => !is_string($variables[$key] ?? null) || $variables[$key] === ''));
+
+        foreach ($missing === [] ? [] : ConfigLoader::dotEnvValues($dotEnvFile, $missing) as $key => $value) {
+            $variables[$key] = $value;
+        }
+
+        return $variables;
     }
 }

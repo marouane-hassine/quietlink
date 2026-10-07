@@ -26,7 +26,7 @@ final class TestInstance
         @mkdir($configDir . '/themes', 0700, true);
         $config = array_replace_recursive([
             'app' => ['public_url' => 'https://paste.example.test'],
-            'log' => ['level' => 'warning'],
+            'log' => ['level' => 'warning', 'file' => null],
             'storage' => [
                 'root_dir' => $tmp->path . '/data/pastes',
                 'idempotency_dir' => $tmp->path . '/data/idempotency',

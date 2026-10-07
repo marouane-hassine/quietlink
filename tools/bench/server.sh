@@ -32,7 +32,7 @@ return [
         'open_per_paste' => ['limit' => 1000000, 'interval' => 60],
         'status_per_paste' => ['limit' => 1000000, 'interval' => 60],
     ]],
-    'log' => ['level' => 'warning'],
+    'log' => ['level' => 'warning', 'file' => null],
 ];
 PHP
 export APP_ENV=prod QUIETLINK_CONFIG_DIR="$dir/config" QUIETLINK_GENERATED_DIR="$dir/generated"

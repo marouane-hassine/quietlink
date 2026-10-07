@@ -7,6 +7,8 @@ declare(strict_types=1);
 namespace QuietLink\Command;
 
 use Closure;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use QuietLink\Maintenance\Purger;
 use QuietLink\Runtime\RuntimeStatus;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -24,6 +26,7 @@ final class PurgeExpiredCommand extends Command
     public function __construct(
         private readonly RuntimeStatus $status,
         #[AutowireServiceClosure(Purger::class)] private readonly Closure $purger,
+        private readonly LoggerInterface $logger = new NullLogger(),
     ) {
         parent::__construct();
     }
@@ -32,6 +35,8 @@ final class PurgeExpiredCommand extends Command
     {
         if (!$this->status->isReady()) {
             $output->writeln('<error>The boot marker is missing or does not match the configuration; run app:boot first.</error>');
+            // Cron output is usually discarded: the refusal must reach the log.
+            $this->logger->error(sprintf('Purge refused (%s): run app:boot first.', $this->status->notReadyReason() ?? 'unknown'), ['event' => 'purge_refused']);
 
             return Command::FAILURE;
         }

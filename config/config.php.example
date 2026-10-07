@@ -110,6 +110,9 @@ return [
         'level' => 'info',
         // Documented retention expected from the log collector.
         'retention' => '14d',
+        // JSON lines file, relative to the project root (outside public/), rotated at 5 MB with
+        // one archive (<file>.1). null writes to stderr: Docker, systemd journal.
+        'file' => 'var/log/quietlink.log',
     ],
     'metrics' => [
         'enabled' => false,

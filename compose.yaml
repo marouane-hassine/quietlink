@@ -3,7 +3,8 @@
 # Before the first start (config.php first, or Compose creates a directory at its place):
 #   cp config/config.php.example config/config.php
 #   # then set app.public_url, storage.health_max_age = '10m' (per-minute purge) and
-#   # storage.allow_unsupported_fs = false (the data volume is a local ext4/XFS disk)
+#   # storage.allow_unsupported_fs = false (the data volume is a local ext4/XFS disk) and
+#   # log.file = null (logs on the container output)
 #   mkdir -p secrets && (umask 077 && docker compose run --rm --no-deps -T app php bin/console app:secret:generate > secrets/app_secret)
 #   sudo chgrp 10001 secrets/app_secret config/config.php && chmod 640 secrets/app_secret config/config.php
 # Put an HTTPS reverse proxy in front of port 8080 (docs/README-admin.md).

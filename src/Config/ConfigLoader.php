@@ -192,6 +192,9 @@ final class ConfigLoader
             'log' => [
                 'level' => 'info',
                 'retention' => '14d',
+                // JSON lines file (relative to the project root, outside public/), rotated at
+                // 5 MB; null writes to stderr (Docker, systemd journal).
+                'file' => 'var/log/quietlink.log',
             ],
             'metrics' => [
                 'enabled' => false,
@@ -202,7 +205,7 @@ final class ConfigLoader
     /**
      * Keys whose value may be null in addition to their default type.
      */
-    private const NULLABLE = ['app.public_url', 'app.enabled_locales', 'theme.custom_tokens_file', 'paste.max_retention', 'storage.root_dir', 'storage.idempotency_dir', 'storage.ratelimit_dir', 'storage.state_dir'];
+    private const NULLABLE = ['app.public_url', 'app.enabled_locales', 'theme.custom_tokens_file', 'paste.max_retention', 'storage.root_dir', 'storage.idempotency_dir', 'storage.ratelimit_dir', 'storage.state_dir', 'log.file'];
 
     /** Storage directories derived from storage.data_dir when not set: key => sub-directory. */
     private const DATA_SUBDIRS = ['root_dir' => 'pastes', 'idempotency_dir' => 'idempotency', 'ratelimit_dir' => 'ratelimit', 'state_dir' => 'state'];
@@ -360,15 +363,35 @@ final class ConfigLoader
      */
     public static function secretFromDotEnv(string $file): array
     {
+        $values = self::dotEnvValues($file, ['QUIETLINK_APP_SECRET', 'QUIETLINK_APP_SECRET_FILE']);
+        $secretFile = $values['QUIETLINK_APP_SECRET_FILE'] ?? null;
+        if ($secretFile !== null && !str_starts_with($secretFile, '/')) {
+            $values['QUIETLINK_APP_SECRET_FILE'] = dirname($file) . '/' . $secretFile;
+        }
+
+        return $values;
+    }
+
+    /**
+     * Values of the given keys in a .env file (KEY=value lines, optional "export", quotes and
+     * " # comments"); every other key is ignored, empty values are skipped.
+     *
+     * @param list<string> $keys
+     *
+     * @return array<string, string>
+     */
+    public static function dotEnvValues(string $file, array $keys): array
+    {
         $content = is_file($file) && is_readable($file) ? @file_get_contents($file) : false;
         if ($content === false) {
             return [];
         }
+        $names = implode('|', array_map(static fn (string $key): string => preg_quote($key, '/'), $keys));
         $values = [];
         // Only LF, CRLF and CR end a line: other separators must not turn a comment into a value.
         $lines = preg_split('/\r\n|\n|\r/', str_starts_with($content, "\u{FEFF}") ? substr($content, 3) : $content);
         foreach ($lines === false ? [] : $lines as $line) {
-            if (preg_match('/^[ \t]*(?:export[ \t]+)?(QUIETLINK_APP_SECRET(?:_FILE)?)[ \t]*=[ \t]*(.*?)[ \t]*$/D', $line, $m) !== 1) {
+            if (preg_match('/^[ \t]*(?:export[ \t]+)?(' . $names . ')[ \t]*=[ \t]*(.*?)[ \t]*$/D', $line, $m) !== 1) {
                 continue;
             }
             // A quoted value, or an unquoted one, may be followed by " # comment".
@@ -377,13 +400,9 @@ final class ConfigLoader
             } else {
                 $value = preg_replace('/[ \t]+#.*$/D', '', $m[2]) ?? '';
             }
-            if ($value === '') {
-                continue;
+            if ($value !== '') {
+                $values[$m[1]] = $value;
             }
-            if ($m[1] === 'QUIETLINK_APP_SECRET_FILE' && !str_starts_with($value, '/')) {
-                $value = dirname($file) . '/' . $value;
-            }
-            $values[$m[1]] = $value;
         }
 
         return $values;
@@ -600,6 +619,10 @@ final class ConfigLoader
         if (Duration::parse($r->string('log.retention')) === null) {
             $errors[] = '"log.retention" must use the <integer><m|h|d> format.';
         }
+        $logFile = $r->nullableString('log.file');
+        if ($logFile !== null && (trim($logFile) === '' || preg_match('#(^|/)\.\.(/|$)#', $logFile) === 1 || self::isInsideWebRoot(self::resolvePath($logFile)))) {
+            $errors[] = '"log.file" must be null or a file path outside the web root (public/), without "..".';
+        }
 
         if ($errors !== [] || $publicUrl === null || $idempotency === null) {
             return null;
@@ -652,7 +675,7 @@ final class ConfigLoader
                 $r->bool('ui.allow_export'),
                 $r->bool('ui.enable_manifest'),
             ),
-            'observability' => new ObservabilitySettings($logLevel, $r->string('log.retention'), $r->bool('metrics.enabled')),
+            'observability' => new ObservabilitySettings($logLevel, $r->string('log.retention'), $r->bool('metrics.enabled'), $logFile === null ? null : self::resolvePath($logFile)),
         ];
     }
 

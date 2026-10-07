@@ -6,6 +6,8 @@ declare(strict_types=1);
 
 namespace QuietLink\Command;
 
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use QuietLink\Clock\Clock;
 use QuietLink\Config\ConfigLoader;
 use QuietLink\Config\InvalidConfigException;
@@ -38,6 +40,7 @@ final class BootCommand extends Command
         #[Autowire('%kernel.project_dir%/public')] private readonly string $publicDir,
         #[AutowireIterator('quietlink.theme_builder')] private readonly iterable $themeBuilders = [],
         #[Autowire('%kernel.project_dir%/config')] private readonly string $projectConfigDir = '',
+        private readonly LoggerInterface $logger = new NullLogger(),
     ) {
         parent::__construct();
     }
@@ -69,7 +72,13 @@ final class BootCommand extends Command
         $booter = new Booter($this->publicDir, $this->disk, $this->clock, array_values([...$this->themeBuilders]), is_string($configDir) ? $configDir : $this->projectConfigDir, null, $dotEnv);
         $errors = $booter->boot($config, is_string($pool) && $pool !== '' ? $pool : null, $dryRun, $secret['file'], $secret['dot_env']);
 
-        return $this->report($output, $format, $dryRun, $errors, $booter->warnings());
+        $warnings = $booter->warnings();
+        if (($env['APP_ENV'] ?? null) === 'dev') {
+            // Possibly set in .env on shared hosting and forgotten there.
+            $warnings[] = 'APP_ENV is dev (debug mode, cache rebuilt on changes): never on a public site; remove it from .env once done.';
+        }
+
+        return $this->report($output, $format, $dryRun, $errors, $warnings);
     }
 
     /**
@@ -78,6 +87,16 @@ final class BootCommand extends Command
      */
     private function report(OutputInterface $output, string $format, bool $dryRun, array $errors, array $warnings): int
     {
+        // The outcome stays in the log (a file on shared hosting) for later checks; messages name
+        // keys and rules, never values or paths (ADR-0005).
+        foreach ($warnings as $warning) {
+            $this->logger->notice('app:boot warning: ' . $warning, ['event' => 'boot_warning']);
+        }
+        foreach ($errors as $error) {
+            $this->logger->error('app:boot error: ' . $error, ['event' => 'boot_failed']);
+        }
+        $this->logger->log($errors === [] ? 'info' : 'error', $errors === [] ? ($dryRun ? 'app:boot dry run ok' : 'app:boot ok') : 'app:boot failed', ['event' => $errors === [] ? 'boot_ok' : 'boot_failed', 'count' => count($errors === [] ? $warnings : $errors)]);
+
         if ($format === 'json') {
             OutputFormat::json($output, ['status' => $errors === [] ? 'ok' : 'failed', 'dry_run' => $dryRun, 'errors' => $errors, 'warnings' => $warnings]);
         } else {

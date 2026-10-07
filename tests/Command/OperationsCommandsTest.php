@@ -61,6 +61,29 @@ final class OperationsCommandsTest extends KernelTestCase
         self::assertFileDoesNotExist($this->config->storage->stateDir . '/boot.json');
     }
 
+    /**
+     * app:boot leaves its outcome in the log (file on shared hosting): boot_ok with the warning
+     * count and each warning, boot_failed with each error, so problems can be checked later.
+     */
+    #[Group('EXG-OPS-011')]
+    public function testBootLogsItsOutcome(): void
+    {
+        $file = sys_get_temp_dir() . '/ql-boot-log-' . bin2hex(random_bytes(4)) . '.log';
+        try {
+            $this->bootInstance(['storage' => ['allow_unsupported_fs' => true], 'log' => ['level' => 'info', 'file' => $file]], false);
+            self::assertSame(0, $this->command('app:boot')->execute([]));
+            $content = file_get_contents($file);
+            self::assertIsString($content);
+            $lines = array_map(static fn (string $l): mixed => json_decode($l, true), explode("\n", trim($content)));
+            $events = array_column(array_filter($lines, 'is_array'), 'event');
+            self::assertContains('boot_ok', $events);
+            self::assertContains('boot_warning', $events);
+        } finally {
+            @unlink($file);
+            @unlink($file . '.1');
+        }
+    }
+
     #[Group('EXG-OPS-003')]
     public function testBootWritesTheMarkerAndFailsWithExitCodeOneOnInvalidConfiguration(): void
     {

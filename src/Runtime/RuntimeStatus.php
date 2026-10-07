@@ -77,6 +77,23 @@ final class RuntimeStatus
         return hash_equals($boot['secret_check'], $config->secret->check()) ? null : 'secret_differs';
     }
 
+    /**
+     * Why the configuration is invalid (messages name keys and rules, never values), or [] when
+     * it loads.
+     *
+     * @return list<string>
+     */
+    public function configErrors(): array
+    {
+        try {
+            $this->config();
+
+            return [];
+        } catch (InvalidConfigException $e) {
+            return $e->errors;
+        }
+    }
+
     /** Directory relative storage paths are resolved from (it differs if reached by an alias). */
     public static function projectRoot(): string
     {

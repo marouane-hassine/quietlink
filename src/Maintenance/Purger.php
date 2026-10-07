@@ -136,6 +136,8 @@ final class Purger
             if ($stats['failed'] > 0) {
                 $this->logger->warning('Purge left items for the next run: check storage permissions', ['event' => 'purge_failures', 'count' => $stats['failed']]);
             }
+            // One line per run: shows in the log that the purge (cron or web request) really runs.
+            $this->logger->info($measureInodes ? 'Purge completed' : ($late ? 'Purge completed by a web request (budget reached, resumes next run)' : 'Purge completed by a web request'), ['event' => 'purge', 'count' => $stats['removed'] + $stats['orphans']]);
 
             return $stats;
         } finally {

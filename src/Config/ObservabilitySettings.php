@@ -15,6 +15,8 @@ final readonly class ObservabilitySettings
         public string $logLevel,
         public string $logRetention,
         public bool $metricsEnabled,
+        /** Absolute log file path (log.file), or null for stderr. */
+        public ?string $logFile = null,
     ) {
     }
 }
