@@ -71,9 +71,9 @@ describe('stored template text (EXG-MD-029)', () => {
     expect(compactTemplateText(text)).toBe('# Login credentials\n\n## Service\n- Name: dummy-service\n\n## Notes\nkeep this note\n');
   });
 
-  it('keeps a label whose value was typed on the next line (a note of its section)', () => {
-    const text = '# Login credentials\n\n## Identity\n- Username: bob\n- Password:\ndummy-pw-123\n';
-    expect(compactTemplateText(text)).toBe(text);
+  it('drops empty fields even when the section has notes (form notes field), keeping the notes', () => {
+    const text = '# Temporary access\n\n## Revocation\n- Procedure:\ndummy revocation note\n';
+    expect(compactTemplateText(text)).toBe('# Temporary access\n\n## Revocation\ndummy revocation note\n');
   });
 
   it('treats blank or space-only values as empty, a trailing space included', () => {

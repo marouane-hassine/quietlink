@@ -155,10 +155,11 @@ export function sectionHasContent(section: TemplateSection): boolean {
   return section.fields.some(fieldIsFilled) || hasNotes(section);
 }
 
-/** Fields shown and stored: all of them when the section has notes (a value is often typed on
- * the line below its label, which reads as a note), else only the filled ones. */
+/** Fields shown and stored: the filled ones only. A value typed on the line below an empty
+ * label reads as a note of the section and stays visible as such (the form writes the same
+ * text for a filled notes field, so the two cannot be told apart). */
 export function visibleFields(section: TemplateSection): TemplateField[] {
-  return hasNotes(section) ? section.fields : section.fields.filter(fieldIsFilled);
+  return section.fields.filter(fieldIsFilled);
 }
 
 /** Template parse tolerant of spaces typed after an empty field's colon ("- URL: "). */
