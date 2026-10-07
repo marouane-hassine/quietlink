@@ -22,6 +22,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\ConsoleOutputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Output\StreamOutput;
 
 #[AsCommand(name: 'decrypt', description: 'Decrypt a paste locally. A read-once paste is consumed after a successful decryption.')]
 final class DecryptCommand extends Command
@@ -129,7 +130,7 @@ final class DecryptCommand extends Command
         if (is_string($target)) {
             OutputFile::write($target, $envelope['text']);
         } else {
-            $output->write($envelope['text'], false, OutputInterface::OUTPUT_RAW);
+            self::writeAll($output, $envelope['text']);
         }
 
         if ($reservationId !== null && $consumeSeed !== null) {
@@ -142,6 +143,32 @@ final class DecryptCommand extends Command
         }
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * Writes the whole text to standard output, or fails: a partial write (a pipe whose reader
+     * quit, a full disk) must never be followed by the consumption of a read-once paste.
+     *
+     * @throws CliException
+     */
+    private static function writeAll(OutputInterface $output, string $text): void
+    {
+        if (!$output instanceof StreamOutput) {
+            $output->write($text, false, OutputInterface::OUTPUT_RAW);
+
+            return;
+        }
+        $stream = $output->getStream();
+        $length = strlen($text);
+        for ($offset = 0; $offset < $length; $offset += $written) {
+            $written = @fwrite($stream, substr($text, $offset, 65536));
+            if ($written === false || $written === 0) {
+                throw new CliException('The text could not be written entirely to standard output. A read-once paste was not consumed.');
+            }
+        }
+        if (!@fflush($stream)) {
+            throw new CliException('The text could not be written entirely to standard output. A read-once paste was not consumed.');
+        }
     }
 
     /**

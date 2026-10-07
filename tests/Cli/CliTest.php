@@ -48,7 +48,7 @@ final class CliTest extends KernelTestCase
      *
      * @return array{int, string, string}
      */
-    private function cli(array $arguments, string $stdin, ?Prompt $prompt = null): array
+    private function cli(array $arguments, string $stdin, ?Prompt $prompt = null, ?\Symfony\Component\Console\Output\ConsoleOutputInterface $output = null): array
     {
         $test = $this;
         $transport = new class ($test) implements Transport {
@@ -68,10 +68,10 @@ final class CliTest extends KernelTestCase
 
         $application = new CliApplication(new CliContext(new ApiClient($transport), $prompt ?? new FakePrompt(), $input));
         $application->setAutoExit(false);
-        $output = new BufferedConsoleOutput();
+        $output ??= new BufferedConsoleOutput();
         $code = $application->doRun(new ArrayInput(['command' => array_shift($arguments)] + self::options($arguments)), $output);
 
-        return [$code, $output->fetch(), $output->errors()];
+        return [$code, $output instanceof BufferedConsoleOutput ? $output->fetch() : '', $output instanceof BufferedConsoleOutput || $output instanceof \QuietLink\Tests\Support\PartialConsoleOutput ? $output->errors() : ''];
     }
 
     /**
@@ -425,6 +425,26 @@ final class CliTest extends KernelTestCase
         [$code, , $err] = $this->cli(['decrypt', '--url-stdin', '--yes'], $share);
         self::assertSame(0, $code);
         self::assertStringNotContainsString('without being confirmed', $err);
+    }
+
+    /**
+     * A partial write to standard output (`| head -c 4`) is a failure: the read-once paste is
+     * consumed only once the whole text has been written.
+     */
+    #[Group('EXG-CLI-005')]
+    public function testPartialOutputDoesNotConsumeTheReadOncePaste(): void
+    {
+        [$share] = $this->createPaste('dummy secret longer than four bytes', ['--read-once']);
+
+        [$code, , $err] = $this->cli(['decrypt', '--url-stdin', '--yes'], $share, null, new \QuietLink\Tests\Support\PartialConsoleOutput());
+        self::assertSame(1, $code);
+        self::assertStringContainsString('not consumed', $err);
+
+        // Still there, held only by the reservation of the interrupted reading (it expires after
+        // paste.read_once_reservation_ttl), never consumed.
+        [, $metadata] = $this->cli(['metadata', '--url-stdin'], $share);
+        self::assertStringContainsString('state: reserved', $metadata);
+        self::assertStringNotContainsString('consumed', $metadata);
     }
 
     #[Group('EXG-CRYPTO-038')]
