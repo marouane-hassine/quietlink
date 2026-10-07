@@ -30,7 +30,10 @@ a removed API version is announced at least one minor version in advance.
     recommended with a per-minute purge) sets when `/healthz` reports the measurement stale;
   - generated theme files default to `var/generated` in the project;
   - without a CLI cron, a web request runs an overdue purge (more than 5 minutes) after its
-    response (`storage.web_purge`, default `true`; an HTTP cron calling `/healthz` is enough);
+    response (`storage.web_purge`, default `true`; an HTTP cron calling `/healthz` is enough;
+    PHP-FPM or LiteSpeed only, 15-second budget);
+- Production archives carry their commit (`BUILD`): each build compiles its own Symfony cache,
+  so a rebuilt archive of the same version never boots on a stale container.
   - `public/.htaccess` is shipped for Apache (same rules as the Nginx image).
 - `app:config:check` prints why the instance is not ready (`config_invalid`, `marker_missing`,
   `fingerprint_differs`, `secret_differs`) and the project root it sees; the
