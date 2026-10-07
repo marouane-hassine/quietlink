@@ -394,6 +394,28 @@ final class PurgerTest extends TestCase
         self::assertSame($onDisk, $this->usage->read()['items']);
     }
 
+    /**
+     * A purge triggered by a web request cannot run `df` (CLI only, §7.5): it refreshes the free
+     * space and keeps the last inode measurement instead of erasing it.
+     */
+    #[Group('EXG-STORE-008')]
+    #[Group('EXG-STORE-047')]
+    public function testWebPurgeKeepsThePreviousInodeMeasurement(): void
+    {
+        $stateFiles = new StateFiles($this->layout);
+        $stateFiles->writeHealth($this->clock->now() - 3000, 1, 42);
+
+        self::assertNotNull($this->purger->run(false));
+        $health = $stateFiles->health();
+        self::assertNotNull($health);
+        self::assertSame($this->clock->now(), $health['measured_at']);
+        self::assertSame(42, $health['free_inodes_percent']);
+        self::assertGreaterThan(1, $health['free_bytes']);
+
+        self::assertNotNull($this->purger->run());
+        self::assertSame(80, $stateFiles->health()['free_inodes_percent'] ?? null);
+    }
+
     #[Group('EXG-STORE-037')]
     #[Group('EXG-TEST-051')]
     public function testConcurrentPurgeExitsImmediately(): void
@@ -413,7 +435,7 @@ final class PurgerTest extends TestCase
         $this->clock->advance(3600);
         $this->purger->run();
 
-        self::assertTrue((new StateFiles($this->layout))->healthAllowsCreation($this->clock->now(), 10));
+        self::assertTrue((new StateFiles($this->layout))->healthAllowsCreation($this->clock->now(), 10, 600));
     }
 
     #[Group('EXG-OBS-001')]

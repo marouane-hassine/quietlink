@@ -62,9 +62,12 @@ final class Purger
     }
 
     /**
+     * @param bool $measureInodes false for a purge triggered by a web request: `df` runs in CLI
+     *                            only (§7.5), so the last inode measurement is kept
+     *
      * @return array<string, int>|null statistics, or null when another purge is running
      */
-    public function run(): ?array
+    public function run(bool $measureInodes = true): ?array
     {
         try {
             $lock = FileLock::acquire(self::lockPath($this->layout), true, false)
@@ -110,7 +113,8 @@ final class Purger
             $stats['ratelimit'] = $this->limiter->purgeExpired();
 
             $now = $this->clock->now();
-            $this->stateFiles->writeHealth($now, $this->disk->freeBytes($this->layout->rootDir), $this->disk->freeInodesPercent($this->layout->rootDir));
+            $inodes = $measureInodes ? $this->disk->freeInodesPercent($this->layout->rootDir) : ($this->stateFiles->health()['free_inodes_percent'] ?? null);
+            $this->stateFiles->writeHealth($now, $this->disk->freeBytes($this->layout->rootDir), $inodes);
 
             $recomputedAt = $this->usage->recomputedAt();
             if ($recomputedAt === null || $now - $recomputedAt >= self::RECOMPUTE_INTERVAL) {
