@@ -47,6 +47,8 @@ final class JsonLogger extends AbstractLogger
         $stream = null,
         private readonly ?string $file = null,
         private readonly int $maxBytes = self::MAX_FILE_BYTES,
+        /** Test seam: runs when a rotation is about to start (simulates a concurrent worker). */
+        private readonly ?\Closure $beforeRotate = null,
     ) {
         $this->stream = $stream;
     }
@@ -103,14 +105,11 @@ final class JsonLogger extends AbstractLogger
             fclose($this->fileHandle);
             $this->fileHandle = null;
         }
-        $size = $stat === false ? false : $stat['size'];
-        if ($size !== false && $size >= $this->maxBytes) {
-            if ($this->fileHandle !== null) {
-                fclose($this->fileHandle);
-                $this->fileHandle = null;
+        if ($stat !== false && $stat['size'] >= $this->maxBytes) {
+            if ($this->beforeRotate !== null) {
+                ($this->beforeRotate)();
             }
-            // Concurrent workers may both rotate: the loser's rename fails and it reopens the new file.
-            @rename($this->file, $this->file . '.1');
+            $this->rotate($stat['ino']);
         }
         if ($this->fileHandle === null) {
             $dir = dirname($this->file);
@@ -131,6 +130,35 @@ final class JsonLogger extends AbstractLogger
         }
 
         return $this->fileHandle;
+    }
+
+    /**
+     * Renames the file to "<file>.1" under an exclusive lock, only if it is still the file seen
+     * full: another worker may have rotated it meanwhile, and renaming its fresh file over the
+     * archive would lose the archive.
+     */
+    private function rotate(int $seenInode): void
+    {
+        $file = (string) $this->file;
+        $lock = @fopen($file . '.lock', 'c');
+        if ($lock === false || !flock($lock, LOCK_EX)) {
+            return;
+        }
+        try {
+            clearstatcache(true, $file);
+            $current = @stat($file);
+            if ($current !== false && $current['ino'] === $seenInode && $current['size'] >= $this->maxBytes) {
+                @rename($file, $file . '.1');
+            }
+            if ($this->fileHandle !== null) {
+                // Reopened below on the current file, whoever rotated it.
+                fclose($this->fileHandle);
+                $this->fileHandle = null;
+            }
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
     }
 
     /**

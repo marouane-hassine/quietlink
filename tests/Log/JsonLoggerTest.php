@@ -140,6 +140,43 @@ final class JsonLoggerTest extends TestCase
         }
     }
 
+    /**
+     * Two workers deciding to rotate at once: the second must not rename the fresh file over the
+     * archive the first one just made (which would lose the whole archive).
+     */
+    #[Group('EXG-OPS-010')]
+    public function testSimultaneousRotationsKeepTheArchive(): void
+    {
+        $dir = sys_get_temp_dir() . '/ql-log-' . bin2hex(random_bytes(4));
+        $file = $dir . '/quietlink.log';
+        try {
+            $other = new JsonLogger('info', null, $file, 400);
+            $fired = false;
+            $logger = new JsonLogger('info', null, $file, 400, static function () use ($other, &$fired): void {
+                if (!$fired) {
+                    $fired = true;
+                    // The other worker rotates first, then writes one line to the new file.
+                    $other->info('other worker line');
+                }
+            });
+            // Fill to just over the limit: the next write by either logger rotates.
+            for ($i = 0; (int) @filesize($file) < 400; ++$i) {
+                clearstatcache();
+                $other->info('filler line ' . $i);
+                clearstatcache();
+            }
+            $logger->info('last line');
+            self::assertTrue($fired);
+            self::assertStringContainsString('filler line 0', (string) file_get_contents($file . '.1'));
+            self::assertStringContainsString('last line', (string) file_get_contents($file));
+        } finally {
+            foreach ([$file, $file . '.1', $file . '.lock'] as $path) {
+                @unlink($path);
+            }
+            @rmdir($dir);
+        }
+    }
+
     #[Group('EXG-OPS-010')]
     public function testUnwritableFileFallsBackToTheStream(): void
     {
