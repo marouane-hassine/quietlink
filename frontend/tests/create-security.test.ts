@@ -391,6 +391,19 @@ describe('expiry on the result screen', () => {
   });
 });
 
+describe('share links', () => {
+  it('are built on app.public_url, not on the address the page was opened with (EXG-URL-004, EXG-URL-005)', async () => {
+    mockFetch(async (request) => creationResponse(request.body as string, undefined, undefined, 'https://paste.example.test'));
+    mount();
+    type(editor(), PLAINTEXT);
+    submit().click();
+    await onResult();
+    expect(shareLink()).toMatch(/^https:\/\/paste\.example\.test\/p\/[A-Za-z0-9_-]+#[A-Za-z0-9_-]{43}$/);
+    const manage = [...main.querySelectorAll('input.link-field')].map((input) => (input as HTMLInputElement).value).find((value) => value.includes('/manage/'));
+    if (manage !== undefined) expect(manage.startsWith('https://paste.example.test/manage/')).toBe(true);
+  });
+});
+
 describe('templates (EXG-MD-029)', () => {
   it('encrypts a template without its empty fields and refuses one left entirely blank', async () => {
     const { requests } = mockFetch(async (request) => creationResponse(request.body as string));

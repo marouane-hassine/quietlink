@@ -122,7 +122,7 @@ export function parseEnvelope(json: string): Envelope {
   if (Object.keys(record).sort().join() !== 'format,language,template,text,v' || scan.members !== 5 || scan.rawV !== '1') throw new EnvelopeError('Invalid envelope');
   const { format, language, template, text, v } = record;
   // Lone surrogates are refused as by the CLI: the text must be well-formed Unicode.
-  if (v !== 1 || typeof text !== 'string' || !isWellFormedText(text) || !['plain', 'markdown', 'code'].includes(String(format))
+  if (v !== 1 || typeof text !== 'string' || !isWellFormedText(text) || typeof format !== 'string' || !['plain', 'markdown', 'code'].includes(format)
     || !(language === null || (typeof language === 'string' && /^[a-z0-9+#-]{1,32}$/.test(language)))
     || !(template === null || (typeof template === 'string' && /^[a-z-]{1,32}$/.test(template)))) {
     throw new EnvelopeError('Invalid envelope');

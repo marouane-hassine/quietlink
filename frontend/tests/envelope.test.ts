@@ -44,4 +44,8 @@ describe('envelope on browsers without ES2024 string methods (Safari < 16.4, Fir
       Object.assign(proto, saved);
     }
   });
+
+  it('refuses a format that is not a string, even one that converts to a valid code', () => {
+    expect(() => parseEnvelope('{"format":["plain"],"language":null,"template":null,"text":"x","v":1}')).toThrow(EnvelopeError);
+  });
 });

@@ -48,4 +48,20 @@ describe('API client', () => {
     expect(aborted).toBe(true);
     expect(((await pending) as ApiError).kind).toBe('network');
   });
+
+  it('also gives up when the answer stalls while its body is being read', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => ({
+      status: 200, ok: true, headers: new Headers(),
+      json: () => new Promise((_resolve, reject) => {
+        init.signal?.addEventListener('abort', () => reject(new DOMException('timeout', 'AbortError')));
+      }),
+    }));
+    const pending = api.status('dummy-id', {}).catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    const error = await pending;
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).kind).toBe('network');
+  });
 });

@@ -59,8 +59,8 @@ export async function idForCreation(json: string): Promise<string> {
 }
 
 /** A 201 creation answer accepted by the client fingerprint checks. */
-export async function creationResponse(json: string, expiresAt: string | null = '2026-10-04T12:00:00Z', serverTime = '2026-10-03T12:00:00Z'): Promise<Response> {
-  return response(201, { id: await idForCreation(json), expires_at: expiresAt, server_time: serverTime });
+export async function creationResponse(json: string, expiresAt: string | null = '2026-10-04T12:00:00Z', serverTime = '2026-10-03T12:00:00Z', publicUrl?: string): Promise<Response> {
+  return response(201, { id: await idForCreation(json), expires_at: expiresAt, server_time: serverTime, ...(publicUrl === undefined ? {} : { public_url: publicUrl }) });
 }
 
 export function deferred<T>() {

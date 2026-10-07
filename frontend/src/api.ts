@@ -40,22 +40,28 @@ async function request<T>(method: string, path: string, body: string | null, hea
       referrerPolicy: 'no-referrer',
     });
   } catch {
-    throw new ApiError('network');
-  } finally {
     clearTimeout(timer);
+    throw new ApiError('network');
   }
   const t1 = performance.now();
-  if (response.status === 204) return { data: undefined as T, t0, t1 };
+  if (response.status === 204) {
+    clearTimeout(timer);
+    return { data: undefined as T, t0, t1 };
+  }
   if (!response.ok) {
+    clearTimeout(timer);
     const retry = Number.parseInt(response.headers.get('Retry-After') ?? '', 10);
     const retryAfter = Number.isFinite(retry) ? retry : null;
     const kind: ApiErrorKind = ({ 404: 'unavailable', 409: 'reserved', 429: 'rate', 503: 'quota', 400: 'refused', 413: 'tooLarge', 422: 'refused' } as Record<number, ApiErrorKind>)[response.status] ?? 'server';
     throw new ApiError(kind, retryAfter);
   }
+  // The delay also covers reading the body: an answer stalling halfway is abandoned too.
   try {
     return { data: (await response.json()) as T, t0, t1 };
   } catch {
-    throw new ApiError('server');
+    throw new ApiError(controller.signal.aborted ? 'network' : 'server');
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -63,6 +69,8 @@ export interface CreateResponse {
   id: string;
   expires_at: string | null;
   server_time: string;
+  /** app.public_url: links are built on it (§8.5). */
+  public_url?: string;
 }
 
 export interface StatusResponse {

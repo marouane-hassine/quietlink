@@ -58,6 +58,18 @@ function describeWith(node: HTMLElement, id: string, on: boolean): void {
   else node.removeAttribute('aria-describedby');
 }
 
+/** Origin of app.public_url (https, or http for a local address), or null when unusable. */
+export function publicOrigin(value: string | undefined): string | null {
+  if (value === undefined) return null;
+  try {
+    const url = new URL(value);
+    const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+    return url.protocol === 'https:' || (url.protocol === 'http:' && local) ? url.origin : null;
+  } catch {
+    return null;
+  }
+}
+
 export function mountCreate(main: HTMLElement, config: PublicConfig): () => void {
   const state: State = {
     text: '',
@@ -614,7 +626,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
         pendingFor = null;
         setUnloadGuard(false, '');
         const sync = response.data.expires_at === null ? null : synchronise(response.data.expires_at, response.data.server_time, response.t0, response.t1);
-        showResult(response.data.id, prepared, settings, response.data.expires_at, sync);
+        showResult(response.data.id, prepared, settings, response.data.expires_at, sync, response.data.public_url);
       } catch (error) {
         busy = false;
         submit.textContent = t('action.create');
@@ -779,12 +791,15 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
     return panel;
   }
 
-  function showResult(id: string, prepared: PreparedPaste, settings: { readOnce: boolean; usePassphrase: boolean }, expiresAt: string | null, sync: Sync | null): void {
+  function showResult(id: string, prepared: PreparedPaste, settings: { readOnce: boolean; usePassphrase: boolean }, expiresAt: string | null, sync: Sync | null, publicUrl?: string): void {
     inResult = true;
     detachKeys?.();
     detachKeys = null;
-    const shareLink = `${location.origin}/p/${id}#${encode(prepared.urlKey)}`;
-    const manageLink = `${location.origin}/manage/${id}#${encode(prepared.deletionToken)}`;
+    // Links use app.public_url, as the CLI does: a page opened through another host name (the
+    // hosting provider's technical domain) must not hand out links on that name.
+    const origin = publicOrigin(publicUrl) ?? location.origin;
+    const shareLink = `${origin}/p/${id}#${encode(prepared.urlKey)}`;
+    const manageLink = `${origin}/manage/${id}#${encode(prepared.deletionToken)}`;
     wipe(prepared.urlKey);
     const usedPassphrase = settings.usePassphrase;
     const readOnceMode = settings.readOnce;
