@@ -13,7 +13,7 @@ import { decode } from '../crypto/base64url';
 import type { PublicConfig } from '../config';
 import { t } from '../i18n';
 import { HIGHLIGHT_LIMIT_BYTES, LANGUAGE_IDS } from '../render/languages';
-import { parseTemplateText, renderTemplate, SENSITIVE_FIELDS, TEMPLATES } from '../templates';
+import { compactTemplateText, parseTemplateText, templateIsBlank, renderTemplate, SENSITIVE_FIELDS, TEMPLATES } from '../templates';
 import { buildTemplateForm, type SensitiveMask } from '../ui/template-form';
 import { announce, toast } from '../ui/announcer';
 import { canReadClipboard, copyText } from '../ui/clipboard';
@@ -130,7 +130,16 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
 
   const settingsKey = () => JSON.stringify([state.text, state.format, state.language, state.template, state.expiration, state.readOnce, state.usePassphrase, state.passphrase]);
 
-  const envelopeSize = () => byteLength(serialize({ format: state.format, language: state.format === 'code' && state.language ? state.language : null, template: state.template || null, text: state.text }));
+  // Text as encrypted: a template loses its empty fields and empty sections (§6.2).
+  // Templates are Markdown: another format keeps the text as typed. Memoised per text: it is
+  // computed several times per keystroke (size gauge, Create state).
+  let stored = { from: '', to: '' };
+  const storedText = () => {
+    if (state.template === '' || state.format !== 'markdown') return state.text;
+    if (stored.from !== state.text) stored = { from: state.text, to: compactTemplateText(state.text) };
+    return stored.to;
+  };
+  const envelopeSize = () => byteLength(serialize({ format: state.format, language: state.format === 'code' && state.language ? state.language : null, template: state.template || null, text: storedText() }));
 
   /** Milliseconds left before the Retry-After deadline; 0 when no hold applies. */
   const holdLeft = () => Math.max(0, ui.blockedUntil - Date.now());
@@ -138,7 +147,8 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
   /** Why Create is disabled, and the field the reason is about (EXG-A11Y-020); null when enabled. */
   const disabledCause = (): { message: string; field: 'editor' | 'passphrase' | null } | null => {
     if (!cryptoAvailable()) return { message: t('disabled.crypto'), field: null };
-    if (state.text.trim() === '') return { message: t('disabled.empty'), field: 'editor' };
+    // A template with nothing filled in would be stored as its bare title.
+    if (state.text.trim() === '' || (state.template !== '' && templateIsBlank(state.text))) return { message: t('disabled.empty'), field: 'editor' };
     if (envelopeSize() > config.maxEnvelopeBytes) return { message: t('disabled.tooLarge'), field: 'editor' };
     if (state.usePassphrase && (state.passphrase === '' || (!state.passphraseVisible && !state.generated && !samePassphrase(state.passphrase, state.confirmation)))) return { message: t('disabled.passphrase'), field: 'passphrase' };
     // The server announced Retry-After: a new attempt would be refused too.
@@ -574,7 +584,7 @@ export function mountCreate(main: HTMLElement, config: PublicConfig): () => void
           const snapshot = { key: settingsKey(), readOnce: state.readOnce, usePassphrase: state.usePassphrase };
           const phase = state.usePassphrase ? t('state.deriving') : t('state.encrypting');
           status.textContent = phase;
-          const envelope = serialize({ format: state.format, language: state.format === 'code' && state.language ? state.language : null, template: state.template || null, text: state.text });
+          const envelope = serialize({ format: state.format, language: state.format === 'code' && state.language ? state.language : null, template: state.template || null, text: storedText() });
           pending = await prepare({
             envelope,
             expiration: state.expiration,

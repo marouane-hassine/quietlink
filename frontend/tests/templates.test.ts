@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { setLocale } from '../src/i18n';
-import { isSensitiveLabel, parseTemplateText, renderTemplate, serializeTemplate } from '../src/templates';
+import { compactTemplateText, isSensitiveLabel, templateIsBlank, parseTemplateText, renderTemplate, serializeTemplate } from '../src/templates';
 
 describe('template text', () => {
   it('round-trips a filled template through parse and serialize', () => {
@@ -65,3 +65,30 @@ describe('lossless template editing (§6.1.1, §6.2)', () => {
   });
 });
 
+describe('stored template text (EXG-MD-029)', () => {
+  it('drops empty fields and sections left without content before encryption', () => {
+    const text = '# Login credentials\n\n## Service\n- Name: dummy-service\n- URL:\n\n## Security\n- Expiry date:\n\n## Notes\nkeep this note\n';
+    expect(compactTemplateText(text)).toBe('# Login credentials\n\n## Service\n- Name: dummy-service\n\n## Notes\nkeep this note\n');
+  });
+
+  it('keeps a label whose value was typed on the next line (a note of its section)', () => {
+    const text = '# Login credentials\n\n## Identity\n- Username: bob\n- Password:\ndummy-pw-123\n';
+    expect(compactTemplateText(text)).toBe(text);
+  });
+
+  it('treats blank or space-only values as empty, a trailing space included', () => {
+    const text = '# Login credentials\n\n## Service\n- Name: svc\n- URL: \n- Environment:   \n\n## Notes\n';
+    expect(compactTemplateText(text)).toBe('# Login credentials\n\n## Service\n- Name: svc\n');
+  });
+
+  it('tells a template with nothing filled in from free text', () => {
+    expect(templateIsBlank(renderTemplate('credentials'))).toBe(true);
+    expect(templateIsBlank(renderTemplate('credentials').replace(/^(- [^\n]*:)$/m, '$1   '))).toBe(true);
+    expect(templateIsBlank('# my-dummy-token-value')).toBe(false);
+    expect(templateIsBlank('# Login credentials\n\n## Service\n- Name: svc\n')).toBe(false);
+  });
+
+  it('leaves text that is not a template unchanged', () => {
+    expect(compactTemplateText('plain text\n- URL:\n')).toBe('plain text\n- URL:\n');
+  });
+});

@@ -391,6 +391,30 @@ describe('expiry on the result screen', () => {
   });
 });
 
+describe('templates (EXG-MD-029)', () => {
+  it('encrypts a template without its empty fields and refuses one left entirely blank', async () => {
+    const { requests } = mockFetch(async (request) => creationResponse(request.body as string));
+    mount();
+    const template = main.querySelectorAll('select')[2] as HTMLSelectElement;
+    template.value = 'credentials';
+    template.dispatchEvent(new Event('change'));
+    await until(() => editor().value.startsWith('# '));
+    expect(submit().disabled).toBe(true);
+    expect(main.querySelector('.disabled-reason')?.textContent).toBe(t('disabled.empty'));
+
+    type(editor(), editor().value.replace(/^- Username:.*$/m, `- Username: ${PLAINTEXT}`));
+    expect(submit().disabled).toBe(false);
+    submit().click();
+    await onResult();
+    const body = JSON.parse(requests[0]?.body as string) as { aad: string; nonce: string; ciphertext: string };
+    const aad = parse(decode(body.aad));
+    const envelope = JSON.parse(await decrypt(decode(new URL(shareLink()).hash.slice(1), 32), null, aad, decode(body.nonce, 12), decode(body.ciphertext))) as { text: string };
+    expect(envelope.text).toContain(`- Username: ${PLAINTEXT}`);
+    expect(envelope.text).not.toMatch(/^- [^:\n]+:$/m);
+    expect(envelope.text.match(/^## /gm)).toHaveLength(1);
+  });
+});
+
 describe('theme', () => {
   it('never puts the active theme in the encrypted envelope or the AAD', async () => {
     localStorage.setItem('ql-theme', 'dark');

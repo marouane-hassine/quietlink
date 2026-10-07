@@ -9,7 +9,7 @@
 import DOMPurify from 'dompurify';
 import { byteLength, type Envelope } from '../crypto/envelope';
 import { t } from '../i18n';
-import { parseTemplateText } from '../templates';
+import { parseTemplateText, sectionHasContent } from '../templates';
 import { copyText } from '../ui/clipboard';
 import { el, nextId } from '../ui/dom';
 import { HIGHLIGHT_LIMIT_BYTES, highlightToHtml, withinHighlightBudget } from './highlight';
@@ -36,7 +36,9 @@ export function buildContentView(envelope: Envelope, options: { wifiQr?: boolean
   const container = el('div', { class: 'reader', role: 'region', tabindex: '0', dir: 'auto', 'aria-label': t('page.read.title') });
   const controls = el('div', { class: 'reader-controls' });
   const large = byteLength(envelope.text) > HIGHLIGHT_LIMIT_BYTES;
-  const template = envelope.template !== null && envelope.format === 'markdown' ? parseTemplateText(envelope.text) : null;
+  // No field view for a template left blank (allowed before 1.0.0-beta.3): only its title.
+  const parsed = envelope.template !== null && envelope.format === 'markdown' ? parseTemplateText(envelope.text) : null;
+  const template = parsed?.sections.some(sectionHasContent) ? parsed : null;
   const highlightable = envelope.format === 'code' && envelope.language !== null && highlightToHtml('', envelope.language) !== null;
 
   // Computed once; null when the code is too costly to highlight (long lines, large block).

@@ -7,7 +7,7 @@
  */
 
 import { t } from '../i18n';
-import { isSensitiveLabel, noteTexts, wifiPayload, type ParsedTemplate } from '../templates';
+import { isSensitiveLabel, noteTexts, sectionHasContent, visibleFields, wifiPayload, type ParsedTemplate } from '../templates';
 import { QrTooLongError, qrSvg } from '../ui/qrcode';
 import { copyText } from '../ui/clipboard';
 import { el } from '../ui/dom';
@@ -38,9 +38,12 @@ export function renderTemplateView(template: ParsedTemplate, options: { wifiQr?:
     });
     root.append(el('div', { class: 'button-row' }, toggle, box));
   }
-  for (const section of template.sections) {
+  // Empty fields and sections without content are not shown (texts created before they were
+  // dropped at creation, or written by hand).
+  for (const section of template.sections.filter(sectionHasContent)) {
+    const fields = visibleFields(section);
     const list = el('dl', { class: 'template-fields' });
-    for (const field of section.fields) {
+    for (const field of fields) {
       const sensitive = isSensitiveLabel(field.label) && field.value !== '';
       const value = el('span', { class: 'field-value' }, sensitive ? MASK : field.value);
       if (sensitive) value.setAttribute('aria-label', t('tpl.field.masked'));
@@ -65,7 +68,7 @@ export function renderTemplateView(template: ParsedTemplate, options: { wifiQr?:
       }
       list.append(el('dt', {}, field.label), el('dd', {}, value, actions));
     }
-    root.append(el('section', { class: 'template-section' }, el('h3', {}, section.title), section.fields.length > 0 ? list : null, ...noteTexts(section.notes).map((note) => el('p', { class: 'template-note' }, note))));
+    root.append(el('section', { class: 'template-section' }, el('h3', {}, section.title), fields.length > 0 ? list : null, ...noteTexts(section.notes).map((note) => el('p', { class: 'template-note' }, note))));
   }
   return root;
 }

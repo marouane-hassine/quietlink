@@ -145,6 +145,44 @@ export function serializeTemplate(template: ParsedTemplate): string {
   return lines.join('\n');
 }
 
+/** A field value counts only when it holds more than spaces. */
+export const fieldIsFilled = (field: TemplateField): boolean => field.value.trim() !== '';
+
+const hasNotes = (section: TemplateSection): boolean => section.notes.some((line) => line.trim() !== '');
+
+/** A section still worth showing: at least one filled field or one non-blank notes line. */
+export function sectionHasContent(section: TemplateSection): boolean {
+  return section.fields.some(fieldIsFilled) || hasNotes(section);
+}
+
+/** Fields shown and stored: all of them when the section has notes (a value is often typed on
+ * the line below its label, which reads as a note), else only the filled ones. */
+export function visibleFields(section: TemplateSection): TemplateField[] {
+  return hasNotes(section) ? section.fields : section.fields.filter(fieldIsFilled);
+}
+
+/** Template parse tolerant of spaces typed after an empty field's colon ("- URL: "). */
+function parseLenient(text: string): ParsedTemplate | null {
+  return parseTemplateText(text.replace(/\r\n?/g, '\n').replace(/^(- .+? ?:)[ \t]+$/gm, '$1'));
+}
+
+/**
+ * Template text as encrypted at creation: empty fields and sections left without content are
+ * dropped (§6.2). Text that is not a template is returned unchanged.
+ */
+export function compactTemplateText(text: string): string {
+  const parsed = parseLenient(text);
+  if (!parsed) return text;
+  const sections = parsed.sections.filter(sectionHasContent).map((section) => ({ ...section, fields: visibleFields(section) }));
+  return serializeTemplate({ title: parsed.title, sections });
+}
+
+/** True for a template text with nothing filled in (it would be stored as its bare title). */
+export function templateIsBlank(text: string): boolean {
+  const parsed = parseLenient(text);
+  return parsed !== null && !parsed.sections.some(sectionHasContent);
+}
+
 /** Field identifier (tpl.field.<id>) of a label written in any catalog language, or null. */
 export function fieldIdForLabel(label: string): string | null {
   const wanted = label.trim().toLowerCase();

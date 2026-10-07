@@ -21,4 +21,18 @@ describe('template reading view', () => {
     (view.querySelector('button[aria-pressed]') as HTMLButtonElement).click();
     expect(view.textContent).toContain('dummy-secret-value');
   });
+
+  it('shows neither empty fields nor sections left without content (EXG-MD-029)', () => {
+    setLocale('en');
+    const view = renderTemplateView(parseTemplateText('# Login credentials\n\n## Service\n- Name: dummy-service\n- URL:\n\n## Security\n- Expiry date:\n- Contact:\n\n## Notes\n')!);
+
+    expect([...view.querySelectorAll('dt')].map((dt) => dt.textContent)).toEqual(['Name']);
+    expect([...view.querySelectorAll('h3')].map((h) => h.textContent)).toEqual(['Service']);
+  });
+
+  it('does not show a field whose value is only spaces', () => {
+    setLocale('en');
+    const view = renderTemplateView(parseTemplateText('# Login credentials\n\n## Service\n- Name: svc\n- URL:   \n')!);
+    expect([...view.querySelectorAll('dt')].map((dt) => dt.textContent)).toEqual(['Name']);
+  });
 });
