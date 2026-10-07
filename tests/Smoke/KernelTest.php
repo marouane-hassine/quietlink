@@ -66,6 +66,17 @@ final class KernelTest extends TestCase
             self::assertSame($dir . '/var/cache/prod/' . Version::APP . '-b327cc2', Kernel::cacheDirectory($dir, 'prod'));
             file_put_contents($dir . '/BUILD', "../../etc\n");
             self::assertSame($dir . '/var/cache/prod/' . Version::APP, Kernel::cacheDirectory($dir, 'prod'));
+            // Present but unreadable: never fall back to a directory another build may have filled.
+            if (function_exists('posix_getuid') && posix_getuid() !== 0) {
+                chmod($dir . '/BUILD', 0);
+                try {
+                    Kernel::cacheDirectory($dir, 'prod');
+                    self::fail('An unreadable BUILD file must be refused.');
+                } catch (\RuntimeException $e) {
+                    self::assertStringContainsString('BUILD is not readable', $e->getMessage());
+                }
+                chmod($dir . '/BUILD', 0644);
+            }
         } finally {
             @unlink($dir . '/BUILD');
             rmdir($dir);

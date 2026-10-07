@@ -46,7 +46,14 @@ final class Kernel extends BaseKernel
      */
     public static function cacheDirectory(string $projectDir, string $environment): string
     {
-        $build = is_file($projectDir . '/BUILD') ? trim((string) @file_get_contents($projectDir . '/BUILD')) : '';
+        $build = '';
+        if (is_file($projectDir . '/BUILD')) {
+            $content = @file_get_contents($projectDir . '/BUILD');
+            if ($content === false) {
+                throw new \RuntimeException('BUILD is not readable: give the PHP account read access to it.');
+            }
+            $build = trim($content);
+        }
         $suffix = preg_match('/^[0-9a-f]{7,40}$/D', $build) === 1 ? '-' . $build : '';
 
         return $projectDir . '/var/cache/' . $environment . '/' . Version::APP . $suffix;

@@ -290,7 +290,12 @@ final class DeploymentConfigTest extends TestCase
         self::assertStringContainsString('DirectorySlash Off', $apache);
         // A declared oversized body is refused before PHP runs (mod_php would otherwise append
         // the application's answer to Apache's error page).
-        self::assertStringContainsString('RewriteCond expr "%{HTTP:Content-Length} -gt 1441792"' . "\n    RewriteRule ^ - [R=413,L]", $apache);
+        // A plain regex (LiteSpeed reads .htaccess too, without mod_rewrite's expr conditions)
+        // matching exactly the lengths above 1441792.
+        self::assertSame(1, preg_match('/RewriteCond %\{HTTP:Content-Length\} (\S+)\n    RewriteRule \^ - \[R=413,L\]/', $apache, $m));
+        foreach (['0' => 0, '1441792' => 0, '01441792' => 0, '999999' => 0, '1441793' => 1, '1441799' => 1, '1441800' => 1, '1442000' => 1, '1450000' => 1, '1500000' => 1, '2000000' => 1, '9999999' => 1, '10000000' => 1, '00010000000' => 1, '1441700' => 0, '1440000' => 0, '1399999' => 0] as $length => $refused) {
+            self::assertSame($refused, preg_match('#' . $m[1] . '#', (string) $length), (string) $length);
+        }
         // Hosts allowing only some Options in .htaccess reject MultiViews (500 everywhere).
         self::assertStringNotContainsString('MultiViews', preg_replace('/^#.*$/m', '', $apache) ?? '');
         // HSTS comes from the application only (http.hsts_max_age): an Apache header would be
