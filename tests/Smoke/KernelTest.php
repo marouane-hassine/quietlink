@@ -50,4 +50,25 @@ final class KernelTest extends TestCase
             $kernel->shutdown();
         }
     }
+
+    /**
+     * An archive carries its commit in a BUILD file: two builds of the same version (a staging
+     * archive, a rebuilt release) never share a compiled container; prod never recompiles it.
+     */
+    #[Group('EXG-CACHE-019')]
+    public function testArchiveBuildsAreSeparatedByCommit(): void
+    {
+        $dir = sys_get_temp_dir() . '/ql-build-' . bin2hex(random_bytes(4));
+        mkdir($dir);
+        try {
+            self::assertSame($dir . '/var/cache/prod/' . Version::APP, Kernel::cacheDirectory($dir, 'prod'));
+            file_put_contents($dir . '/BUILD', "b327cc2\n");
+            self::assertSame($dir . '/var/cache/prod/' . Version::APP . '-b327cc2', Kernel::cacheDirectory($dir, 'prod'));
+            file_put_contents($dir . '/BUILD', "../../etc\n");
+            self::assertSame($dir . '/var/cache/prod/' . Version::APP, Kernel::cacheDirectory($dir, 'prod'));
+        } finally {
+            @unlink($dir . '/BUILD');
+            rmdir($dir);
+        }
+    }
 }

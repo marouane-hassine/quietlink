@@ -36,6 +36,19 @@ final class Kernel extends BaseKernel
      */
     public function getCacheDir(): string
     {
-        return $this->getProjectDir() . '/var/cache/' . $this->environment . '/' . Version::APP;
+        return self::cacheDirectory($this->getProjectDir(), $this->environment);
+    }
+
+    /**
+     * var/cache/<env>/<version>, suffixed with the commit of a production archive (BUILD file
+     * written by tools/release/build-archive.sh), so that two builds of one version never share
+     * a container: production never checks whether it is fresh.
+     */
+    public static function cacheDirectory(string $projectDir, string $environment): string
+    {
+        $build = is_file($projectDir . '/BUILD') ? trim((string) @file_get_contents($projectDir . '/BUILD')) : '';
+        $suffix = preg_match('/^[0-9a-f]{7,40}$/D', $build) === 1 ? '-' . $build : '';
+
+        return $projectDir . '/var/cache/' . $environment . '/' . Version::APP . $suffix;
     }
 }

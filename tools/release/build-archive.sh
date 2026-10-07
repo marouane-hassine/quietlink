@@ -52,6 +52,10 @@ elif [ -n "$locales" ]; then
   grep -q "'enabled_locales' => \[" "$pkg/config/config.php"
 fi
 commit=$(git -C "$repo" rev-parse --short "$ref")
+# Own compiled container per build (src/Kernel.php): never the cache of another archive.
+printf '%s\n' "$commit" > "$pkg/BUILD"
+code_version=$(sed -n "s/.*APP = '\(.*\)';/\1/p" "$pkg/src/Version.php")
+[ "$code_version" = "$version" ] || echo "note: the code reports version $code_version (src/Version.php), archive named $version" >&2
 cat > "$pkg/INSTALL.txt" <<TXT
 QuietLink $version - production archive (commit $commit)
 
@@ -73,6 +77,9 @@ Shared hosting (Apache, no root) - docs/README-admin.md section 4.3:
    nothing), then php bin/console app:config:check --format=json (exit 0 = ready).
 5. Schedule php bin/console app:purge-expired as often as the host allows (hourly is enough).
 6. curl -sI https://<host>/ must show one Strict-Transport-Security header (section 4.3).
+Upgrade: back up datas/, keep .env and config/config.php, replace the other files, then run
+php bin/console app:boot. Each archive compiles its own cache (BUILD file); older directories
+under var/cache/prod/ can be removed.
 Shared hosting defaults accept network filesystems (NFS) with a warning; see section 4.3 for
 what that costs and set storage.allow_unsupported_fs = false on a dedicated server.
 
