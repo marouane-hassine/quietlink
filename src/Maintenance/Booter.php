@@ -41,11 +41,13 @@ final class Booter
     }
 
     /**
-     * @param string|null $secretFile value of QUIETLINK_APP_SECRET_FILE, checked for its mode only
+     * @param string|null $secretFile       value of QUIETLINK_APP_SECRET_FILE, checked for its mode only
+     * @param bool        $secretFromDotEnv the secret comes from the .env file, which PHP-FPM
+     *                                      workers read themselves (no pool variable needed)
      *
      * @return list<string> errors (empty on success)
      */
-    public function boot(InstanceConfig $config, ?string $fpmPoolFile, bool $dryRun = false, ?string $secretFile = null): array
+    public function boot(InstanceConfig $config, ?string $fpmPoolFile, bool $dryRun = false, ?string $secretFile = null, bool $secretFromDotEnv = false): array
     {
         $this->warnings = [];
         $errors = [...self::checkRuntime(), ...$this->checkDirectories($config, $dryRun)];
@@ -66,7 +68,9 @@ final class Booter
             }
         }
 
-        if ($fpmPoolFile === null) {
+        if ($secretFromDotEnv) {
+            // The workers read the .env file themselves: the pool needs no secret variable.
+        } elseif ($fpmPoolFile === null) {
             $this->warnings[] = 'QUIETLINK_FPM_POOL_FILE is not set: the PHP-FPM pool was not checked for the secret variable.';
         } else {
             // The workers start with a cleared environment: the pool must pass the variable this

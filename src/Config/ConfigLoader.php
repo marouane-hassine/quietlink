@@ -332,6 +332,26 @@ final class ConfigLoader
     }
 
     /**
+     * Where the secret comes from, as app:boot must check it: the environment when it sets
+     * QUIETLINK_APP_SECRET(_FILE), else the .env file.
+     *
+     * @param array<array-key, mixed> $env
+     *
+     * @return array{file: string|null, dot_env: bool}
+     */
+    public static function secretSource(array $env, string $dotEnvFile): array
+    {
+        $fromDotEnv = !self::hasSecretVariable($env);
+        $values = $fromDotEnv ? self::secretFromDotEnv($dotEnvFile) : $env;
+        $file = $values['QUIETLINK_APP_SECRET_FILE'] ?? null;
+
+        return [
+            'file' => is_string($file) && $file !== '' ? $file : null,
+            'dot_env' => $fromDotEnv && $values !== [],
+        ];
+    }
+
+    /**
      * QUIETLINK_APP_SECRET and QUIETLINK_APP_SECRET_FILE from a .env file (KEY=value lines,
      * optional quotes, # comments); every other key is ignored: configuration lives in
      * config.php. A relative secret file path is resolved from the .env directory.

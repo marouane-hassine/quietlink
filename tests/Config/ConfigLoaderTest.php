@@ -453,6 +453,24 @@ final class ConfigLoaderTest extends TestCase
     }
 
     /**
+     * app:boot checks the secret where it really comes from: the environment first, else .env
+     * (a relative secret file there resolved from the .env directory).
+     */
+    #[Group('EXG-CONF-029')]
+    public function testSecretSourceTellsTheEnvironmentFromTheDotEnvFile(): void
+    {
+        $file = $this->dir . '/.env';
+        file_put_contents($file, "QUIETLINK_APP_SECRET_FILE=secrets/app_secret\n");
+        self::assertSame(['file' => $this->dir . '/secrets/app_secret', 'dot_env' => true], ConfigLoader::secretSource([], $file));
+        self::assertSame(['file' => '/run/secrets/s', 'dot_env' => false], ConfigLoader::secretSource(['QUIETLINK_APP_SECRET_FILE' => '/run/secrets/s'], $file));
+        self::assertSame(['file' => null, 'dot_env' => false], ConfigLoader::secretSource(['QUIETLINK_APP_SECRET' => 'x'], $file));
+        file_put_contents($file, "QUIETLINK_APP_SECRET=abc\n");
+        self::assertSame(['file' => null, 'dot_env' => true], ConfigLoader::secretSource([], $file));
+        unlink($file);
+        self::assertSame(['file' => null, 'dot_env' => false], ConfigLoader::secretSource([], $file));
+    }
+
+    /**
      * .env written by hand on shared hosting: BOM, inline comments and lone quotes are handled;
      * only \n, \r\n and \r end a line (a commented line containing other separators stays a
      * comment).

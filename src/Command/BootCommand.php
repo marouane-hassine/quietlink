@@ -7,6 +7,7 @@ declare(strict_types=1);
 namespace QuietLink\Command;
 
 use QuietLink\Clock\Clock;
+use QuietLink\Config\ConfigLoader;
 use QuietLink\Config\InvalidConfigException;
 use QuietLink\Maintenance\Booter;
 use QuietLink\Maintenance\DiskProbe;
@@ -63,9 +64,10 @@ final class BootCommand extends Command
         $env = Environment::processVariables();
         $pool = $env['QUIETLINK_FPM_POOL_FILE'] ?? null;
         $configDir = $env['QUIETLINK_CONFIG_DIR'] ?? null;
-        $secretFile = $env['QUIETLINK_APP_SECRET_FILE'] ?? null;
-        $booter = new Booter($this->publicDir, $this->disk, $this->clock, array_values([...$this->themeBuilders]), is_string($configDir) ? $configDir : $this->projectConfigDir, null, dirname($this->publicDir) . '/.env');
-        $errors = $booter->boot($config, is_string($pool) && $pool !== '' ? $pool : null, $dryRun, is_string($secretFile) && $secretFile !== '' ? $secretFile : null);
+        $dotEnv = dirname($this->publicDir) . '/.env';
+        $secret = ConfigLoader::secretSource($env, $dotEnv);
+        $booter = new Booter($this->publicDir, $this->disk, $this->clock, array_values([...$this->themeBuilders]), is_string($configDir) ? $configDir : $this->projectConfigDir, null, $dotEnv);
+        $errors = $booter->boot($config, is_string($pool) && $pool !== '' ? $pool : null, $dryRun, $secret['file'], $secret['dot_env']);
 
         return $this->report($output, $format, $dryRun, $errors, $booter->warnings());
     }

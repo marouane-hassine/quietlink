@@ -306,6 +306,11 @@ final class BooterTest extends TestCase
         file_put_contents($pool, "[quietlink]\nenv[QUIETLINK_APP_SECRET] = \$QUIETLINK_APP_SECRET\n");
         self::assertSame([], $booter->boot($config, $pool, false, null));
         self::assertSame(['The PHP-FPM pool does not pass QUIETLINK_APP_SECRET_FILE to the workers (this instance uses a secret file).'], $booter->boot($config, $pool, false, $this->tmp->path . '/app_secret'));
+
+        // A secret read from .env reaches the workers without the pool: nothing to require.
+        file_put_contents($pool, "[quietlink]\nclear_env = yes\n");
+        self::assertSame([], $booter->boot($config, $pool, false, null, true));
+        self::assertSame([], $booter->boot($config, $pool, false, $this->tmp->path . '/app_secret', true));
     }
 
     /**
