@@ -33,6 +33,11 @@ a removed API version is announced at least one minor version in advance.
 - The network timeout also covers reading the answer: a response stalling halfway is
   abandoned with the usual Retry instead of leaving the interface waiting.
 - A decrypted content whose `format` is not a string is refused (strict envelope parsing).
+- CLI: a read-once paste is consumed only once the whole text has been written to standard
+  output; a partial write (`| head -c 4`, full disk) is an error and the paste stays readable.
+- Template form: a multi-line paste into a field (a private key) goes to the section notes,
+  which keep its line breaks, instead of being joined into one line.
+- Log file: two workers rotating at the same moment no longer overwrite the archive.
 
 ### Changed
 
