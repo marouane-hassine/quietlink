@@ -64,7 +64,7 @@ final class BootCommand extends Command
         $pool = $env['QUIETLINK_FPM_POOL_FILE'] ?? null;
         $configDir = $env['QUIETLINK_CONFIG_DIR'] ?? null;
         $secretFile = $env['QUIETLINK_APP_SECRET_FILE'] ?? null;
-        $booter = new Booter($this->publicDir, $this->disk, $this->clock, array_values([...$this->themeBuilders]), is_string($configDir) ? $configDir : $this->projectConfigDir);
+        $booter = new Booter($this->publicDir, $this->disk, $this->clock, array_values([...$this->themeBuilders]), is_string($configDir) ? $configDir : $this->projectConfigDir, null, dirname($this->publicDir) . '/.env');
         $errors = $booter->boot($config, is_string($pool) && $pool !== '' ? $pool : null, $dryRun, is_string($secretFile) && $secretFile !== '' ? $secretFile : null);
 
         return $this->report($output, $format, $dryRun, $errors, $booter->warnings());

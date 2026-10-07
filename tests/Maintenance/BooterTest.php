@@ -84,7 +84,7 @@ final class BooterTest extends TestCase
     #[Group('EXG-STORE-032')]
     public function testUnsupportedFilesystemsAreRefusedUnlessExplicitlyAllowed(): void
     {
-        $config = TestInstance::config($this->tmp);
+        $config = TestInstance::config($this->tmp, ['storage' => ['allow_unsupported_fs' => false]]);
         $errors = (new Booter($this->tmp->path . '/public', self::probe('nfs4'), new SystemClock()))->boot($config, null);
         self::assertNotEmpty($errors);
         self::assertStringContainsString('unsupported filesystem (nfs4)', $errors[0]);
@@ -177,7 +177,7 @@ final class BooterTest extends TestCase
     #[Group('EXG-OPS-001')]
     public function testDryRunStillReportsBlockingErrors(): void
     {
-        $config = TestInstance::config($this->tmp);
+        $config = TestInstance::config($this->tmp, ['storage' => ['allow_unsupported_fs' => false]]);
         $errors = (new Booter($this->tmp->path . '/public', self::probe('nfs4'), new SystemClock()))->boot($config, null, true);
 
         self::assertStringContainsString('unsupported filesystem (nfs4)', implode("\n", $errors));
@@ -317,7 +317,7 @@ final class BooterTest extends TestCase
     public function testUnknownFilesystemsAndBtrfsAreRefusedUnlessAllowed(): void
     {
         foreach ([null, 'btrfs'] as $type) {
-            $config = TestInstance::config($this->tmp);
+            $config = TestInstance::config($this->tmp, ['storage' => ['allow_unsupported_fs' => false]]);
             $errors = (new Booter($this->tmp->path . '/public', self::probe($type), new SystemClock()))->boot($config, null);
             self::assertNotEmpty($errors, (string) $type);
             self::assertStringContainsString($type === null ? 'could not be determined' : 'unsupported filesystem (btrfs)', implode("\n", $errors));
@@ -329,5 +329,24 @@ final class BooterTest extends TestCase
         }
         $xfs = TestInstance::config($this->tmp);
         self::assertSame([], (new Booter($this->tmp->path . '/public', self::probe('xfs'), new SystemClock()))->boot($xfs, null));
+    }
+
+    /** A .env holding the secret must not be readable by every account (shared hosting). */
+    #[Group('EXG-OPS-002')]
+    public function testAWorldReadableDotEnvIsReported(): void
+    {
+        $config = TestInstance::config($this->tmp);
+        $dotEnv = $this->tmp->path . '/.env';
+        file_put_contents($dotEnv, 'QUIETLINK_APP_SECRET=' . TestInstance::SECRET_BASE64 . "\n");
+        chmod($dotEnv, 0644);
+        $booter = new Booter($this->tmp->path . '/public', self::probe('ext4'), new SystemClock(), [], '', null, $dotEnv);
+
+        self::assertSame([], $booter->boot($config, null));
+        $warnings = implode("\n", $booter->warnings());
+        self::assertStringContainsString('.env is readable by every account', $warnings);
+        self::assertStringNotContainsString(TestInstance::SECRET_BASE64, $warnings);
+        chmod($dotEnv, 0600);
+        $booter->boot($config, null);
+        self::assertStringNotContainsString('.env is readable', implode("\n", $booter->warnings()));
     }
 }

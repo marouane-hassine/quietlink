@@ -110,12 +110,18 @@ final class IdempotencyAndStateFilesTest extends TestCase
     public function testStaleOrMissingHealthBlocksCreation(): void
     {
         $files = new StateFiles($this->layout);
-        self::assertFalse($files->healthAllowsCreation($this->clock->now(), 10));
+        self::assertFalse($files->healthAllowsCreation($this->clock->now(), 10, 600));
 
         $files->writeHealth($this->clock->now(), 1 << 30, 50);
-        self::assertTrue($files->healthAllowsCreation($this->clock->now(), 10));
-        self::assertFalse($files->healthAllowsCreation($this->clock->now(), 60));
-        self::assertFalse($files->healthAllowsCreation($this->clock->now() + 601, 10));
+        self::assertTrue($files->healthAllowsCreation($this->clock->now(), 10, 600));
+        self::assertFalse($files->healthAllowsCreation($this->clock->now(), 60, 600));
+        self::assertFalse($files->healthAllowsCreation($this->clock->now() + 601, 10, 600));
+        // The staleness threshold is storage.health_max_age (an hourly purge on shared hosting).
+        self::assertTrue($files->healthAllowsCreation($this->clock->now() + 3601, 10, 7200));
+        self::assertFalse($files->healthAllowsCreation($this->clock->now() + 7201, 10, 7200));
+        // A known-bad inode reading keeps refusing creation until a new measurement, even stale.
+        self::assertFalse($files->inodesAllowCreation(60));
+        self::assertTrue($files->inodesAllowCreation(10));
     }
 
     #[Group('EXG-CONF-009')]

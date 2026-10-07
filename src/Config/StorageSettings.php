@@ -22,6 +22,10 @@ final readonly class StorageSettings
         public int $minFreeBytes,
         public int $minFreeInodesPercent,
         public bool $allowUnsupportedFs,
+        /** Seconds after which health.json counts as stale (storage.health_max_age). */
+        public int $healthMaxAge,
+        /** Whether a web request runs an overdue purge after its response (storage.web_purge). */
+        public bool $webPurge,
     ) {
     }
 }

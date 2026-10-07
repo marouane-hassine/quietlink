@@ -92,6 +92,16 @@ final class OperationsEventsTest extends TestCase
             $files->writeHealth($clock->now(), 1 << 40, 90);
             self::assertSame(200, $controller(Request::create('/healthz', 'GET', [], [], [], ['REMOTE_ADDR' => '192.0.2.10']))->getStatusCode());
             self::assertSame([], $logger->records);
+
+            // An hourly purge (shared hosting) stays healthy under the default 2-hour threshold,
+            // while an instance configured for a per-minute purge reports it stale (EXG-STORE-008).
+            $files->writeHealth($clock->now() - 3600, 1 << 40, 90);
+            self::assertSame(200, $controller(Request::create('/healthz', 'GET', [], [], [], ['REMOTE_ADDR' => '192.0.2.10']))->getStatusCode());
+            self::assertSame([], $logger->records);
+            $strict = TestInstance::config($tmp, ['storage' => ['health_max_age' => '10m']]);
+            $strictController = new HealthController($files, $strict, $limiter, $clock, new OperationsLog($logger));
+            self::assertSame(503, $strictController(Request::create('/healthz', 'GET', [], [], [], ['REMOTE_ADDR' => '192.0.2.10']))->getStatusCode());
+            self::assertSame([['warning', 'Disk health measurement is missing or stale: is the purge running?', ['event' => 'health_stale']]], $logger->records);
         } finally {
             $tmp->remove();
         }

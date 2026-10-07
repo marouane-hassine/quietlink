@@ -219,15 +219,6 @@ final class PasteServiceTest extends TestCase
         $this->createPaste();
     }
 
-    #[Group('EXG-STORE-008')]
-    #[Group('EXG-TEST-046')]
-    public function testStaleHealthRefusesCreation(): void
-    {
-        $this->clock->advance(601);
-        $this->expectException(QuotaExceededException::class);
-        $this->createPaste();
-    }
-
     #[Group('EXG-READ-017')]
     #[Group('EXG-READ-025')]
     #[Group('EXG-READ-026')]
@@ -254,6 +245,32 @@ final class PasteServiceTest extends TestCase
         }
 
         self::assertSame(0, $this->store->accesses);
+    }
+
+    /**
+     * Shared hosting runs the purge at most hourly: a stale health.json no longer blocks
+     * creation, whose free disk space is measured live; the inode threshold (measured by the
+     * purge only) still refuses while a recent measurement reports it.
+     */
+    #[Group('EXG-STORE-006')]
+    #[Group('EXG-STORE-008')]
+    #[Group('EXG-TEST-046')]
+    public function testCreationMeasuresDiskSpaceItselfWhenHealthIsStale(): void
+    {
+        $this->clock->advance(3600);
+        $this->createPaste();
+
+        $this->freeSpace = 1;
+        try {
+            $this->createPaste();
+            self::fail('Low free space must still refuse creation.');
+        } catch (QuotaExceededException) {
+        }
+
+        $this->freeSpace = 1 << 40;
+        $this->stateFiles->writeHealth($this->clock->now(), 1 << 40, 1);
+        $this->expectException(QuotaExceededException::class);
+        $this->createPaste();
     }
 
     public function testExpiredChallengeIsRefused(): void

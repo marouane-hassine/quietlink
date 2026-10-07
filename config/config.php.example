@@ -37,12 +37,24 @@ return [
         'idempotency_dir' => null,
         'ratelimit_dir' => null,
         'state_dir' => null,
-        'generated_assets_dir' => '/var/lib/quietlink-generated',
+        // Generated theme CSS (relative to the project root, outside public/).
+        'generated_assets_dir' => 'var/generated',
         'max_total_bytes' => 10737418240,
         'max_items' => 100000,
         'min_free_bytes' => 1073741824,
         'min_free_inodes_percent' => 10,
-        'allow_unsupported_fs' => false,
+        // true (default, shared hosting): filesystems other than ext4/XFS (NFS...) are accepted
+        // with a boot warning; locks and atomic links may then be unreliable. Set false on a
+        // dedicated server to refuse them.
+        'allow_unsupported_fs' => true,
+        // Age after which the disk measurement written by the purge counts as stale (/healthz
+        // "degraded"). 2h (default) tolerates the hourly cron of shared hosting; set '10m' when
+        // the purge runs every minute (Docker Compose, systemd timer) to detect a stopped purge.
+        'health_max_age' => '2h',
+        // true: when the last purge is more than 5 minutes old, a web request runs it after its
+        // response has been sent (shared hosting without a CLI cron; an HTTP cron calling
+        // /healthz is enough). Harmless with a per-minute purge, which keeps it from triggering.
+        'web_purge' => true,
     ],
     'paste' => [
         'default_expiration' => '1d',

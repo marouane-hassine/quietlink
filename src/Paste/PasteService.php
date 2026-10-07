@@ -126,7 +126,7 @@ final class PasteService
         $now = $this->clock->now();
         $free = ($this->freeSpace)($this->config->storage->rootDir);
         if ($free === false || $free < $this->config->storage->minFreeBytes
-            || !$this->stateFiles->healthAllowsCreation($now, $this->config->storage->minFreeInodesPercent)) {
+            || !$this->stateFiles->inodesAllowCreation($this->config->storage->minFreeInodesPercent)) {
             throw new QuotaExceededException('Storage threshold reached.');
         }
         $seconds = Duration::expirationSeconds($aad->expiration);

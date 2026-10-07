@@ -62,6 +62,8 @@ final class ConfigCheckCommand extends Command
                 'status' => $ready ? 'ready' : 'not_ready',
                 'ready' => $ready,
                 'boot_marker' => $ready ? 'matches' : 'missing_or_outdated',
+                'not_ready_reason' => $ready ? null : $this->status->notReadyReason(),
+                'project_root' => RuntimeStatus::projectRoot(),
                 'secret' => 'present (not shown)',
                 'fingerprint' => $config->fingerprint(),
                 'health' => $health,
@@ -72,6 +74,10 @@ final class ConfigCheckCommand extends Command
             $output->writeln('secret: present (not shown)');
             $output->writeln('fingerprint: ' . $config->fingerprint());
             $output->writeln('boot marker: ' . ($ready ? 'matches' : 'missing or outdated, run app:boot'));
+            if (!$ready) {
+                $output->writeln('reason: ' . $this->status->notReadyReason());
+            }
+            $output->writeln('project root: ' . RuntimeStatus::projectRoot());
             if ($health !== null) {
                 $output->writeln(sprintf(
                     'health: measured %d s ago, %d free bytes, free inodes %s, creation %s',
@@ -104,7 +110,7 @@ final class ConfigCheckCommand extends Command
             'age_seconds' => max(0, $now - $health['measured_at']),
             'free_bytes' => $health['free_bytes'],
             'free_inodes_percent' => $health['free_inodes_percent'],
-            'creation_allowed' => $health['free_bytes'] >= $config->storage->minFreeBytes && $files->healthAllowsCreation($now, $config->storage->minFreeInodesPercent),
+            'creation_allowed' => $health['free_bytes'] >= $config->storage->minFreeBytes && $files->inodesAllowCreation($config->storage->minFreeInodesPercent),
         ];
     }
 }

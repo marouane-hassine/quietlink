@@ -11,8 +11,6 @@ namespace QuietLink\Storage;
  */
 final class StateFiles
 {
-    public const HEALTH_MAX_AGE = 600;
-
     public function __construct(private readonly StorageLayout $layout)
     {
     }
@@ -43,16 +41,35 @@ final class StateFiles
     }
 
     /**
-     * True when health.json is recent and reports enough free inodes (§7.5).
+     * True when health.json is recent (at most $maxAge seconds old) and reports enough free
+     * inodes (§7.5).
      */
-    public function healthAllowsCreation(int $now, int $minFreeInodesPercent): bool
+    public function healthAllowsCreation(int $now, int $minFreeInodesPercent, int $maxAge): bool
+    {
+        return $this->healthIsRecent($now, $maxAge) && $this->inodesAllowCreation($minFreeInodesPercent);
+    }
+
+    /**
+     * True when health.json exists, is at most $maxAge seconds old and not dated in the future.
+     */
+    public function healthIsRecent(int $now, int $maxAge): bool
     {
         $health = $this->health();
 
-        return $health !== null
-            && $now - $health['measured_at'] <= self::HEALTH_MAX_AGE
-            && $health['measured_at'] <= $now + 60
-            && ($health['free_inodes_percent'] === null || $health['free_inodes_percent'] >= $minFreeInodesPercent);
+        return $health !== null && $now - $health['measured_at'] <= $maxAge && $health['measured_at'] <= $now + 60;
+    }
+
+    /**
+     * Inode threshold at creation: refused while the last measurement, however old, reports too
+     * few free inodes. A missing measurement does not block creation (shared hosting runs the
+     * purge at most hourly, sometimes without `df`); free disk space is measured live by the
+     * creation itself.
+     */
+    public function inodesAllowCreation(int $minFreeInodesPercent): bool
+    {
+        $inodes = $this->health()['free_inodes_percent'] ?? null;
+
+        return $inodes === null || $inodes >= $minFreeInodesPercent;
     }
 
     public function writeBoot(int $bootedAt, string $configFingerprint, string $secretCheck): void

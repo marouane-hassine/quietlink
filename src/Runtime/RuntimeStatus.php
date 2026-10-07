@@ -51,6 +51,39 @@ final class RuntimeStatus
     }
 
     /**
+     * Why the instance is not ready, or null when it is: config_invalid, marker_missing (no or
+     * unreadable boot.json), fingerprint_differs (configuration or resolved paths changed since
+     * app:boot, or seen through another path), secret_differs. Never contains a value.
+     */
+    public function notReadyReason(): ?string
+    {
+        try {
+            $config = $this->config();
+        } catch (InvalidConfigException) {
+            return 'config_invalid';
+        }
+        $boot = (new StateFiles(self::layout($config)))->boot();
+        if ($boot === null) {
+            return 'marker_missing';
+        }
+        try {
+            if (!hash_equals($boot['config_fingerprint'], $config->fingerprint())) {
+                return 'fingerprint_differs';
+            }
+        } catch (\JsonException) {
+            return 'config_invalid';
+        }
+
+        return hash_equals($boot['secret_check'], $config->secret->check()) ? null : 'secret_differs';
+    }
+
+    /** Directory relative storage paths are resolved from (it differs if reached by an alias). */
+    public static function projectRoot(): string
+    {
+        return dirname(__DIR__, 2);
+    }
+
+    /**
      * True when the configuration is valid and matches boot.json (fingerprint and secret check).
      */
     public function isReady(): bool

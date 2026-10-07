@@ -148,6 +148,29 @@ final class OperationsCommandsTest extends KernelTestCase
         self::assertNull($report['health']);
     }
 
+    /**
+     * Not ready: the reason is given (marker missing, fingerprint or secret different), with the
+     * project root these commands resolve paths from, to compare with what the web server sees
+     * (hosts reaching one directory through two paths: staging on shared hosting).
+     */
+    #[Group('EXG-OPS-003')]
+    public function testConfigCheckExplainsWhyTheInstanceIsNotReady(): void
+    {
+        $this->bootInstance([], false);
+        $missing = $this->command('app:config:check');
+        self::assertSame(2, $missing->execute(['--format' => 'json']));
+        $report = self::report($missing);
+        self::assertSame('marker_missing', $report['not_ready_reason']);
+        self::assertSame(dirname(__DIR__, 2), $report['project_root']);
+
+        $this->bootInstance();
+        TestInstance::config($this->tmp, ['app' => ['name' => 'Renamed instance']]);
+        $changed = $this->command('app:config:check');
+        self::assertSame(2, $changed->execute([]));
+        self::assertStringContainsString('reason: fingerprint_differs', $changed->getDisplay());
+        self::assertStringContainsString('project root: ' . dirname(__DIR__, 2), $changed->getDisplay());
+    }
+
     #[Group('EXG-OPS-003')]
     public function testConfigCheckJsonReportsAnInvalidConfigurationWithExitCodeOne(): void
     {
@@ -244,5 +267,21 @@ final class OperationsCommandsTest extends KernelTestCase
             self::assertTrue(is_link($link));
             self::assertFileDoesNotExist($this->tmp->path . '/nowhere');
         }
+    }
+
+    /** --dotenv writes the KEY=value line a .env file needs, mode 0600, without printing it. */
+    #[Group('EXG-OPS-006')]
+    public function testSecretCanBeWrittenAsADotEnvFile(): void
+    {
+        $this->bootInstance();
+        $file = $this->tmp->path . '/.env';
+        $tester = $this->command('app:secret:generate');
+
+        self::assertSame(0, $tester->execute(['--output' => $file, '--dotenv' => true]));
+        $content = (string) file_get_contents($file);
+        self::assertMatchesRegularExpression('#^QUIETLINK_APP_SECRET=[A-Za-z0-9+/]{43}=\n$#D', $content);
+        self::assertSame(0600, fileperms($file) & 0777);
+        self::assertStringNotContainsString(substr($content, 21, 20), $tester->getDisplay());
+        self::assertSame(32, strlen(\QuietLink\Config\ConfigLoader::secretFromDotEnv($file)['QUIETLINK_APP_SECRET'] !== '' ? (string) base64_decode(\QuietLink\Config\ConfigLoader::secretFromDotEnv($file)['QUIETLINK_APP_SECRET'], true) : ''));
     }
 }

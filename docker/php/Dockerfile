@@ -50,7 +50,7 @@ RUN APP_ENV=prod php bin/console cache:warmup --no-debug \
  && chown -R root:root /app && chmod -R a+rX,go-w /app \
  && chmod 0755 /usr/local/bin/quietlink-entrypoint /usr/local/bin/quietlink-reload \
  && install -d -o 10001 -g 10001 -m 0700 /app/datas \
- && install -d -o 10001 -g 10001 -m 0755 /var/lib/quietlink-generated
+ && install -d -o 10001 -g 10001 -m 0755 /app/var/generated /var/lib/quietlink-generated
 
 ENV APP_ENV=prod \
     QUIETLINK_CONFIG_DIR=/app/config \

@@ -46,7 +46,8 @@ final class RuntimeGuardSubscriber implements EventSubscriberInterface
         }
         if (!$this->status->isReady()) {
             // Only request lines with status 503 would show otherwise.
-            $this->operations->warnOnce('boot_marker_mismatch', 'Configuration invalid or different from the boot marker: run app:boot, then reload PHP-FPM.', $this->clock->now());
+            // The reason (never a value) tells a missing secret from a path seen differently.
+            $this->operations->warnOnce('boot_marker_mismatch', sprintf('Not ready (%s): run app:boot with the same configuration and environment as the web server, then reload PHP-FPM; app:config:check shows the project root.', $this->status->notReadyReason() ?? 'unknown'), $this->clock->now());
             $request = $event->getRequest();
             $event->setResponse(match (true) {
                 $request->getPathInfo() === '/healthz' => new JsonResponse(['status' => 'unavailable'], 503),

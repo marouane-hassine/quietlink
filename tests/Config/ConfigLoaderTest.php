@@ -62,7 +62,8 @@ final class ConfigLoaderTest extends TestCase
      */
     private function load(?array $env = null): InstanceConfig
     {
-        return ConfigLoader::load($this->dir, $env ?? self::env());
+        // Never the developer's own .env at the project root.
+        return ConfigLoader::load($this->dir, $env ?? self::env(), $this->dir . '/.env');
     }
 
     /**
@@ -173,6 +174,9 @@ final class ConfigLoaderTest extends TestCase
         yield 'reservation too long' => [$base + ['paste' => ['read_once_reservation_ttl' => 301]], 'read_once_reservation_ttl'];
         yield 'idempotency too short' => [$base + ['paste' => ['idempotency_max_ttl' => '59m']], 'idempotency_max_ttl'];
         yield 'idempotency too long' => [$base + ['paste' => ['idempotency_max_ttl' => '8d']], 'idempotency_max_ttl'];
+        yield 'health age too short' => [$base + ['storage' => ['health_max_age' => '9m']], 'health_max_age'];
+        yield 'health age too long' => [$base + ['storage' => ['health_max_age' => '25h']], 'health_max_age'];
+        yield 'health age malformed' => [$base + ['storage' => ['health_max_age' => '600']], 'health_max_age'];
         yield 'request body too small' => [$base + ['http' => ['max_request_bytes' => 1000000]], 'max_request_bytes'];
         yield 'wrong type' => [$base + ['paste' => ['allow_read_once' => 'yes']], 'allow_read_once'];
         yield 'english disabled' => [['app' => ['public_url' => 'https://paste.example.test', 'enabled_locales' => ['fr']]], 'enabled_locales'];
@@ -383,6 +387,108 @@ final class ConfigLoaderTest extends TestCase
      * The web-root check compares normalised paths: dot segments, doubled slashes, letter case
      * (case-insensitive filesystems) and symbolic links cannot place storage under public/.
      */
+    /**
+     * The theme directory defaults to var/generated in the project (writable on shared hosting
+     * and outside public/); the Docker image mounts its volume there.
+     */
+    #[Group('EXG-THEME-012')]
+    public function testGeneratedAssetsDefaultToTheProjectVarDirectory(): void
+    {
+        $this->writeConfig(['app' => ['public_url' => 'https://paste.example.test']]);
+        self::assertSame(dirname(__DIR__, 2) . '/var/generated', $this->load()->storage->generatedAssetsDir);
+    }
+
+    /**
+     * Shared hosting first: the purge may run only hourly, so a disk measurement is considered
+     * stale after 2 hours by default; instances purging every minute set 10m.
+     */
+    #[Group('EXG-STORE-008')]
+    public function testHealthMaxAgeDefaultsToTwoHours(): void
+    {
+        $this->writeConfig(['app' => ['public_url' => 'https://paste.example.test']]);
+        self::assertSame(7200, $this->load()->storage->healthMaxAge);
+
+        $this->writeConfig(['app' => ['public_url' => 'https://paste.example.test'], 'storage' => ['health_max_age' => '10m']]);
+        self::assertSame(600, $this->load()->storage->healthMaxAge);
+    }
+
+    /**
+     * Shared hosting first: unsupported filesystems (NFS) are accepted by default, with a boot
+     * warning; operators of dedicated servers set allow_unsupported_fs = false to refuse them.
+     */
+    #[Group('EXG-STORE-029')]
+    public function testUnsupportedFilesystemsAreAllowedByDefault(): void
+    {
+        $this->writeConfig(['app' => ['public_url' => 'https://paste.example.test']]);
+        self::assertTrue($this->load()->storage->allowUnsupportedFs);
+    }
+
+    /**
+     * Shared hosting: the secret may come from a .env file at the project root, read only for
+     * QUIETLINK_APP_SECRET(_FILE) and only when the environment does not set them.
+     */
+    #[Group('EXG-CONF-029')]
+    public function testSecretCanComeFromADotEnvFile(): void
+    {
+        $this->writeConfig(['app' => ['public_url' => 'https://paste.example.test']]);
+        $dotEnv = $this->dir . '/.env';
+        $secret = base64_encode(str_repeat("\x42", 32));
+        file_put_contents($dotEnv, "# QuietLink\nOTHER_KEY=ignored\nQUIETLINK_APP_SECRET=\"{$secret}\"\n");
+        $fromDotEnv = ConfigLoader::load($this->dir, [], $dotEnv);
+        self::assertSame(str_repeat("\x42", 32), $fromDotEnv->secret->bytes());
+
+        // The environment wins over the file.
+        $fromEnv = ConfigLoader::load($this->dir, self::env(), $dotEnv);
+        self::assertNotSame(str_repeat("\x42", 32), $fromEnv->secret->bytes());
+
+        // A relative secret file path is resolved from the directory of the .env file.
+        file_put_contents($this->dir . '/app_secret', base64_encode(str_repeat("\x43", 32)));
+        file_put_contents($dotEnv, "QUIETLINK_APP_SECRET_FILE=app_secret\n");
+        self::assertSame(str_repeat("\x43", 32), ConfigLoader::load($this->dir, [], $dotEnv)->secret->bytes());
+
+        unlink($dotEnv);
+        unlink($this->dir . '/app_secret');
+        $this->expectException(InvalidConfigException::class);
+        ConfigLoader::load($this->dir, [], $dotEnv);
+    }
+
+    /**
+     * .env written by hand on shared hosting: BOM, inline comments and lone quotes are handled;
+     * only \n, \r\n and \r end a line (a commented line containing other separators stays a
+     * comment).
+     */
+    #[Group('EXG-CONF-029')]
+    public function testDotEnvParsingIsRobust(): void
+    {
+        $secret = base64_encode(str_repeat("\x42", 32));
+        $file = $this->dir . '/.env';
+        foreach ([
+            "\u{FEFF}QUIETLINK_APP_SECRET={$secret}\n",
+            "QUIETLINK_APP_SECRET={$secret} # generated\n",
+            "QUIETLINK_APP_SECRET=\"{$secret}\" # generated\r\n",
+            "QUIETLINK_APP_SECRET='{$secret}'\r",
+            "QUIETLINK_APP_SECRET={$secret}\n# \u{0085}QUIETLINK_APP_SECRET=other\n# \x0cQUIETLINK_APP_SECRET=other\n",
+        ] as $content) {
+            file_put_contents($file, $content);
+            self::assertSame(['QUIETLINK_APP_SECRET' => $secret], ConfigLoader::secretFromDotEnv($file), json_encode($content, JSON_THROW_ON_ERROR));
+        }
+        // A value with an unbalanced quote is not silently trimmed into another value.
+        file_put_contents($file, "QUIETLINK_APP_SECRET=\"{$secret}\n");
+        self::assertSame(['QUIETLINK_APP_SECRET' => '"' . $secret], ConfigLoader::secretFromDotEnv($file));
+        unlink($file);
+    }
+
+    /**
+     * A trailing slash in app.public_url is accepted and removed: clients append "/p/<id>" to
+     * the public_url returned by the API, which would otherwise give "//p/<id>".
+     */
+    #[Group('EXG-CONF-008')]
+    public function testPublicUrlTrailingSlashIsNormalised(): void
+    {
+        $this->writeConfig(['app' => ['public_url' => 'https://paste.example.test/']]);
+        self::assertSame('https://paste.example.test', $this->load()->app->publicUrl);
+    }
+
     /**
      * Configuration files saved in Latin-1 would make the fingerprint and JSON outputs fail
      * (500 on every request): strings must be valid UTF-8, reported with their key.

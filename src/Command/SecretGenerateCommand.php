@@ -28,6 +28,7 @@ final class SecretGenerateCommand extends Command
         $this->addOption('output', null, InputOption::VALUE_REQUIRED, 'Write the secret to this new file instead of printing it');
         $this->addOption('group-readable', null, InputOption::VALUE_NONE, 'With --output: mode 0640 instead of 0600 (PHP runs under the file group)');
         $this->addOption('force', null, InputOption::VALUE_NONE, 'With --output: replace an existing secret file (rotation)');
+        $this->addOption('dotenv', null, InputOption::VALUE_NONE, 'With --output: write a QUIETLINK_APP_SECRET=… line, for a .env file at the project root');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -50,7 +51,8 @@ final class SecretGenerateCommand extends Command
             return Command::FAILURE;
         }
         $mode = $input->getOption('group-readable') === true ? 0640 : 0600;
-        if (!self::write($file, $secret . "\n", $mode)) {
+        $content = $input->getOption('dotenv') === true ? 'QUIETLINK_APP_SECRET=' . $secret . "\n" : $secret . "\n";
+        if (!self::write($file, $content, $mode)) {
             $output->writeln('<error>The secret file cannot be written (missing directory or permission denied).</error>');
 
             return Command::FAILURE;

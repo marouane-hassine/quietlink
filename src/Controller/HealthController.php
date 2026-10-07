@@ -38,10 +38,11 @@ final class HealthController
             throw new RateLimitedException(max(1, $limit->getRetryAfter()->getTimestamp() - $this->clock->now()));
         }
         $now = $this->clock->now();
-        $healthy = $this->stateFiles->healthAllowsCreation($now, $this->config->storage->minFreeInodesPercent);
-        $health = $this->stateFiles->health();
-        if ($health === null || $now - $health['measured_at'] > StateFiles::HEALTH_MAX_AGE) {
-            // The purge refreshes health.json every minute; a stale file blocks creation (§7.5).
+        $maxAge = $this->config->storage->healthMaxAge;
+        $healthy = $this->stateFiles->healthAllowsCreation($now, $this->config->storage->minFreeInodesPercent, $maxAge);
+        if (!$this->stateFiles->healthIsRecent($now, $maxAge)) {
+            // Each purge run refreshes health.json; older than storage.health_max_age, the purge
+            // is presumably not running (§7.5).
             $this->operations->warnOnce('health_stale', 'Disk health measurement is missing or stale: is the purge running?', $now);
         }
 

@@ -137,12 +137,17 @@ final class ConfigLoader
                 'idempotency_dir' => null,
                 'ratelimit_dir' => null,
                 'state_dir' => null,
-                'generated_assets_dir' => '/var/lib/quietlink-generated',
+                'generated_assets_dir' => 'var/generated',
                 'max_total_bytes' => 10737418240,
                 'max_items' => 100000,
                 'min_free_bytes' => 1073741824,
                 'min_free_inodes_percent' => 10,
-                'allow_unsupported_fs' => false,
+                'allow_unsupported_fs' => true,
+                // Age after which health.json (refreshed by the purge) counts as stale: 2h
+                // tolerates the hourly cron of shared hosting; 10m suits a per-minute purge.
+                'health_max_age' => '2h',
+                // Without a CLI cron: a web request runs an overdue purge after its response.
+                'web_purge' => true,
             ],
             'paste' => [
                 'default_expiration' => '1d',
@@ -215,9 +220,13 @@ final class ConfigLoader
      *
      * @throws InvalidConfigException
      */
-    public static function load(string $configDir, array $env): InstanceConfig
+    public static function load(string $configDir, array $env, ?string $dotEnvFile = null): InstanceConfig
     {
         $errors = [];
+        // Shared hosting: the secret may come from <project>/.env when the environment has none.
+        if (!self::hasSecretVariable($env)) {
+            $env = self::secretFromDotEnv($dotEnvFile ?? self::projectRoot() . '/.env') + $env;
+        }
         $tree = self::defaults();
 
         $main = $configDir . '/config.php';
@@ -310,6 +319,58 @@ final class ConfigLoader
 
     /**
      * @param array<array-key, mixed> $env
+     */
+    private static function hasSecretVariable(array $env): bool
+    {
+        foreach (['QUIETLINK_APP_SECRET', 'QUIETLINK_APP_SECRET_FILE'] as $name) {
+            if (is_string($env[$name] ?? null) && $env[$name] !== '') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * QUIETLINK_APP_SECRET and QUIETLINK_APP_SECRET_FILE from a .env file (KEY=value lines,
+     * optional quotes, # comments); every other key is ignored: configuration lives in
+     * config.php. A relative secret file path is resolved from the .env directory.
+     *
+     * @return array<string, string>
+     */
+    public static function secretFromDotEnv(string $file): array
+    {
+        $content = is_file($file) && is_readable($file) ? @file_get_contents($file) : false;
+        if ($content === false) {
+            return [];
+        }
+        $values = [];
+        // Only LF, CRLF and CR end a line: other separators must not turn a comment into a value.
+        $lines = preg_split('/\r\n|\n|\r/', str_starts_with($content, "\u{FEFF}") ? substr($content, 3) : $content);
+        foreach ($lines === false ? [] : $lines as $line) {
+            if (preg_match('/^[ \t]*(?:export[ \t]+)?(QUIETLINK_APP_SECRET(?:_FILE)?)[ \t]*=[ \t]*(.*?)[ \t]*$/D', $line, $m) !== 1) {
+                continue;
+            }
+            // A quoted value, or an unquoted one, may be followed by " # comment".
+            if (preg_match('/^(["\'])(.*?)\1(?:[ \t]+#.*)?$/D', $m[2], $q) === 1) {
+                $value = $q[2];
+            } else {
+                $value = preg_replace('/[ \t]+#.*$/D', '', $m[2]) ?? '';
+            }
+            if ($value === '') {
+                continue;
+            }
+            if ($m[1] === 'QUIETLINK_APP_SECRET_FILE' && !str_starts_with($value, '/')) {
+                $value = dirname($file) . '/' . $value;
+            }
+            $values[$m[1]] = $value;
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param array<array-key, mixed> $env
      * @param list<string>            $errors
      */
     private static function secret(array $env, array &$errors): ?AppSecret
@@ -334,7 +395,7 @@ final class ConfigLoader
             $inline = trim($content);
         }
         if ($inline === null) {
-            $errors[] = 'QUIETLINK_APP_SECRET (or QUIETLINK_APP_SECRET_FILE) is required; generate one with app:secret:generate.';
+            $errors[] = 'QUIETLINK_APP_SECRET (or QUIETLINK_APP_SECRET_FILE) is required, from the environment or the .env file at the project root; generate one with app:secret:generate.';
 
             return null;
         }
@@ -410,6 +471,10 @@ final class ConfigLoader
         $inodes = $r->int('storage.min_free_inodes_percent');
         if ($inodes < 0 || $inodes > 50) {
             $errors[] = '"storage.min_free_inodes_percent" must be between 0 and 50.';
+        }
+        $healthMaxAge = Duration::parse($r->string('storage.health_max_age'));
+        if ($healthMaxAge === null || $healthMaxAge < 600 || $healthMaxAge > 86400) {
+            $errors[] = '"storage.health_max_age" must be between 10m and 24h.';
         }
 
         $allowed = $r->stringList('paste.allowed_expirations');
@@ -534,6 +599,8 @@ final class ConfigLoader
                 $r->int('storage.min_free_bytes'),
                 $inodes,
                 $r->bool('storage.allow_unsupported_fs'),
+                $healthMaxAge ?? 0,
+                $r->bool('storage.web_purge'),
             ),
             'paste' => new PasteSettings(
                 $default,

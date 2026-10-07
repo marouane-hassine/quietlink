@@ -36,6 +36,7 @@ final class Booter
         private readonly array $themeBuilders = [],
         private readonly string $configDir = '',
         private readonly ?string $postMaxSize = null,
+        private readonly ?string $dotEnvFile = null,
     ) {
     }
 
@@ -101,6 +102,10 @@ final class Booter
             $this->warnings[] = 'Free inodes are below storage.min_free_inodes_percent: creation is refused.';
         }
         $secretMode = $secretFile !== null && is_file($secretFile) ? @fileperms($secretFile) : false;
+        $dotEnvMode = $this->dotEnvFile !== null && is_file($this->dotEnvFile) ? @fileperms($this->dotEnvFile) : false;
+        if ($dotEnvMode !== false && ($dotEnvMode & 0004) !== 0) {
+            $this->warnings[] = '.env is readable by every account: it may hold the secret, restrict it (chmod 600).';
+        }
         if ($secretMode !== false && ($secretMode & 0004) !== 0) {
             $this->warnings[] = 'The secret file (QUIETLINK_APP_SECRET_FILE) is readable by every account: restrict it to the account or group running PHP (chmod 640 or 600).';
         }
@@ -233,12 +238,12 @@ final class Booter
         // §9.4.1: an undetermined type is refused like an unsupported one.
         if ($type === null) {
             if (!$allowUnsupported) {
-                return sprintf('The filesystem type of %s could not be determined (ext4 or XFS required); set storage.allow_unsupported_fs only for development.', $name);
+                return sprintf('The filesystem type of %s could not be determined (ext4 or XFS required); set storage.allow_unsupported_fs = true to accept it, at the cost of locking guarantees.', $name);
             }
             $this->warnings[] = sprintf('The filesystem type of %s could not be determined, allowed by storage.allow_unsupported_fs.', $name);
         } elseif (!in_array($type, DiskProbe::SUPPORTED_FILESYSTEMS, true)) {
             if (!$allowUnsupported) {
-                return sprintf('%s is on an unsupported filesystem (%s); set storage.allow_unsupported_fs only for development.', $name, $type);
+                return sprintf('%s is on an unsupported filesystem (%s); set storage.allow_unsupported_fs = true to accept it, at the cost of locking guarantees.', $name, $type);
             }
             $this->warnings[] = sprintf('%s is on an unsupported filesystem (%s), allowed by storage.allow_unsupported_fs.', $name, $type);
         }
