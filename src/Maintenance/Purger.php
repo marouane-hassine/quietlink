@@ -62,12 +62,14 @@ final class Purger
     }
 
     /**
-     * @param bool $measureInodes false for a purge triggered by a web request: `df` runs in CLI
-     *                            only (§7.5), so the last inode measurement is kept
+     * @param bool     $measureInodes false for a purge triggered by a web request: `df` runs in
+     *                                CLI only (§7.5), so the last inode measurement is kept
+     * @param int|null $deadline      Unix time after which the remaining pastes are left to the
+     *                                next run (web-triggered purge); the rest of the run happens
      *
      * @return array<string, int>|null statistics, or null when another purge is running
      */
-    public function run(bool $measureInodes = true): ?array
+    public function run(bool $measureInodes = true, ?int $deadline = null): ?array
     {
         try {
             $lock = FileLock::acquire(self::lockPath($this->layout), true, false)
@@ -83,6 +85,9 @@ final class Purger
         try {
             $stats = ['removed' => 0, 'released' => 0, 'orphans' => 0, 'failed' => 0, 'idempotency' => 0, 'ratelimit' => 0];
             foreach ($this->store->ids() as $id) {
+                if ($deadline !== null && $this->clock->now() > $deadline) {
+                    break;
+                }
                 // A failure on one paste (busy lock, unwritable directory, full disk) never
                 // stops the run: the paste is retried by the next purge (§9.7).
                 try {

@@ -27,6 +27,8 @@ use Symfony\Component\HttpKernel\KernelEvents;
 final class WebPurgeSubscriber implements EventSubscriberInterface
 {
     public const INTERVAL = 300;
+    /** Seconds spent on pastes at most: the rest waits for the next run. */
+    public const BUDGET = 15;
 
     /**
      * @param Closure(): StateFiles $stateFiles
@@ -46,9 +48,19 @@ final class WebPurgeSubscriber implements EventSubscriberInterface
         return [KernelEvents::TERMINATE => 'onTerminate'];
     }
 
+    /**
+     * Whether the client already has the whole response: PHP-FPM and LiteSpeed end the request
+     * before the terminate event (Response::send()). Elsewhere (mod_php, CGI) the client would
+     * wait for the purge, so it is not run there; the CLI has no client waiting.
+     */
+    private static function responseIsFinished(): bool
+    {
+        return function_exists('fastcgi_finish_request') || function_exists('litespeed_finish_request') || PHP_SAPI === 'cli';
+    }
+
     public function onTerminate(TerminateEvent $event): void
     {
-        if (!$event->isMainRequest() || !$this->status->isReady() || !$this->status->config()->storage->webPurge) {
+        if (!$event->isMainRequest() || !self::responseIsFinished() || !$this->status->isReady() || !$this->status->config()->storage->webPurge) {
             return;
         }
         $now = $this->clock->now();
@@ -58,7 +70,7 @@ final class WebPurgeSubscriber implements EventSubscriberInterface
         }
         ignore_user_abort(true);
         try {
-            ($this->purger)()->run(false);
+            ($this->purger)()->run(false, $now + self::BUDGET);
         } catch (\Throwable) {
             // The next request retries; the CLI purge reports the details.
             $this->operations->warnOnce('web_purge_failed', 'Purge triggered by a web request failed: run app:purge-expired to see why.', $now);

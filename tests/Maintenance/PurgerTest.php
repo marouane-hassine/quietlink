@@ -416,6 +416,26 @@ final class PurgerTest extends TestCase
         self::assertSame(80, $stateFiles->health()['free_inodes_percent'] ?? null);
     }
 
+    /**
+     * A web-triggered purge has a time budget: past its deadline it leaves the remaining pastes
+     * to the next run but still refreshes health.json, so the next requests do not retry at once.
+     */
+    #[Group('EXG-STORE-047')]
+    public function testDeadlineLeavesRemainingPastesForTheNextRun(): void
+    {
+        [, $id] = $this->create('5m');
+        $this->clock->advance(301);
+        $stateFiles = new StateFiles($this->layout);
+        $stateFiles->writeHealth($this->clock->now() - 3000, 1, 42);
+
+        self::assertNotNull($this->purger->run(false, $this->clock->now() - 1));
+        self::assertNotNull($this->store->find($id));
+        self::assertSame($this->clock->now(), $stateFiles->health()['measured_at'] ?? null);
+
+        self::assertNotNull($this->purger->run(false, $this->clock->now() + 60));
+        self::assertNull($this->store->find($id));
+    }
+
     #[Group('EXG-STORE-037')]
     #[Group('EXG-TEST-051')]
     public function testConcurrentPurgeExitsImmediately(): void
