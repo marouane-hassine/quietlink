@@ -10,7 +10,7 @@
 
 ## Decision
 
-- Logs are JSON lines written to stderr (PSR-3).
+- Logs are JSON lines written to stderr (PSR-3), or to the file `log.file` (default `var/log/quietlink.log`, outside `public/`, rotated at 5 MB with one archive) for shared hosting, where stderr is not collected (amendment, spec v0.24). The content rules are the same for both outputs.
 - Default fields: timestamp, level, HTTP method, **route template** (never the concrete path or paste id), status code, duration, encrypted payload size.
 - Never logged: IP address, User-Agent, paste identifiers, query string, headers (including `X-Deletion-Token` and `Idempotency-Key`), request or response bodies, exception messages that may contain user input.
 - Log level is configurable; retention is delegated to the container runtime and documented in `docs/README-admin.md`.

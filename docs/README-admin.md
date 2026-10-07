@@ -118,6 +118,7 @@ cp config/config.php.example config/config.php
 # Edit config/config.php: set app.public_url to your https origin, e.g.
 # https://quietlink.example.test (and http.trusted_proxies, see §9). The purge service runs
 # every minute: set storage.health_max_age to '10m' so that a stopped purge shows quickly.
+# Logs go to the container output: set log.file to null.
 # The data volume is a local disk: set storage.allow_unsupported_fs to false (§7.3).
 
 # 2. Build the images (or use the published ones, §3.3).
@@ -498,6 +499,13 @@ Defaults chosen for shared hosting, and what they cost:
 - `app:boot` cannot check a PHP-FPM pool there (`QUIETLINK_FPM_POOL_FILE` warning) nor measure
   inodes without `df` (warning): both are expected on shared hosting.
 
+**Diagnostics.** Everything QuietLink logs goes to `var/log/quietlink.log` (`tail -f
+var/log/quietlink.log`): why the site answers `503` (`boot_marker_mismatch` with its reason,
+one `config_invalid` line per configuration error), the outcome of each `app:boot`, each purge
+run (cron or web request). To try debug mode briefly, `APP_ENV=dev` can be set in `.env`
+(`app:boot` warns while it is there); remove it afterwards: it is never meant for a public site,
+and QuietLink shows no error details in the browser anyway.
+
 When the site answers `503` (`/healthz`: `unavailable`), `app:config:check` prints the reason
 (`config_invalid`, `marker_missing`, `fingerprint_differs`, `secret_differs`) and the project
 root it sees; the web side logs the same reason with the `boot_marker_mismatch` event.
@@ -620,6 +628,7 @@ Durations use the format `<integer><m|h|d>` (e.g. `30m`, `24h`, `7d`). Expiratio
 | Key | Default | Rule |
 |---|---|---|
 | `log.level` | `'info'` | PSR-3 level: `debug`, `info`, `notice`, `warning`, `error`, `critical`, `alert`, `emergency`. The operations events of §11 are `warning`, the metrics line is `info`. |
+| `log.file` | `'var/log/quietlink.log'` | `null` or a file path, relative to the project root or absolute, outside `public/`, without `..`. JSON lines rotated at 5 MB (one archive `<file>.1`); falls back to stderr when it cannot be written. `null` (stderr) for Docker and systemd. |
 | `log.retention` | `'14d'` | Duration. Documents the retention expected from your log collector; QuietLink itself does not store logs (§11). |
 
 #### `metrics`
@@ -636,7 +645,7 @@ Durations use the format `<integer><m|h|d>` (e.g. `30m`, `24h`, `7d`). Expiratio
 | `QUIETLINK_APP_SECRET_FILE` | app, console | Path of a file containing the secret (preferred: Docker secret under `/run/secrets/`, or `/etc/quietlink/app_secret`). Setting both variables is an error. |
 | `QUIETLINK_CONFIG_DIR` | app, console | Configuration directory (default `<project>/config`). |
 | `QUIETLINK_FPM_POOL_FILE` | `app:boot` | PHP-FPM pool file checked for the secret variable (set in the Docker image). |
-| `APP_ENV` | app, console | `prod` by default. Debug mode can never be enabled in `prod`. |
+| `APP_ENV` | app, console | `prod` by default. Debug mode can never be enabled in `prod`. Also read, with `APP_DEBUG`, from the `.env` file at the project root when the process does not set it (shared hosting); `app:boot` warns while it is `dev`, which must never stay on a public site. |
 | `QUIETLINK_HTTP_PORT` | Compose | Host port of the `web` service on `127.0.0.1` (default `8080`). |
 | `QUIETLINK_SERVER` | `quietlink` CLI | Default instance URL for `create`. |
 
@@ -1195,8 +1204,12 @@ supported.
 
 ## 11. Logging policy and retention
 
-- Logs are JSON lines on **stderr** (PSR-3), collected by the container runtime (`docker compose
-  logs app purge`) or the journal (`journalctl -u quietlink-fpm`). Format:
+- Logs are JSON lines (PSR-3) written to the file `log.file` (default `var/log/quietlink.log`
+  in the project, rotated at 5 MB with one archive `quietlink.log.1`, mode 0640), or to
+  **stderr** when `log.file` is `null` or the file cannot be written (read-only container).
+  With Docker and systemd, set `log.file` to `null`: the container runtime (`docker compose
+  logs app purge`) or the journal (`journalctl -u quietlink-fpm`) collects them. On shared
+  hosting read the file over SSH: `tail -f var/log/quietlink.log`. Format:
   `{"ts":"…Z","level":"info","message":"request","method":"POST","route":"api_create","status":201,"duration_ms":12,"request_bytes":2048}`.
 - Logged fields are restricted to an allowlist: `method`, `route` (route **name**, never the
   path), `status`, `duration_ms`, `request_bytes`, `exception` (class),
@@ -1208,7 +1221,8 @@ supported.
   keeps only `emerg` (startup and configuration failures), because lower levels (`crit` and
   below) include the client address and the request line.
 - `log.level` controls verbosity (`info` by default; avoid `debug` in production).
-- Retention: QuietLink stores no logs itself. Configure your collector to keep them no longer
+- Retention: on stderr QuietLink stores no logs itself; the log file holds at most about 10 MB
+  (current file and one archive). Configure your collector to keep them no longer
   than `log.retention` (default **14 days**), e.g. Docker `--log-opt max-size=10m --log-opt max-file=3`
   or the equivalent retention in your log platform.
 
@@ -1220,7 +1234,11 @@ carries an identifier, a path or an address. Alert on them:
 
 | `event` | Level | Emitted by | Meaning and action |
 |---|---|---|---|
-| `boot_marker_mismatch` | warning | any request | Configuration invalid or different from `boot.json`: every request answers `503`. Run `app:boot` and reload PHP-FPM (§18). |
+| `boot_marker_mismatch` | warning | any request | Configuration invalid or different from `boot.json`: every request answers `503`. The message carries the reason (`config_invalid`, `marker_missing`, `fingerprint_differs`, `secret_differs`). Run `app:boot` and reload PHP-FPM (§18). |
+| `config_invalid` | warning | any request | One line per configuration error (key and rule, never the value): fix `config/config.php`, then run `app:boot`. |
+| `boot_ok` / `boot_warning` / `boot_failed` | info / notice / error (`count`) | `app:boot` | Outcome of each `app:boot`, one line per warning or error. |
+| `purge` | info (`count` removed) | purge (cron or web request) | One line per run: shows that the purge really runs; says when a web purge reached its budget. |
+| `purge_refused` | error | `app:purge-expired` | The purge refused to run (reason given): run `app:boot`. Cron output is usually discarded, so this is the only trace. |
 | `health_stale` | warning | `/healthz` | `health.json` missing or older than `storage.health_max_age`. Check that the purge runs (§8.2). |
 | `purge_failures` | warning (`count`) | purge | Items left for the next run. Check storage ownership, modes and free space. |
 | `quota_alert` | warning (`percent`) | purge | Storage use above 80 % of `max_total_bytes` or `max_items`. Raise quotas, add space or shorten expirations. |

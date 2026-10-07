@@ -838,6 +838,9 @@ Decisions already recorded in §19.1 are applied: Playwright for E2E tests, JSON
 | EXG-OPS-006 | 15.1 | `app:secret:generate --output` writes a new file 0600 (0640 with `--group-readable`) without printing the secret; existing file replaced only with `--force` | Should | MUST | PHPUnit integration: CommandTester output file mode and refusal |
 | EXG-OPS-007 | 15.1 | Docker hygiene: app healthcheck on boot status, purge stop signal, build context exclusions, Nginx spool space and `emerg` error log | Should | MUST | PHPUnit unit: compose.yaml, .dockerignore and Nginx configuration checks |
 | EXG-OPS-008 | 15.1 | Local validation in Docker (`tools/docker/qa.sh`) and Docker smoke test of the Compose stack (`tools/docker/smoke.sh`) | Should | MUST | CI check: tools/docker scripts run green before release |
+| EXG-OPS-009 | 9.5 | APP_ENV/APP_DEBUG may come from the project .env when the process does not set them; debug never in prod; app:boot warns on dev | Should | SHOULD | PHPUnit unit: environment from .env |
+| EXG-OPS-010 | 11 | Optional log file (log.file, default var/log/quietlink.log, outside public/), rotated by size, stderr fallback | Should | SHOULD | PHPUnit unit: file output and rotation |
+| EXG-OPS-011 | 11 | Diagnostic events: configuration errors (no values), app:boot outcome, purge runs and refusals | Should | SHOULD | PHPUnit unit/integration: diagnostic events |
 
 ### 16. Tests and validation (§16)
 

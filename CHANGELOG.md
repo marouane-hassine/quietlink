@@ -14,7 +14,25 @@ a removed API version is announced at least one minor version in advance.
   installations: set `storage.generated_assets_dir` explicitly (README-admin §4) or create
   `var/generated` writable by the service account.
 - Instances purging every minute (Docker, systemd): set `storage.health_max_age` to `'10m'`,
-  and `storage.allow_unsupported_fs` to `false` on a local ext4/XFS disk.
+  `storage.allow_unsupported_fs` to `false` on a local ext4/XFS disk, and `log.file` to `null`
+  to keep logs on stderr (otherwise they fall back to stderr only when the file cannot be
+  written).
+
+### Added
+
+- Log file for shared hosting: `log.file` (default `var/log/quietlink.log`, rotated at 5 MB,
+  `null` for stderr with Docker and systemd); new events `config_invalid` (one line per
+  configuration error), `boot_ok`/`boot_warning`/`boot_failed`, `purge` and `purge_refused`.
+- `APP_ENV` and `APP_DEBUG` can be set in `.env` when the process does not set them; debug
+  stays impossible in `prod`, and `app:boot` warns while `APP_ENV` is `dev`.
+
+### Fixed
+
+- Share and management links are built on `app.public_url`, as with the CLI, instead of the
+  address the page was opened with (a hosting provider's technical domain, for example).
+- The network timeout also covers reading the answer: a response stalling halfway is
+  abandoned with the usual Retry instead of leaving the interface waiting.
+- A decrypted content whose `format` is not a string is refused (strict envelope parsing).
 
 ### Changed
 

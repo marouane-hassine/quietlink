@@ -21,7 +21,7 @@ composer qa               # cs + stan + test (doit être vert avant chaque commi
 bin/console --env=test    # console Symfony
 ```
 
-- Point d’entrée HTTP : `public/index.php` ; noyau : `src/Kernel.php` ; configuration PHP dans `config/` (pas de YAML ; un fichier `.env` à la racine n’est lu que pour le secret, `QUIETLINK_APP_SECRET(_FILE)`, lorsque l’environnement ne le fournit pas — hébergement mutualisé).
+- Point d’entrée HTTP : `public/index.php` ; noyau : `src/Kernel.php` ; configuration PHP dans `config/` (pas de YAML ; un fichier `.env` à la racine n’est lu que pour le secret, `QUIETLINK_APP_SECRET(_FILE)`, et pour `APP_ENV`/`APP_DEBUG`, lorsque l’environnement ne les fournit pas — hébergement mutualisé ; le debug reste impossible en `prod`).
 - Composants Symfony installés : framework-bundle (requis par MicroKernelTrait), http-foundation, routing, console, rate-limiter, twig-bundle. Ne pas en ajouter sans justification.
 - Frontend : `npm ci`, `npm run qa` (tsc + Vitest + build Vite vers `public/build/`), `npm run e2e` (Playwright ; `npx playwright install` au préalable).
 - Vecteurs : `composer vectors:check` (générateur `tools/vectors/`). CLI : `bin/quietlink`. Docker : `docker compose up -d --build` (voir `docs/README-admin.md`).
