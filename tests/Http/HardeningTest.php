@@ -13,6 +13,7 @@ use PHPUnit\Framework\Attributes\Group;
 use QuietLink\Client\ClientCrypto;
 use QuietLink\Encoding\Base64Url;
 use QuietLink\Tests\Support\KernelTestCase;
+use QuietLink\Theme\TokenThemeBuilder;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
@@ -202,6 +203,33 @@ final class HardeningTest extends KernelTestCase
         file_put_contents($this->tmp->path . '/config/themes/brand.json', '{"light":{"radius":"1rem"}}');
 
         self::assertSame(503, $this->request('GET', '/healthz')->getStatusCode());
+    }
+
+    /**
+     * Without the Nginx alias (Apache, shared hosting), the generated theme stylesheet is served
+     * by the application from storage.generated_assets_dir; only that file name pattern.
+     */
+    #[Group('EXG-THEME-012')]
+    #[Group('EXG-DEPLOY-001')]
+    public function testGeneratedThemeStylesheetIsServedByTheApplication(): void
+    {
+        $this->bootInstance();
+        // As written by app:boot (TokenThemeBuilder).
+        $dir = $this->config->storage->generatedAssetsDir;
+        @mkdir($dir, 0755, true);
+        file_put_contents($dir . '/tokens.0123456789abcdef.css', ":root {\n  --ql-radius: 0.5rem;\n}\n");
+        file_put_contents($dir . '/' . TokenThemeBuilder::MANIFEST, '{"file":"tokens.0123456789abcdef.css"}');
+        $page = (string) $this->request('GET', '/', null, ['Accept' => 'text/html'])->getContent();
+        self::assertSame(1, preg_match('#/themes/generated/(tokens\.[0-9a-f]{16}\.css)#', $page, $m));
+
+        $response = $this->request('GET', '/themes/generated/' . $m[1]);
+        self::assertSame(200, $response->getStatusCode());
+        self::assertStringStartsWith('text/css', (string) $response->headers->get('Content-Type'));
+        self::assertSame('nosniff', $response->headers->get('X-Content-Type-Options'));
+        self::assertStringContainsString('0.5rem', (string) $response->getContent());
+
+        self::assertSame(404, $this->request('GET', '/themes/generated/tokens.0000000000000000.css')->getStatusCode());
+        self::assertSame(404, $this->request('GET', '/themes/generated/..%2Fconfig.php')->getStatusCode());
     }
 
     /**

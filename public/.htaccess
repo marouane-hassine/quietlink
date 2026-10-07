@@ -1,0 +1,72 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# QuietLink on Apache 2.4 (shared hosting, no root access): same rules as
+# docker/nginx/default.conf; requires mod_rewrite and mod_headers. Nginx ignores this file.
+# The instance secret comes from the environment or from the .env file at the project root
+# (never from here); the document root must be this public/ directory.
+# See docs/README-admin.md, "Shared hosting and Apache".
+
+# MultiViews is off unless the host enables it; it is not named here because hosts allowing
+# only some Options in .htaccess would answer 500 for the whole site.
+Options -Indexes
+DirectoryIndex index.php
+# No trailing-slash redirect for real directories (/build): it would build its Location from
+# the Host header. Such paths go to the front controller (404).
+DirectorySlash Off
+
+# Request body limit = http.max_request_bytes (1408 KiB by default).
+LimitRequestBody 1441792
+
+# No compression: responses mix secrets and attacker-controlled data (BREACH).
+SetEnv no-gzip 1
+
+AddType text/javascript .js
+AddType text/css .css
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # HTTPS only: plain HTTP would let the page code be altered to capture keys. The host is
+    # the requested one, restricted to host name characters; ACME challenges and local
+    # addresses (http://localhost is accepted by app.public_url) excluded. X-Forwarded-Proto
+    # covers hosts terminating TLS on a front proxy; a client sending it only skips the redirect.
+    RewriteCond %{HTTPS} !=on
+    RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+    RewriteCond %{HTTP_HOST} ^[A-Za-z0-9.-]+(:[0-9]+)?$
+    RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1|\[::1\])(:[0-9]+)?$ [NC]
+    RewriteCond %{REQUEST_URI} !^/\.well-known/acme-challenge/
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+
+    # Hidden files and directories (.env, .user.ini, build/.vite/manifest.json): 404. Apache's
+    # own configuration usually answers 403 for .ht* files before these rules apply.
+    RewriteCond %{REQUEST_URI} !^/\.well-known/acme-challenge/
+    RewriteRule (^|/)\. - [R=404,L]
+
+    # The front controller has a single address: /index.php is not a second entry point. The
+    # decoded path is tested (/%69ndex.php too); REDIRECT_STATUS spares the internal rewrite.
+    RewriteCond %{ENV:REDIRECT_STATUS} ^$
+    RewriteRule ^index\.php(/|$) - [NC,R=404,L]
+
+    # Existing files (hashed frontend assets) are served directly; everything else goes to PHP.
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ index.php [L]
+</IfModule>
+
+<IfModule mod_headers.c>
+    # Hashed, immutable frontend assets (PHP responses set their own security headers).
+    <If "%{REQUEST_URI} =~ m#^/build/#">
+        Header always set Cache-Control "public, max-age=31536000, immutable"
+        Header always set Referrer-Policy "no-referrer"
+        Header always set X-Content-Type-Options "nosniff"
+        Header always set Cross-Origin-Resource-Policy "same-origin"
+    </If>
+
+    # The Argon2id worker is the only script allowed to compile WebAssembly (passphrases).
+    <If "%{REQUEST_URI} =~ m#^/build/assets/argon2\.worker-[A-Za-z0-9_-]+\.js$#">
+        Header always set Content-Security-Policy "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'; require-trusted-types-for 'script'; trusted-types dompurify quietlink-worker"
+    </If>
+
+    # HSTS is set by the application (http.hsts_max_age) on HTTPS requests; none here, or
+    # responses would carry two. Both tables: "always" alone does not see headers set by PHP.
+    Header always unset X-Powered-By
+    Header unset X-Powered-By
+</IfModule>

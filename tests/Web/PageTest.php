@@ -108,7 +108,7 @@ final class PageTest extends KernelTestCase
         self::assertInstanceOf(\Symfony\Component\Routing\RouterInterface::class, $router);
         $paths = array_map(static fn (\Symfony\Component\Routing\Route $route): string => $route->getPath(), $router->getRouteCollection()->all());
         sort($paths);
-        self::assertSame(['/', '/api/v1/pastes', '/api/v1/pastes/{id}', '/api/v1/pastes/{id}/challenge', '/api/v1/pastes/{id}/consume', '/api/v1/pastes/{id}/open', '/api/v1/pastes/{id}/status', '/favicon.svg', '/healthz', '/how-it-works', '/manage/{id}', '/manifest.json', '/p/{id}'], array_values(array_unique($paths)));
+        self::assertSame(['/', '/api/v1/pastes', '/api/v1/pastes/{id}', '/api/v1/pastes/{id}/challenge', '/api/v1/pastes/{id}/consume', '/api/v1/pastes/{id}/open', '/api/v1/pastes/{id}/status', '/favicon.svg', '/healthz', '/how-it-works', '/manage/{id}', '/manifest.json', '/p/{id}', '/themes/generated/{file}'], array_values(array_unique($paths)));
         $kernel->shutdown();
         self::assertSame(404, $this->request('GET', '/config/config.php')->getStatusCode());
     }

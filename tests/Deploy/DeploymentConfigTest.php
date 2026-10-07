@@ -261,4 +261,38 @@ final class DeploymentConfigTest extends TestCase
         self::assertSame(1, preg_match('#"/tmp:size=(\d+)m#', $app, $m), 'x-app must declare its own /tmp tmpfs');
         self::assertGreaterThanOrEqual(64, (int) $m[1]);
     }
+
+    /**
+     * public/.htaccess (Apache, shared hosting) applies the same rules as the Nginx image:
+     * the Argon2id worker policy, asset headers, hidden files and /index.php refused, no
+     * compression, body limit, HTTPS only.
+     */
+    #[Group('EXG-SEC-047')]
+    #[Group('EXG-DEPLOY-001')]
+    public function testApacheTemplateMatchesTheNginxPolicy(): void
+    {
+        $apache = self::file('public/.htaccess');
+        $page = SecurityHeadersSubscriber::contentSecurityPolicy(false, false);
+        $worker = str_replace("script-src 'self'", "script-src 'self' 'wasm-unsafe-eval'", $page);
+
+        self::assertStringContainsString('Header always set Content-Security-Policy "' . $worker . '"', $apache);
+        foreach (['Options -Indexes', 'LimitRequestBody 1441792', 'SetEnv no-gzip 1', 'Header always set X-Content-Type-Options "nosniff"', 'Header always set Cross-Origin-Resource-Policy "same-origin"', 'immutable', 'RewriteRule (^|/)\\. - [R=404,L]', 'RewriteRule ^index\\.php(/|$) - [NC,R=404,L]', 'RewriteRule ^ index.php [L]'] as $rule) {
+            self::assertStringContainsString($rule, $apache, $rule);
+        }
+        // HTTPS redirect to the requested host, restricted to host name characters; no
+        // host-specific value and no secret in the shipped file (the secret comes from .env).
+        self::assertStringContainsString('RewriteCond %{HTTP_HOST} ^[A-Za-z0-9.-]+(:[0-9]+)?$', $apache);
+        self::assertStringNotContainsString('SetEnv QUIETLINK', $apache);
+        self::assertStringContainsString('.env', $apache);
+        // http://localhost (accepted by app.public_url) must not be redirected to HTTPS.
+        self::assertStringContainsString('RewriteCond %{HTTP_HOST} !^(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?$ [NC]', $apache);
+        // mod_dir would otherwise redirect /build to a Location built from the Host header.
+        self::assertStringContainsString('DirectorySlash Off', $apache);
+        // Hosts allowing only some Options in .htaccess reject MultiViews (500 everywhere).
+        self::assertStringNotContainsString('MultiViews', preg_replace('/^#.*$/m', '', $apache) ?? '');
+        // HSTS comes from the application only (http.hsts_max_age): an Apache header would be
+        // duplicated next to PHP's, and "always" headers cannot see those set by PHP.
+        self::assertStringNotContainsString('Strict-Transport-Security', $apache);
+        self::assertStringContainsString("\n    Header unset X-Powered-By\n", $apache);
+    }
 }
